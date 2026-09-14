@@ -36,12 +36,16 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
   const clinic = byName('SAMPLE Clinic walkway')
   const taylor = byName('Taylor (SAMPLE)')
   expect([pat.billing, clinic.billing, taylor.billing], 'two per-push clients and one seasonal').toEqual(['per_push', 'per_push', 'seasonal'])
-  // A price whose HST needs rounding (clarification 34): 3550 × 15 / 100 = 532.5 → 533 by the half-up rule; Math.round(3550 * 0.15) is 532.
-  const repriced = await api(request, 'PUT', `/api/owner/clients/${pat.id}`, { token, data: {
-    name: pat.name, address: pat.address, lat: pat.lat, lng: pat.lng, type: pat.type, priority: pat.priority, opens_at: pat.opens_at,
-    notes: pat.notes, billing: pat.billing, price_cents: 3550, truck_id: pat.truck_id, active: true } })
-  expect(repriced.status).toBe(200)
-  pat.price_cents = 3550
+  // Two per-push clients at $35.50 (clarifications 34 and 46): each row's HST is 3550 × 15 / 100 = 532.5 → 533 (half up), so the rows
+  // sum to 1066, while 15% of the $71.00 subtotal would be 1065: the totals can only pass as the sum of the rows. (In JavaScript
+  // 3550 * 0.15 is exactly 532.5, so Math.round gives 533 too; control (h) truncates instead.)
+  for (const c of [pat, clinic]) {
+    const repriced = await api(request, 'PUT', `/api/owner/clients/${c.id}`, { token, data: {
+      name: c.name, address: c.address, lat: c.lat, lng: c.lng, type: c.type, priority: c.priority, opens_at: c.opens_at,
+      notes: c.notes, billing: c.billing, price_cents: 3550, truck_id: c.truck_id, active: true } })
+    expect(repriced.status).toBe(200)
+    c.price_cents = 3550
+  }
   expect(hstOf(3550), 'the rule written out').toBe(533)
   const truck = seed.trucks[0]
   const started = await api(request, 'POST', '/api/owner/storms', { token, data: { client_ids: [pat.id, clinic.id, taylor.id], truck_ids: [truck.id] } })
@@ -92,6 +96,8 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
   expect(bill.totals.pushes).toBe(2)
   expect(bill.totals.subtotal_cents).toBe(pat.price_cents + clinic.price_cents)
   expect(bill.totals.hst_cents).toBe(hstOf(pat.price_cents) + hstOf(clinic.price_cents))
+  expect(bill.totals.hst_cents, 'totals are the sum of the rows').toBe(1066)
+  expect(hstOf(bill.totals.subtotal_cents), '15% of the subtotal would differ').toBe(1065)
 
   // The screen shows exactly the API rows.
   await expect(owner.locator('#billing-table tbody tr')).toHaveCount(bill.rows.length)
@@ -107,7 +113,8 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
     await expect(tr.locator('[data-col="total"]')).toHaveText(money(r.total_cents))
   }
   await expect(owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`), 'the skipped seasonal client: no push').toHaveText('0')
-  await expect(owner.locator(`#billing-table tbody tr[data-client-id="${pat.id}"] [data-col="hst"]`), 'HST on $35.50, rounded half up').toHaveText('$5.33')
+  for (const c of [pat, clinic]) await expect(owner.locator(`#billing-table tbody tr[data-client-id="${c.id}"] [data-col="hst"]`), 'HST on $35.50, rounded half up').toHaveText('$5.33')
+  await expect(owner.locator('#billing-totals [data-col="hst"]')).toHaveText('$10.66')
   const totals = owner.locator('#billing-totals')
   await expect(totals.locator('[data-col="pushes"]')).toHaveText('2')
   await expect(totals.locator('[data-col="amount"]')).toHaveText(money(bill.totals.subtotal_cents))

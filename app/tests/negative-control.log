@@ -11,8 +11,8 @@ page.waitForEvent: Target page, context or browser has been closed
 =========================== logs ===========================
 waiting for event "filechooser"
 ============================================================
-    at offline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/shots-m1.mjs:215:26)
-    at async file:///home/alexander/Projects/Snow%20Route/.worktrees/sr2/app/tests/shots-m1.mjs:317:9 {
+    at offline (<repo>/app/tests/shots-m1.mjs:215:26)
+    at async <repo>/app/tests/shots-m1.mjs:317:9 {
   log: []
 }
 
@@ -64,8 +64,8 @@ exit 1 -> RED as expected: the check is wired
       32 |   await expect(page.locator('#skip')).toBeEnabled()
       33 |   await tap(page, page.locator('#skip'), 'Skip this stop (no signal)')
       34 |   await tap(page, page.getByRole('button', { name: 'Car in the way', exact: true }), 'Car in the way')
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:31:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:42:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:31:44)
+        at <repo>/app/tests/offline.spec.mjs:42:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -105,7 +105,7 @@ exit 1 -> RED as expected: the check is wired
       75 |     expect(row.at_adjusted).toBe(0)
       76 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       77 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:74:89
+        at <repo>/app/tests/offline.spec.mjs:74:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -145,8 +145,8 @@ exit 1 -> RED as expected: the check is wired
       13 | }
       14 |
       15 | test('every driver button is at least 56 px and hit-tests to itself at 390', async ({ page, request, seed }, testInfo) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:12:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:23:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:12:48)
+        at <repo>/app/tests/targets.spec.mjs:23:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-0a0f2--hit-tests-to-itself-at-390-chromium-390/test-failed-1.png
@@ -193,8 +193,8 @@ exit 1 -> RED as expected: the check is wired
       54 |   return [s1, s2]
       55 | }
       56 |
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:53:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:53:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -234,7 +234,7 @@ exit 1 -> RED as expected: the check is wired
       89 |     expect(row.at_adjusted).toBe(0)
       90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       91 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+        at <repo>/app/tests/offline.spec.mjs:88:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -274,8 +274,8 @@ exit 1 -> RED as expected: the check is wired
       13 | }
       14 |
       15 | test('every driver button is at least 56 px and hit-tests to itself at 390', async ({ page, request, seed }, testInfo) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:12:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:23:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:12:48)
+        at <repo>/app/tests/targets.spec.mjs:23:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-0a0f2--hit-tests-to-itself-at-390-chromium-390/test-failed-1.png
@@ -322,8 +322,8 @@ exit 1 -> RED as expected: the check is wired
       54 |   return [s1, s2]
       55 | }
       56 |
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:53:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:53:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -363,7 +363,7 @@ exit 1 -> RED as expected: the check is wired
       89 |     expect(row.at_adjusted).toBe(0)
       90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       91 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+        at <repo>/app/tests/offline.spec.mjs:88:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -403,8 +403,8 @@ exit 1 -> RED as expected: the check is wired
       11 | }
       12 |
       13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:10:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:20:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:10:48)
+        at <repo>/app/tests/targets.spec.mjs:20:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
@@ -453,7 +453,7 @@ exit 1 -> RED as expected: the check is wired
       71 |   await expect(oldLink).toHaveCount(0)
       72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
       73 |
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:70:44
+        at <repo>/app/tests/queue.spec.mjs:70:44
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -500,8 +500,8 @@ exit 1 -> RED as expected: the check is wired
       54 |   return [s1, s2]
       55 | }
       56 |
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:53:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:53:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -541,7 +541,7 @@ exit 1 -> RED as expected: the check is wired
       89 |     expect(row.at_adjusted).toBe(0)
       90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       91 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+        at <repo>/app/tests/offline.spec.mjs:88:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -581,8 +581,8 @@ exit 1 -> RED as expected: the check is wired
       11 | }
       12 |
       13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:10:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:20:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:10:48)
+        at <repo>/app/tests/targets.spec.mjs:20:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
@@ -631,7 +631,7 @@ exit 1 -> RED as expected: the check is wired
       71 |   await expect(oldLink).toHaveCount(0)
       72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
       73 |
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:70:44
+        at <repo>/app/tests/queue.spec.mjs:70:44
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -680,7 +680,7 @@ exit 1 -> RED as expected: the check is wired
       96 |     await expect(tr.locator('[data-col="dates"]')).toHaveText(r.dates.map(dayLabel).join(', ') || '—')
       97 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
       98 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:95:74
+        at <repo>/app/tests/billing.spec.mjs:95:74
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
@@ -728,8 +728,8 @@ exit 1 -> RED as expected: the check is wired
       54 |   return [s1, s2]
       55 | }
       56 |
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:53:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:53:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -769,7 +769,7 @@ exit 1 -> RED as expected: the check is wired
       89 |     expect(row.at_adjusted).toBe(0)
       90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       91 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+        at <repo>/app/tests/offline.spec.mjs:88:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -809,8 +809,8 @@ exit 1 -> RED as expected: the check is wired
       11 | }
       12 |
       13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:10:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:20:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:10:48)
+        at <repo>/app/tests/targets.spec.mjs:20:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
@@ -859,7 +859,7 @@ exit 1 -> RED as expected: the check is wired
       71 |   await expect(oldLink).toHaveCount(0)
       72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
       73 |
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:70:44
+        at <repo>/app/tests/queue.spec.mjs:70:44
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -908,7 +908,7 @@ exit 1 -> RED as expected: the check is wired
       96 |     await expect(tr.locator('[data-col="dates"]')).toHaveText(r.dates.map(dayLabel).join(', ') || '—')
       97 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
       98 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:95:74
+        at <repo>/app/tests/billing.spec.mjs:95:74
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
@@ -956,8 +956,8 @@ exit 1 -> RED as expected: the check is wired
       50 |   await expect(page.locator('#skip')).toBeEnabled()
       51 |   await tap(page, page.locator('#skip'), 'Skip this stop (no signal)')
       52 |   await tap(page, page.getByRole('button', { name: 'Car in the way', exact: true }), 'Car in the way')
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:49:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:49:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -997,7 +997,7 @@ exit 1 -> RED as expected: the check is wired
       89 |     expect(row.at_adjusted).toBe(0)
       90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       91 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+        at <repo>/app/tests/offline.spec.mjs:88:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -1037,8 +1037,8 @@ exit 1 -> RED as expected: the check is wired
       11 | }
       12 |
       13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:10:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:20:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:10:48)
+        at <repo>/app/tests/targets.spec.mjs:20:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
@@ -1087,7 +1087,7 @@ exit 1 -> RED as expected: the check is wired
       71 |   await expect(oldLink).toHaveCount(0)
       72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
       73 |
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:70:44
+        at <repo>/app/tests/queue.spec.mjs:70:44
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -1136,7 +1136,7 @@ exit 1 -> RED as expected: the check is wired
       103 |     await expect(tr.locator('[data-col="dates"]')).toHaveText(r.dates.map(dayLabel).join(', ') || '—')
       104 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
       105 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:102:74
+        at <repo>/app/tests/billing.spec.mjs:102:74
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-1.png
@@ -1176,7 +1176,7 @@ exit 1 -> RED as expected: the check is wired
       193 |   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
       194 |   expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
       195 | })
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:192:56
+        at <repo>/app/tests/queue.spec.mjs:192:56
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/test-failed-1.png
@@ -1231,7 +1231,7 @@ exit 1 -> RED as expected: the check is wired
       237 |   await expect(old.locator('li', { hasText: s2.name })).toContainText("This photo belongs to another truck's link, so this link cannot send it.")
       238 |   await expect(old.locator('li', { hasText: s1.name })).toContainText("This undo belongs to another truck's link, so this link cannot send it.")
       239 |   await page.waitForTimeout(1500)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:236:35
+        at <repo>/app/tests/queue.spec.mjs:236:35
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-photo-and-an-undo--37bc2-is-sent-under-truck-2-s-key-chromium-390/test-failed-1.png
@@ -1289,7 +1289,7 @@ Running 1 test using 1 worker
       107 |     await expect(tr.locator('[data-col="total"]')).toHaveText(money(r.total_cents))
       108 |   }
       109 |   await expect(owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`), 'the skipped seasonal client: no push').toHaveText('0')
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:106:50
+        at <repo>/app/tests/billing.spec.mjs:106:50
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
@@ -1339,8 +1339,8 @@ Running 1 test using 1 worker
       50 |   await expect(page.locator('#skip')).toBeEnabled()
       51 |   await tap(page, page.locator('#skip'), 'Skip this stop (no signal)')
       52 |   await tap(page, page.getByRole('button', { name: 'Car in the way', exact: true }), 'Car in the way')
-        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:49:44)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:49:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -1380,7 +1380,7 @@ Running 1 test using 1 worker
       89 |     expect(row.at_adjusted).toBe(0)
       90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
       91 |   }
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+        at <repo>/app/tests/offline.spec.mjs:88:89
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -1420,8 +1420,8 @@ Running 1 test using 1 worker
       11 | }
       12 |
       13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
-        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:10:48)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:20:5
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:10:48)
+        at <repo>/app/tests/targets.spec.mjs:20:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
@@ -1470,7 +1470,7 @@ Running 1 test using 1 worker
       71 |   await expect(oldLink).toHaveCount(0)
       72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
       73 |
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:70:44
+        at <repo>/app/tests/queue.spec.mjs:70:44
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
@@ -1519,7 +1519,7 @@ Running 1 test using 1 worker
       103 |     await expect(tr.locator('[data-col="dates"]')).toHaveText(r.dates.map(dayLabel).join(', ') || '—')
       104 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
       105 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:102:74
+        at <repo>/app/tests/billing.spec.mjs:102:74
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-1.png
@@ -1559,7 +1559,7 @@ Running 1 test using 1 worker
       198 |   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
       199 |   if (locks) expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
       200 |   else expect(posts.length, 'without the lock both tabs may send it').toBeLessThanOrEqual(2)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:197:56
+        at <repo>/app/tests/queue.spec.mjs:197:56
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/test-failed-1.png
@@ -1614,7 +1614,7 @@ Running 1 test using 1 worker
       244 |   await expect(old.locator('li', { hasText: s2.name })).toContainText("This photo belongs to another truck's link, so this link cannot send it.")
       245 |   await expect(old.locator('li', { hasText: s1.name })).toContainText("This undo belongs to another truck's link, so this link cannot send it.")
       246 |   await page.waitForTimeout(1500)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:243:35
+        at <repo>/app/tests/queue.spec.mjs:243:35
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-a-photo-and-an-undo--37bc2-is-sent-under-truck-2-s-key-chromium-390/test-failed-1.png
@@ -1660,7 +1660,7 @@ Running 1 test using 1 worker
       107 |     await expect(tr.locator('[data-col="total"]')).toHaveText(money(r.total_cents))
       108 |   }
       109 |   await expect(owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`), 'the skipped seasonal client: no push').toHaveText('0')
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:106:50
+        at <repo>/app/tests/billing.spec.mjs:106:50
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
@@ -1707,7 +1707,7 @@ Running 1 test using 1 worker
       334 |   await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
       335 |   expect(await dbCheckins(request, storm.id)).toHaveLength(1)
       336 | })
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:333:97
+        at <repo>/app/tests/queue.spec.mjs:333:97
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-the-Worker-stored-th-c7c7a-its-question-still-voids-it-chromium-390/test-failed-1.png
@@ -1746,7 +1746,7 @@ Running 1 test using 1 worker
       198 |   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
       199 |   if (locks) expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
       200 |   else expect(posts.length, 'without the lock both tabs may send it').toBeLessThanOrEqual(2)
-        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:197:56
+        at <repo>/app/tests/queue.spec.mjs:197:56
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     tests/results/queue-two-open-tabs-of-the-d8add--is-sent-without-Web-Locks--chromium-390/test-failed-2.png

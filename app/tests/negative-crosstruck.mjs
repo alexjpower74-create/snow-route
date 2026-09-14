@@ -8,6 +8,6 @@ process.exit(control({
   what: 'queue.js re-keys photos and undos across trucks (no truck comparison)',
   args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', "truck 1's link"],
   breakIt: (copy) => replaceOnce(path.join(copy, 'app', 'public', 'd', 'queue.js'),
-    `      if (checkin || (item.truck_id ?? truckOf(item.key)) === page.truckId) {`,
-    `      if (checkin || true) { // NEGATIVE CONTROL (g): no truck comparison`),
+    `        if (checkin || (item.truck_id ?? truckOf(item.key)) === page.truckId) {`,
+    `        if (checkin || true) { // NEGATIVE CONTROL (g): no truck comparison`),
 }))

@@ -349,7 +349,7 @@ function stopItem(st, truck, index, trucks) {
           <button class="btn-small" type="button" data-action="move-up" data-client="${st.client_id}"${index === 0 ? ' disabled' : ''}>Move up</button>
           <button class="btn-small" type="button" data-action="move-down" data-client="${st.client_id}"${index === truck.stops.length - 1 ? ' disabled' : ''}>Move down</button>
           ${others.map((o) => `<button class="btn-small" type="button" data-action="move-truck" data-client="${st.client_id}" data-to="${o.id}">Move to ${esc(o.name)}</button>`).join('')}
-          ${st.checkin ? '' : `<button class="btn-small" type="button" data-action="remove-stop" data-client="${st.client_id}">Remove from tonight</button>`}
+          ${st.removable === true ? `<button class="btn-small" type="button" data-action="remove-stop" data-client="${st.client_id}">Remove from tonight</button>` : ''}
         </div>
         ${state.confirm === `remove-${st.client_id}` ? `
           <div class="confirm remove-confirm" role="group" aria-labelledby="remove-text-${st.client_id}">
@@ -630,13 +630,18 @@ async function removeStop(clientId) {
   } catch (e) {
     if (e.status === 401 && !e.field) return
     state.confirm = null
-    if (e.status === 409) {
+    if (e.status === 409 || e.status === 404) {
+      // Refused, or already removed on another screen (404, clarification 44): reload the Storm, then say why.
       const now = (await api.owner.currentStorm()).storm
       if (!now || now.id !== storm.id) {
         state.stormNotice = { text: e.message, needsStorm: false }
         return renderTonight()
       }
       state.storm = now
+      if (!now.trucks.some((t) => t.stops.some((x) => x.client_id === clientId))) {
+        state.stormNotice = { text: e.message, needsStorm: false }
+        return paintStorm()
+      }
     }
     state.stopErrors[clientId] = e.message
     paintStorm()
