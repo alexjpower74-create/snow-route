@@ -292,9 +292,9 @@ test('driver route: bad key 401, good key shows only its truck in order, no mess
     assert.deepEqual(r.body.truck, { id: truck.id, name: truck.name })
     assert.deepEqual(r.body.storm, { id: storm.id, name: storm.name, status: 'active', started_at: START })
     assert.equal(r.body.server_now, at(10))
-    assert.deepEqual(r.body.stops, truck.stops.map(({ messages, ...s }) => s))
+    assert.deepEqual(r.body.stops, truck.stops.map(({ messages, removable, ...s }) => s))
     assert.ok(r.body.stops.every(s => s.truck_id === truck.id))
-    for (const word of ['messages', 'price', 'billing', 'status_url', 'k=']) assert.ok(!r.text.includes(word), `driver route contains ${word}`)
+    for (const word of ['messages', 'removable', 'price', 'billing', 'status_url', 'k=']) assert.ok(!r.text.includes(word), `driver route contains ${word}`)
   }
   void seed
 })
@@ -1372,4 +1372,62 @@ test('route version: two PUTs racing with the same version give exactly one 200 
     version = now.route_version
     lists = listsOf(now)
   }
+})
+
+// ================================================================ M7
+
+test('removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE answers 409', async () => {
+  const { seed, token, storm, spare } = await partialStorm()
+  const truck = storm.trucks[0]
+  const key = seed.trucks.find(t => t.id === truck.id).driver_key
+  const [a, b] = truck.stops
+  const ownerStopOf = async clientId => ownerStop(token, storm.id, clientId)
+
+  // Every owner Storm answer carries removable on every stop; a fresh storm has no check-ins.
+  for (const s of stopsOf(storm)) assert.equal(s.removable, true, `${s.name} on the storm start answer`)
+  for (const s of stopsOf((await api('GET', '/api/owner/storms/current', { token })).body.storm)) assert.equal(s.removable, true)
+
+  const body = checkin(storm, a, { at: at(30) })
+  const plowed = await post(key, body, at(31))
+  assert.equal(plowed.status, 201, plowed.text)
+  assert.equal(plowed.body.stop.removable, undefined, 'the driver view has no removable')
+  assert.equal((await ownerStopOf(a.client_id)).removable, false, 'plowed: not removable')
+  assert.equal((await ownerStopOf(b.client_id)).removable, true, 'the stop next to it still is')
+
+  const undone = await api('DELETE', `/api/driver/checkins/${body.id}`, { key, now: at(35) })
+  assert.equal(undone.status, 200, undone.text)
+  assert.equal(undone.body.stop.removable, undefined)
+  const afterUndo = await ownerStopOf(a.client_id)
+  assert.equal(afterUndo.status, 'pending')
+  assert.equal(afterUndo.checkin, null)
+  assert.equal(afterUndo.removable, false, 'undone: an undone check-in is still a record, so not removable')
+  const refused = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${a.client_id}`, { token })
+  expectError(refused, 409, 'bad_state')
+  assert.equal(refused.body.error, 'This stop has check-ins, so it stays on the route.')
+
+  // A skip makes it false too.
+  const skip = await post(key, checkin(storm, b, { kind: 'skipped', reason: 'gate', at: at(40) }), at(41))
+  assert.equal(skip.status, 201)
+  assert.equal((await ownerStopOf(b.client_id)).removable, false)
+
+  // Carried on the route PUT, stop add, stop remove and end answers.
+  let current = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
+  const put = await putRouteAs(token, storm.id, reversedFirst(listsOf(current)), current.route_version)
+  assert.equal(put.status, 200, put.text)
+  const flags = view => Object.fromEntries(stopsOf(view).map(s => [s.client_id, s.removable]))
+  assert.equal(flags(put.body)[a.client_id], false)
+  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: spare.id, truck_id: truck.id } })
+  assert.equal(added.status, 200, added.text)
+  assert.equal(flags(added.body)[spare.id], true)
+  assert.equal(flags(added.body)[a.client_id], false)
+  const removed = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${spare.id}`, { token })
+  assert.equal(removed.status, 200, removed.text)
+  assert.ok(stopsOf(removed.body).every(s => typeof s.removable === 'boolean'))
+  const ended = await api('POST', `/api/owner/storms/${storm.id}/end`, { token })
+  assert.equal(ended.status, 200, ended.text)
+  assert.equal(flags(ended.body.storm)[a.client_id], false)
+  assert.ok(stopsOf(ended.body.storm).every(s => typeof s.removable === 'boolean'))
+  // Summaries and the status page are not stop views for the owner's edit screen.
+  const summary = await api('GET', `/api/owner/storms/${storm.id}/summary`, { token })
+  assert.ok(!summary.text.includes('removable'))
 })

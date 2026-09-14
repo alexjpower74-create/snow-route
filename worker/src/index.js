@@ -189,18 +189,23 @@ function stopView (row, checkins, ctx) {
     status: plowed ? 'plowed' : skipped ? 'skipped' : 'pending',
     checkin: decider ? checkinView(decider, ctx.origin) : null
   }
-  if (ctx.owner) stop.messages = stopMessages(stop, row, ctx)
+  if (ctx.owner) {
+    stop.removable = !ctx.everCheckedIn.has(row.client_id)
+    stop.messages = stopMessages(stop, row, ctx)
+  }
   return stop
 }
 
 /** Everything about one storm, read in one batch. */
 async function loadStorm (db, stormId) {
-  const [storms, trucks, stops, checkins] = await db.batch([
+  const [storms, trucks, stops, checkins, touched] = await db.batch([
     db.prepare('SELECT * FROM storms WHERE id = ?1').bind(stormId),
     db.prepare('SELECT t.id, t.name FROM storm_trucks st JOIN trucks t ON t.id = st.truck_id WHERE st.storm_id = ?1 ORDER BY t.id').bind(stormId),
     db.prepare(`SELECT ss.client_id, ss.truck_id, ss.position, c.name, c.address, c.lat, c.lng, c.type, c.priority, c.opens_at, c.notes,
       c.status_key FROM storm_stops ss JOIN clients c ON c.id = ss.client_id WHERE ss.storm_id = ?1 ORDER BY ss.truck_id, ss.position`).bind(stormId),
-    db.prepare(`${CHECKIN_SELECT} WHERE ck.storm_id = ?1 AND ck.voided_at IS NULL ORDER BY ck.at, ck.received_at, ck.id`).bind(stormId)
+    db.prepare(`${CHECKIN_SELECT} WHERE ck.storm_id = ?1 AND ck.voided_at IS NULL ORDER BY ck.at, ck.received_at, ck.id`).bind(stormId),
+    // Every stop with any check-in at all, voided ones included: those can't be removed (clarification 42).
+    db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1').bind(stormId)
   ])
   const storm = storms.results[0]
   if (!storm) return null
@@ -209,12 +214,19 @@ async function loadStorm (db, stormId) {
     if (!byClient.has(k.client_id)) byClient.set(k.client_id, [])
     byClient.get(k.client_id).push(k)
   }
-  return { storm, trucks: trucks.results, stopRows: stops.results, checkins: checkins.results, checkinsFor: id => byClient.get(id) || [] }
+  return {
+    storm,
+    trucks: trucks.results,
+    stopRows: stops.results,
+    checkins: checkins.results,
+    checkinsFor: id => byClient.get(id) || [],
+    everCheckedIn: new Set(touched.results.map(r => r.client_id))
+  }
 }
 
 function stormView (data, ctx) {
   const { storm } = data
-  const stormCtx = { ...ctx, stormActive: !storm.ended_at }
+  const stormCtx = { ...ctx, stormActive: !storm.ended_at, everCheckedIn: data.everCheckedIn }
   const stops = data.stopRows.map(r => stopView(r, data.checkinsFor(r.client_id), stormCtx))
   const counts = { stops: stops.length, plowed: 0, skipped: 0, pending: 0 }
   for (const s of stops) counts[s.status]++

@@ -2679,3 +2679,37 @@ test at tests/api.test.mjs:1355:1
     diff: 'simple'
   }
 verdict: RED as expected. "route version: a stale version with the same stop set" and "route version: two PUTs racing with the same version" fail when the route PUT no longer checks the version inside its write batch.
+
+=== 8cff8a3 +uncommitted worker changes negative:removable 2026-09-14T10:39:24.676Z ===
+control (unbroken copy): "removable: a fresh stop is removable" pass
+break: src/index.js: "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1').bind(stormId)"  ->  "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1 AND voided_at IS NULL').bind(stormId)"
+✖ removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE answers 409 (210.550805ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 282.874582
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1379:1
+✖ removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE answers 409 (210.550805ms)
+  AssertionError [ERR_ASSERTION]: undone: an undone check-in is still a record, so not removable
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-removable/tests/api.test.mjs:1403:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "removable: a fresh stop is removable" fail when removable ignores voided check-ins.
