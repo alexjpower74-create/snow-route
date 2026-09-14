@@ -325,3 +325,8 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 7. **Check-in ids** are stored lower-cased; the app sends `crypto.randomUUID()` (already lower case).
 8. **A repeat photo upload gets a new photo token**: the old `photo_url` answers 404 from then on.
 9. **Every `/api/*` JSON answer** carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`.
+10. **`reason` and `note` are ignored on a plowed check-in.** The app omits them for plowed; the Worker stores `reason: null` for plowed
+    whatever is sent.
+11. **Queue, exactly** (sharpens 5, sr2 M1 differs): a **429** is a failure, not a refusal: keep it queued and retry with backoff. A
+    photo PUT refused with 404/413/415 drops **only the photo**: the check-in is already on the server, so remove the item and show
+    "Photo not sent: <server message>" on that stop's row; it never sits in "Not accepted".
