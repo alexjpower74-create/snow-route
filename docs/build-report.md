@@ -192,7 +192,7 @@ Nothing below can lose a check-in or bill wrongly on its own; every such finding
 
 - **Product:** no address search (pins are placed by tapping the map); route order is straight-line distance, not road time; dragging a stop
   does not scroll a long route (Move up/down covers it); the driver's Undo lasts 15 minutes, after which only a future owner-side edit
-  could fix a check-in; one deployment per contractor; OpenStreetMap's standard tiles suit one contractor's owner screens, not a fleet.
+  could fix a check-in; one deployment per contractor; the owner map uses OpenFreeMap's public instance, which has no SLA (a plain background if it is down; `MAP_STYLE_URL` switches it).
 - **Security dial:** the status-link guard is per IP, blunt behind a mobile carrier's shared IP (DEPLOY.md).
 - **Test limits:** Playwright's WebKit cannot read a chosen photo while set offline, so on WebKit the offline test fails `/api` requests
   instead and skips the offline reload step (DECISIONS 35); a page closed between two IndexedDB commits cannot be simulated, so "undo

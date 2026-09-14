@@ -33,12 +33,19 @@ sitting when Alexander says so. One deployment = one contractor (DECISIONS.md 1)
 - A custom domain such as `snow.apcosoftwaretools.ca` is optional (Porkbun DNS → Cloudflare route).
 - The driver saves the driver link to the home screen once; after the first load the page works with no signal.
 
-## Map tiles
+## Map tiles: OpenFreeMap
 
-The owner screens use OpenStreetMap's standard tile server with the attribution shown and no prefetching, which the
-[tile usage policy](https://operations.osmfoundation.org/policies/tiles/) allows for light use like one contractor's owner screens.
-If this is sold to many contractors, switch to a tile provider (MapTiler, Stadia, Thunderforest…) by changing the
-`<meta name="tile-url">` in the owner page, and keep the attribution. Driver and client pages have no map.
+The owner screens draw OpenFreeMap's `positron` vector style (<https://tiles.openfreemap.org/styles/positron>) with MapLibre GL inside
+Leaflet (both vendored in `app/public/vendor/`, pinned). OpenFreeMap's public instance is free, allows commercial use, needs no API key
+or registration and has no request limits, so it is fit for selling Snow Route widely (DECISIONS.md 62). Driver and client pages have no map.
+
+- **No SLA.** OpenFreeMap says it offers no SLA guarantees or support. If it is slow or down, the owner map shows a plain background; pins,
+  lines, dragging, driver pages and billing are unaffected.
+- **Switching needs no code change.** Set the Worker variable `MAP_STYLE_URL` to another MapLibre style URL (a self-hosted OpenFreeMap or
+  any MapLibre style) in the Cloudflare dashboard, or pass `--var MAP_STYLE_URL:<url>` to `wrangler deploy`. Don't add a `[vars]` block to
+  `wrangler.toml` without also updating the unit test that keeps `TEST_MODE` out of it. `GET /api/company` then answers the new URL.
+- **Attribution stays on the map**: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap", each linked (required by OpenFreeMap). If you
+  switch provider, change `ATTRIBUTION` in `app/public/owner/owner.js` to what that provider requires.
 
 ## Photos and privacy
 

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "negative": "node tests/negative-queue.mjs && node tests/negative-time.mjs && node tests/negative-overlay.mjs && node tests/negative-relink.mjs && node tests/negative-billing.mjs && node tests/negative-twotabs.mjs && node tests/negative-crosstruck.mjs && node tests/negative-hst.mjs && node tests/negative-attempted.mjs && node tests/negative-missingundo.mjs && node tests/negative-resend.mjs && node tests/negative-undoflag.mjs && node tests/negative-truckpins.mjs",
+    "negative": "node tests/negative-queue.mjs && node tests/negative-time.mjs && node tests/negative-overlay.mjs && node tests/negative-relink.mjs && node tests/negative-billing.mjs && node tests/negative-twotabs.mjs && node tests/negative-crosstruck.mjs && node tests/negative-hst.mjs && node tests/negative-attempted.mjs && node tests/negative-missingundo.mjs && node tests/negative-resend.mjs && node tests/negative-undoflag.mjs && node tests/negative-truckpins.mjs && node tests/negative-attribution.mjs",
     "negative:queue": "node tests/negative-queue.mjs",
     "negative:time": "node tests/negative-time.mjs",
     "negative:overlay": "node tests/negative-overlay.mjs",
@@ -19,10 +19,13 @@
     "negative:missingundo": "node tests/negative-missingundo.mjs",
     "negative:resend": "node tests/negative-resend.mjs",
     "negative:undoflag": "node tests/negative-undoflag.mjs",
-    "negative:truckpins": "node tests/negative-truckpins.mjs"
+    "negative:truckpins": "node tests/negative-truckpins.mjs",
+    "negative:attribution": "node tests/negative-attribution.mjs"
   },
   "dependencies": {
-    "leaflet": "1.9.4"
+    "@maplibre/maplibre-gl-leaflet": "0.1.4",
+    "leaflet": "1.9.4",
+    "maplibre-gl": "5.24.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

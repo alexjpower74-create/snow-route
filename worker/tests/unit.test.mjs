@@ -125,3 +125,15 @@ placeholderTest('the demo placeholder photo is a card: SAMPLE label, a drawn cam
   placeholderAssert.ok(svg.includes('Pat &#60;SAMPLE&#62; &#38; co'), 'the stop name, XML-escaped')
   placeholderAssert.ok(!/<rect[^>]*fill="#eef3fb"/.test(svg), 'no flat white block that reads as a broken image')
 })
+
+// The owner map's style URL is one config value (API.md 54, DECISIONS 62): MAP_STYLE_URL when set, OpenFreeMap by default.
+import { test as mapTest } from 'node:test'
+import mapAssert from 'node:assert/strict'
+import { DEFAULT_MAP_STYLE_URL, mapStyleUrl } from '../src/map.js'
+mapTest('the map style URL is one config value: MAP_STYLE_URL when set, OpenFreeMap by default', () => {
+  mapAssert.match(DEFAULT_MAP_STYLE_URL, /^https:\/\/tiles\.openfreemap\.org\/styles\/[a-z0-9-]+$/)
+  mapAssert.equal(mapStyleUrl({}), DEFAULT_MAP_STYLE_URL)
+  mapAssert.equal(mapStyleUrl(undefined), DEFAULT_MAP_STYLE_URL)
+  mapAssert.equal(mapStyleUrl({ MAP_STYLE_URL: '   ' }), DEFAULT_MAP_STYLE_URL)
+  mapAssert.equal(mapStyleUrl({ MAP_STYLE_URL: 'https://maps.example.test/styles/snow.json' }), 'https://maps.example.test/styles/snow.json')
+})

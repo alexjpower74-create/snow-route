@@ -8,7 +8,7 @@ test('screenshots of every screen', async ({ page, context, request }, testInfo)
   test.setTimeout(180_000)
   const demo = await api(request, 'POST', '/api/test/seed', { data: { scenario: 'demo' } })
   expect(demo.status).toBe(200)
-  const tiles = () => expect.poll(() => page.locator('.leaflet-tile-loaded').count()).toBeGreaterThan(0)
+  const tiles = () => expect(page.locator('#map .maplibregl-canvas, #map[data-base-map="unavailable"]').first()).toBeAttached()
 
   await page.goto('/')
   await expect(page.locator('#owner-signin')).toBeVisible()

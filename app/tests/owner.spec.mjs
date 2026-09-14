@@ -25,7 +25,7 @@ test('add a client by typing and tapping the map: it shows in the list and on th
   await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
   await expect(page.locator('#client-list > li')).toHaveCount(25)
   await expect(page.locator('.leaflet-marker-icon.pin-client')).toHaveCount(25)
-  await expect.poll(() => page.locator('.leaflet-tile-loaded').count(), { message: 'placeholder tiles load' }).toBeGreaterThan(0)
+  await expect(page.locator('#map .maplibregl-canvas, #map[data-base-map="unavailable"]').first(), 'the base map layer is in place').toBeAttached()
   await shot(page, testInfo, 'owner-clients')
 
   await tap(page, page.locator('#add-client'), 'Add a client')
@@ -93,7 +93,7 @@ test('start a storm: medical stops first on each truck, the order note, the rout
   await expect(page.locator('.route-pin')).toHaveCount(25)
   const attribution = page.locator('.leaflet-control-attribution')
   await expect(attribution).toBeVisible()
-  await expect(attribution).toContainText('OpenStreetMap')
+  await expect(attribution).toContainText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap')
   await expect(attribution.getByRole('link', { name: 'OpenStreetMap' })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
   await attribution.scrollIntoViewIfNeeded()
   expect((await hitTest(attribution.getByRole('link', { name: 'OpenStreetMap' }))).hit, 'nothing covers the attribution').toBe('')
@@ -218,4 +218,23 @@ test("each route pin shows its truck: its own shape and ring colour, the same as
   const [one, two] = legendLooks
   expect(one[0], 'the two trucks have different ring colours').not.toBe(two[0])
   expect(`${one[1]} ${one[2]}`, 'the two trucks have different shapes, so colour is not the only cue').not.toBe(`${two[1]} ${two[2]}`)
+})
+
+// OpenFreeMap requires "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" on the map (DECISIONS 62). The style URL is the Worker's one
+// config value (API.md 54); the fixture answers it locally, so this test never touches the internet.
+test('the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names', async ({ page, request, guarded }) => {
+  await signIn(page)
+  await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
+  const attribution = page.locator('#map .leaflet-control-attribution')
+  await expect(attribution).toBeVisible()
+  await expect(attribution).toContainText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap')
+  for (const [name, href] of [['OpenFreeMap', 'https://openfreemap.org'], ['© OpenMapTiles', 'https://www.openmaptiles.org/'], ['OpenStreetMap', 'https://www.openstreetmap.org/copyright']]) {
+    const link = attribution.getByRole('link', { name, exact: true })
+    await expect(link, `${name} link`).toHaveAttribute('href', href)
+    await link.scrollIntoViewIfNeeded()
+    expect((await hitTest(link)).hit, `nothing covers the ${name} link`).toBe('')
+  }
+  const company = await (await request.get('/api/company')).json()
+  expect(company.map_style_url, 'the Worker names an OpenFreeMap style').toMatch(/^https:\/\/tiles\.openfreemap\.org\/styles\/[a-z0-9-]+$/)
+  await expect.poll(() => guarded.styles, { message: 'the page loaded the style the Worker named' }).toContain(company.map_style_url)
 })

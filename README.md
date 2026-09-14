@@ -50,7 +50,9 @@ cd app && npm run negative     # every app negative control, same rule (port 760
   every storm and check-in, and every photo (generated placeholders).
 - **Real:** the street names and pin positions. Each is a real public street in Grand Falls-Windsor with the centre point OpenStreetMap
   gives for it (`data/sources/`, fetched 2026-09-14). There are **no house numbers**, so no pin points at anyone's home.
-- Map tiles on the owner screens are OpenStreetMap's, with the attribution shown. Tests never fetch them.
+- **Map tiles:** the owner map is OpenFreeMap's `positron` vector style (free, commercial use allowed, no API key, no limits, no SLA), drawn
+  by MapLibre GL inside Leaflet, with "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" on the map. One Worker variable,
+  `MAP_STYLE_URL`, switches it (docs/DEPLOY.md). Tests never fetch it: a local fixture answers the style.
 
 ## Test numbers
 
@@ -85,7 +87,7 @@ Optional custom domain.
   slice's own report is beside it (`docs/build-report-sr1.md` Worker, `docs/build-report-sr2.md` app).
 - Code map: `worker/src/index.js` (routes), `route.js` (route order), `billing.js` (what bills), `time.js` (NL time); `app/public/d/queue.js`
   (the offline queue: the part with the most care in it), `d/driver.js`, `owner/owner.js`, `s/status.js`.
-- Next steps that are Alexander's call: deploy (docs/DEPLOY.md), a tile provider if it's sold widely, and address search.
+- Next steps that are Alexander's call: deploy (docs/DEPLOY.md) and address search.
 - Known gaps (settled so far; the final list is in `docs/build-report.md`):
   - **No address search.** The owner places each pin by tapping the map (no geocoding service tonight, DECISIONS.md 14).
   - **Route order is straight-line distance**, not road time; business opening times are shown, not used to reorder.
@@ -98,7 +100,8 @@ Optional custom domain.
     verified by review (docs/build-report.md, M3e).
   - **The driver's Undo lasts 15 minutes.** After that only a future owner-side edit could fix a wrong check-in.
   - **One deployment per contractor.** Hosting many contractors from one Worker is a later change.
-  - **Map tiles** are OpenStreetMap's standard tiles, fine for one contractor's owner screens; many contractors need a tile provider.
+  - **Map tiles come from OpenFreeMap's public instance, which has no SLA.** If it is down, the owner map is a plain background (pins and
+    everything else still work); `MAP_STYLE_URL` moves it to self-hosted tiles without a code change.
   - **The status-link guard is per IP**, which is blunt behind a mobile carrier's shared IP (DEPLOY.md).
   - **WebKit offline test:** Playwright's WebKit cannot read a chosen photo while set offline, so on WebKit the test fails every `/api`
     request instead and skips the offline reload step (DECISIONS.md 35). Chromium covers the true offline path.

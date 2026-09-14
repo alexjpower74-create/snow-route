@@ -81,7 +81,7 @@ test('company shape', async () => {
   await reset()
   const r = await api('GET', '/api/company')
   assert.equal(r.status, 200)
-  assert.deepEqual(r.body, { name: COMPANY, sample: true, timezone: 'America/St_Johns', hst_rate: 0.15, yard: YARD })
+  assert.deepEqual(r.body, { name: COMPANY, sample: true, timezone: 'America/St_Johns', hst_rate: 0.15, yard: YARD, map_style_url: 'https://tiles.openfreemap.org/styles/positron' })
 })
 
 test('sign-in: wrong PIN 401 with field pin, right PIN gives a token, no token 401, sign-out ends it', async () => {
@@ -620,7 +620,7 @@ test('company: owner GET and PUT, validation, sample follows the name', async ()
   expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing' } }), 400, 'bad_request', 'yard.label')
   const r = await api('PUT', '/api/owner/company', { token, body: { name: ' Demo Snow Clearing ', yard } })
   assert.equal(r.status, 200, r.text)
-  assert.deepEqual(r.body, { name: 'Demo Snow Clearing', sample: false, timezone: 'America/St_Johns', hst_rate: 0.15, yard })
+  assert.deepEqual(r.body, { name: 'Demo Snow Clearing', sample: false, timezone: 'America/St_Johns', hst_rate: 0.15, yard, map_style_url: 'https://tiles.openfreemap.org/styles/positron' })
   assert.deepEqual((await api('GET', '/api/company')).body, r.body)
   expectError(await api('PUT', '/api/owner/company', { body: { name: 'x', yard } }), 401, 'unauthorized')
 })

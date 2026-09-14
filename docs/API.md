@@ -459,3 +459,6 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 53. **(sr2 M3f, review M3e-2/M3e-3)** The driver's Undo adds its void through `update()` and leaves an existing void (a re-send void) untouched.
     The keys-store spec gets a second case that fails with the store broken: reset truck 1's link, open truck 1's **new** link, and expect the
     old item re-keyed and sent under the new key (no stuck row, `photo: "stored"`).
+54. **(lead, map tiles) Company carries `map_style_url`**, the MapLibre style the owner map draws: the Worker variable `MAP_STYLE_URL` when set,
+    otherwise `https://tiles.openfreemap.org/styles/positron` (`worker/src/map.js`). Both `GET /api/company` and `GET/PUT /api/owner/company`
+    include it. The owner page draws that style with MapLibre GL inside Leaflet and shows OpenFreeMap's attribution (DECISIONS 62).

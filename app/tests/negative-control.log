@@ -2827,3 +2827,50 @@ Running 1 test using 1 worker
     [chromium-390] › tests/queue.spec.mjs:346:1 › a check-in tried but never stored: Undo stores it and voids it at once (the check-in is re-sent first), so it never bills 
 
 
+== 2026-09-14T16:36:18.061Z attribution: owner.js draws the base map with an empty attribution
+   spec: playwright test owner.spec.mjs --project chromium-1280 -g the map shows OpenFreeMap attribution on 7606, copy in app/.negative/attribution
+   unbroken copy:   ✓  1 [chromium-1280] › tests/owner.spec.mjs:225:1 › the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names (975ms) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-1280] › tests/owner.spec.mjs:225:1 › the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('#map .leaflet-control-attribution')
+    Expected substring: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap"
+    Received string:    "Leaflet"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toContainText" locator('#map .leaflet-control-attribution') with timeout 10000ms
+      - waiting for locator('#map .leaflet-control-attribution')
+        24 × locator resolved to <div class="leaflet-control-attribution leaflet-control">…</div>
+           - unexpected value "Leaflet"
+
+
+      228 |   const attribution = page.locator('#map .leaflet-control-attribution')
+      229 |   await expect(attribution).toBeVisible()
+    > 230 |   await expect(attribution).toContainText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap')
+          |                             ^
+      231 |   for (const [name, href] of [['OpenFreeMap', 'https://openfreemap.org'], ['© OpenMapTiles', 'https://www.openmaptiles.org/'], ['OpenStreetMap', 'https://www.openstreetmap.org/copyright']]) {
+      232 |     const link = attribution.getByRole('link', { name, exact: true })
+      233 |     await expect(link, `${name} link`).toHaveAttribute('href', href)
+        at <repo>/app/tests/owner.spec.mjs:230:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/owner-the-map-shows-OpenFr-f733f--the-style-the-Worker-names-chromium-1280/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/owner-the-map-shows-OpenFr-f733f--the-style-the-Worker-names-chromium-1280/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/owner-the-map-shows-OpenFr-f733f--the-style-the-Worker-names-chromium-1280/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/owner-the-map-shows-OpenFr-f733f--the-style-the-Worker-names-chromium-1280/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-1280] › tests/owner.spec.mjs:225:1 › the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names 
+
+

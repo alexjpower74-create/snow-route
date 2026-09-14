@@ -3,12 +3,15 @@
 // map, add/edit with a map pin, deactivate, New status link, copy the status text); Trucks (add, rename, deactivate, driver link,
 // New link); Billing (month, table, totals, CSV for the accountant); Settings (company name, yard pin, Change PIN).
 // Talks only to the API through api.js; the API's own error text is shown next to the field it names. Nothing is ever sent to a
-// client: messages are copy buttons. Leaflet is a classic script (global L); tiles are OpenStreetMap's, attribution always shown.
+// client: messages are copy buttons. Leaflet is a classic script (global L); the base map is OpenFreeMap's vector style drawn by MapLibre GL inside Leaflet (L.maplibreGL), attribution always shown.
 import { api, session, SIGNED_OUT } from '/api.js'
 import { esc, brandBar, plural, clockLabel, NL_ZONE } from '/ui.js'
 
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+// The base map style comes from the Worker (GET /api/company map_style_url, the MAP_STYLE_URL variable), so moving to self-hosted tiles is a
+// config change; this fallback only matters if an answer has no style.
+const FALLBACK_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
+// OpenFreeMap's required attribution, exactly as its quick start shows it (DECISIONS 62). Leaflet draws it; MapLibre's own control is off.
+const ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
 const TYPES = [['driveway', 'Driveway'], ['lot', 'Parking lot'], ['walkway', 'Walkway']]
 const PRIORITIES = [['none', 'None'], ['medical', 'Medical'], ['commuter', 'Early commuter'], ['business', 'Business opening']]
 const BILLING = [['per_push', 'Per push'], ['seasonal', 'Seasonal contract']]
@@ -116,9 +119,16 @@ async function copy(btn) {
 /* ---- map ------------------------------------------------------------------ */
 function makeMap(id) {
   stopMap()
-  map = L.map($(id), { zoomControl: true, attributionControl: true })
-  L.tileLayer(TILE_URL, { maxZoom: 19, attribution: ATTRIBUTION }).addTo(map)
+  map = L.map($(id), { zoomControl: true, attributionControl: true, maxZoom: 19 })
   map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>')
+  const style = state.company?.map_style_url || FALLBACK_MAP_STYLE_URL
+  try {
+    L.maplibreGL({ style, attributionControl: { customAttribution: ATTRIBUTION } }).addTo(map)
+  } catch {
+    // No WebGL on this device: pins, lines and dragging still work on a plain background, and the attribution still shows.
+    map.attributionControl.addAttribution(ATTRIBUTION)
+    $(id).dataset.baseMap = 'unavailable'
+  }
   const y = state.company?.yard
   map.setView(y ? [y.lat, y.lng] : [48.94, -55.66], 13)
   return map

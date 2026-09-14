@@ -93,13 +93,13 @@ test('the action colours meet 4.5 : 1', async ({ page, request, seed }) => {
   expect(contrast(rgb('rgb(163, 179, 204)'), rgb('rgb(245, 158, 11)'))).toBeLessThan(4.5)
 })
 
-test('the network guard fails a request to another host and answers tiles locally', async ({ browser }) => {
+test('the network guard fails a request to another host and answers the map style locally', async ({ browser }) => {
   const context = await browser.newContext()
   const g = await guard(context)
   const page = await context.newPage()
   await page.goto('about:blank')
-  const tile = await page.evaluate(() => fetch('https://tile.openstreetmap.org/13/2779/2870.png').then((r) => r.status + ' ' + r.headers.get('content-type')).catch((e) => String(e)))
-  expect(tile, 'tile answered by the placeholder').toBe('200 image/png')
+  const style = await page.evaluate(() => fetch('https://tiles.openfreemap.org/styles/positron').then((r) => r.json()).then((j) => j.name).catch((e) => String(e)))
+  expect(style, 'the style is answered by the local fixture').toBe('Snow Route test style (local fixture)')
   expect(g.outside).toEqual([])
   await page.evaluate(() => fetch('https://example.com/').catch(() => null))
   expect(g.outside, 'a request to another host is caught').toEqual(['https://example.com/'])

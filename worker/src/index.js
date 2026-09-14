@@ -6,6 +6,7 @@ import { timeLabel, dateLabel, fullLabel, durationLabel, isMonth, monthBounds, n
 import { randomKey, sha256Hex, hashPin, verifyPin, isUuidV4 } from './auth.js'
 import { seedSample, seedDemo } from './sample.js'
 import { billingReport, billingMonths, isBillable, toCsv, csvFilename } from './billing.js'
+import { mapStyleUrl } from './map.js'
 
 const HST_RATE = 0.15
 const SESSION_DAYS = 30
@@ -65,13 +66,14 @@ async function loadCompany (db) {
   return row
 }
 
-function companyView (row) {
+function companyView (row, env) {
   return {
     name: row.name,
     sample: row.name.includes('SAMPLE'),
     timezone: row.timezone,
     hst_rate: HST_RATE,
-    yard: { label: row.yard_label, lat: row.yard_lat, lng: row.yard_lng }
+    yard: { label: row.yard_label, lat: row.yard_lat, lng: row.yard_lng },
+    map_style_url: mapStyleUrl(env)
   }
 }
 
@@ -671,7 +673,7 @@ async function putCompany (request, env, ctx) {
   if (!inNewfoundlandAndLabrador(yard.lat, yard.lng)) throw badRequest('yard.pin', 'Put a pin on the map for the yard.')
   await env.DB.prepare('UPDATE company SET name = ?1, yard_label = ?2, yard_lat = ?3, yard_lng = ?4 WHERE id = 1')
     .bind(name, label, yard.lat, yard.lng).run()
-  return json(200, companyView(await loadCompany(env.DB)))
+  return json(200, companyView(await loadCompany(env.DB), env))
 }
 
 // ---- owner: client links and messages ----
@@ -1007,7 +1009,7 @@ async function testCheckins (request, env, ctx) {
 // ---- router ----
 
 const ROUTES = [
-  ['GET', /^\/api\/company$/, 'public', async (req, env) => json(200, companyView(await loadCompany(env.DB)))],
+  ['GET', /^\/api\/company$/, 'public', async (req, env) => json(200, companyView(await loadCompany(env.DB), env))],
   ['POST', /^\/api\/owner\/signin$/, 'public', signin],
   ['POST', /^\/api\/owner\/signout$/, 'owner', signout],
   ['GET', /^\/api\/owner\/clients$/, 'owner', listClients],
@@ -1024,7 +1026,7 @@ const ROUTES = [
   // Every /api/status/<anything> reaches the status handler (clarification 18): a mangled key reads as a bad status link.
   ['GET', /^\/api\/status\/(.*)$/, 'public', clientStatus],
   ['PUT', /^\/api\/owner\/pin$/, 'owner', changePin],
-  ['GET', /^\/api\/owner\/company$/, 'owner', async (req, env) => json(200, companyView(await loadCompany(env.DB)))],
+  ['GET', /^\/api\/owner\/company$/, 'owner', async (req, env) => json(200, companyView(await loadCompany(env.DB), env))],
   ['PUT', /^\/api\/owner\/company$/, 'owner', putCompany],
   ['POST', /^\/api\/owner\/clients\/(\d+)\/reset-link$/, 'owner', resetClientLink],
   ['GET', /^\/api\/owner\/clients\/(\d+)\/messages$/, 'owner', clientMessages],

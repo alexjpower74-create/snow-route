@@ -1,7 +1,7 @@
 // Shared fixture and helpers for the e2e suite.
 // - Every test starts with POST /api/test/reset (auto fixture `seed`, which also hands the test the keys).
-// - Map tiles (https://tile.openstreetmap.org/**) are answered with a local 256 px placeholder PNG, and any other request to a
-//   host that is not 127.0.0.1 is aborted and fails the test (auto fixture `guarded`).
+// - The map style (https://tiles.openfreemap.org/styles/*) is answered with a tiny local style (a background only, so MapLibre asks for no
+//   tiles, glyphs or sprites), and any other request to a host that is not 127.0.0.1 is aborted and fails the test (auto fixture `guarded`).
 // - REAL input only: tap() hit-tests the target's centre with elementFromPoint before a real touch or click, typing is
 //   page.keyboard, map clicks are page.mouse / touchscreen at a point, photos go through the real file chooser with a generated
 //   image. evaluate is only ever used to read (and scroll a target into view, as a person would).
@@ -37,6 +37,7 @@ export function png(width, height, paint) {
   ihdr[9] = 2
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
 }
+export const TEST_STYLE = { version: 8, name: 'Snow Route test style (local fixture)', sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dde3e8' } }] }
 export const TILE = png(256, 256, (x, y) => (((x >> 5) + (y >> 5)) % 2 ? [58, 74, 104] : [48, 62, 90]))
 export const PHOTO = {
   name: 'plowed-sample.png',
@@ -47,19 +48,26 @@ export const PHOTO = {
 /* ---- the network guard ------------------------------------------------------ */
 export async function guard(context) {
   const outside = []
-  await context.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: TILE }))
+  const styles = []
+  await context.route('https://tiles.openfreemap.org/**', (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname.startsWith('/styles/')) { styles.push(url.href); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEST_STYLE) }) }
+    outside.push(url.href) // a style that starts fetching real tiles fails the test
+    return route.abort('blockedbyclient')
+  })
   await context.route(
-    (url) => url.hostname !== '127.0.0.1' && url.hostname !== 'tile.openstreetmap.org',
+    // blob: and data: URLs are objects inside the page, not network requests (MapLibre starts its web worker from a blob: URL).
+    (url) => url.protocol !== 'blob:' && url.protocol !== 'data:' && url.hostname !== '127.0.0.1' && url.hostname !== 'tiles.openfreemap.org',
     (route) => { outside.push(route.request().url()); return route.abort('blockedbyclient') },
   )
-  return { outside }
+  return { outside, styles }
 }
 
 export const test = base.extend({
   guarded: [async ({ context }, use) => {
     const g = await guard(context)
     await use(g)
-    expect(g.outside, 'every request stays on 127.0.0.1 (map tiles go to the local placeholder)').toEqual([])
+    expect(g.outside, 'every request stays on 127.0.0.1 (the map style goes to the local fixture)').toEqual([])
   }, { auto: true }],
   seed: [async ({ request }, use) => {
     const r = await request.post('/api/test/reset')

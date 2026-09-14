@@ -37,7 +37,7 @@ Alexander was asleep for this build; every real call is written here with its re
 11. **Seasonal clients: pushes are counted, not charged by the month.** HST is 15% per row, rounded half up in whole cents, and the
     totals are the sums of the rows, so the CSV adds up exactly in a spreadsheet. The CSV guards formula-looking cells.
 12. **Undo is the driver's for 15 minutes.** After that the owner fixes it (owner-side editing of check-ins is a known gap for v1).
-13. **Map tiles are OpenStreetMap's standard tiles at owner-screen volume only**, with the attribution always visible and no
+13. *(Superseded by 62: the owner map now uses OpenFreeMap.)* **Map tiles are OpenStreetMap's standard tiles at owner-screen volume only**, with the attribution always visible and no
     prefetching. The driver and client pages have no map (bad signal, and the client page should not show neighbours). Tests never
     fetch real tiles. A contractor fleet at scale would need a tile provider (DEPLOY.md).
 14. **No address search.** Geocoding needs a service with its own usage rules; tonight the owner places the pin by tapping the map.
@@ -226,3 +226,36 @@ Alexander was asleep for this build; every real call is written here with its re
     test checks the card; the old placeholder was run against that test and fails it.
 61. **Onyx's running demo was restarted, not duplicated.** The placeholder photos are made when the demo seeds, so new screenshots needed a
     fresh seed: the running copy was stopped by its exact pids, port 7601 checked free, and one copy started again and left running.
+
+## 2026-09-14, lead (map tiles: OpenFreeMap, Alexander's ask via Onyx)
+
+62. **The owner map uses OpenFreeMap** (<https://openfreemap.org>), chosen by Onyx for Alexander as the free provider fit for selling Snow
+    Route widely. Onyx's check of the alternatives: OpenStreetMap's standard tiles (its policy says commercial access may be withdrawn),
+    MapTiler Free and Stadia Free (non-commercial only) and self-hosted Protomaps (more setup, a paid Worker, protomaps-leaflet in
+    maintenance mode) were rejected. The lead read OpenFreeMap's own pages on 2026-09-14 (saved in `data/sources/`):
+    - Home page, fetched 2026-09-14T16:26:17Z: "Is commercial usage allowed? Yes." · "Using our public instance is completely free: there are
+      no limits on the number of map views or requests. There’s no registration, no user database, no API keys, and no cookies." ·
+      "At the moment, I don’t offer SLA guarantees or personalized support."
+    - Home page, on attribution: "Attribution is required. If you are using MapLibre, they are automatically added, you have nothing to do.
+      If you are using alternative clients, or if you are using this in printed media or video, you must add the following attribution:
+      OpenFreeMap © OpenMapTiles Data from OpenStreetMap"
+    - Quick start (<https://openfreemap.org/quick_start/>, fetched 2026-09-14T16:24:56Z), the attribution markup used verbatim in
+      `owner.js`: `<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a>
+      Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>`.
+    Through the Leaflet binding, MapLibre's own attribution control is switched off, so Snow Route counts as an "alternative client" and adds
+    the attribution itself (the binding's `attributionControl.customAttribution`), visible on every owner map. A test checks the three links
+    are there and uncovered; control (n) empties it and goes red.
+63. **MapLibre GL 5.24.0 with @maplibre/maplibre-gl-leaflet 0.1.4, vendored and pinned, not 6.x.** OpenFreeMap's quick start documents the
+    Leaflet path with `maplibre-gl@5` and the binding, which reads the classic global `maplibregl`; 6.9.0 ships ES modules only, with no
+    classic build. 5.24.0 is the newest 5.x. Leaflet, pins, the truck shapes and drag-to-reorder are unchanged: the vector map is one
+    Leaflet layer. If WebGL is missing, the map falls back to a plain background with the pins and the attribution.
+64. **The style URL is one config value, `MAP_STYLE_URL`, read by the Worker and answered as `map_style_url`** (API.md 54), defaulting to
+    OpenFreeMap `positron` in `worker/src/map.js`. It is a Worker variable set at deploy, not a `[vars]` block in `wrangler.toml`, because a
+    unit test forbids any `[vars]` there to keep `TEST_MODE` out. Moving to self-hosted tiles is then a config change.
+65. **`positron`, not `liberty`.** Both were screenshotted on the real tiles with tonight's route at 1280: on positron's neutral greys the
+    round blue-ring pins, square white-ring pins and route lines all stand out; on liberty the blue water sits close to truck 1's blue
+    rings and line, and orange roads and green parks compete with the pins.
+66. **Tests never touch the internet.** The shared fixture answers `https://tiles.openfreemap.org/styles/*` with a tiny local style (a
+    background layer, so MapLibre requests no tiles, glyphs or sprites); any other request to that host or any other host still fails the
+    test. `blob:` and `data:` URLs are let through: they are objects inside the page (MapLibre starts its web worker from one), and WebKit
+    routes them where Chromium does not.
