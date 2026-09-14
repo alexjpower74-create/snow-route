@@ -48,8 +48,9 @@ cd app && npm run negative     # every app negative control, same rule (port 760
 
 - **SAMPLE:** the company ("SAMPLE Snow Clearing — Grand Falls-Windsor (demo)"), the 25 client names, the 2 trucks, prices, notes,
   every storm and check-in, and every photo (generated placeholders).
-- **Real:** the street names and pin positions. Each is a real public street in Grand Falls-Windsor with the centre point OpenStreetMap
-  gives for it (`data/sources/`, fetched 2026-09-14). There are **no house numbers**, so no pin points at anyone's home.
+- **Real:** the street names and pin positions. Each is a real public street in Grand Falls-Windsor from Statistics Canada's National Road
+  Network, pinned on a vertex of that street (`data/sources/`, fetched 2026-09-14; DECISIONS.md 68-70). There are **no house numbers**, so no
+  pin points at anyone's home. Contains information licensed under the Open Government Licence – Canada.
 - **Map tiles:** the owner map is OpenFreeMap's `positron` vector style (free, commercial use allowed, no API key, no limits, no SLA), drawn
   by MapLibre GL inside Leaflet, with "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" on the map. One Worker variable,
   `MAP_STYLE_URL`, switches it (docs/DEPLOY.md). Tests never fetch it: a local fixture answers the style.

@@ -8,7 +8,7 @@ Alexander was asleep for this build; every real call is written here with its re
    the data apart without a tenant column. Multi-company hosting is a later change, not a hidden assumption.
 2. **One Worker serves the API and the app** (`/api/*` Worker first, the rest static from `app/public`). Same origin means no CORS
    and one thing to deploy. Plain JS, no build step, the Book a Bay / Next Up pattern. Photos go in R2 (not D1 rows).
-3. **SAMPLE clients sit on real streets with no house numbers.** The brief asks for real public streets. A made-up house number on
+3. *(Superseded by 68-70: that source broke robots.txt; the points now come from Statistics Canada's National Road Network.)* **SAMPLE clients sit on real streets with no house numbers.** The brief asks for real public streets. A made-up house number on
    a real street can be somebody's real home, so the addresses are "Harris Avenue, Grand Falls-Windsor, NL" and each pin is the
    centre point OpenStreetMap gives for that street (Overpass query and raw answer saved in `data/sources/`, fetched
    2026-09-14T08:00:49Z). The yard is "SAMPLE yard, Mill Road". Trucks are split north/south at the median latitude so each truck
@@ -265,3 +265,38 @@ Alexander was asleep for this build; every real call is written here with its re
     plain element screenshots at rest, right after the resize and after it settled all showed the full map. So it was Chromium's full-page
     capture grabbing the WebGL canvas mid-resize, not something an owner would see. The docs screenshot script now sets the viewport to
     the page height, waits for the map to redraw, then takes a normal screenshot.
+
+## 2026-09-14, lead (SAMPLE street points: a robots.txt fix, found by Home Care's lead via Onyx)
+
+68. **The original street points broke our robots.txt rule, and are replaced.** Decision 3's points came from one query to
+    `https://overpass-api.de/api/interpreter` (2026-09-14T08:00:49Z). That host's robots.txt, read by the lead at 2026-09-14T20:00:53Z
+    (saved in `data/sources/robots/overpass-api.de.txt`), says:
+    ```
+    User-agent: *
+    Disallow: /api/
+    Disallow: /munin/
+    Sitemap: https://z.overpass-api.de/api/sitemap
+    ```
+    so the query path was disallowed and should never have been fetched (LEAD-RULES §4: robots.txt obeyed). The Overpass answer and query
+    are removed from `data/sources/`; they remain in this private repo's git history, which is not rewritten. Replacements were checked
+    before any download, each robots.txt saved in `data/sources/robots/`:
+    - download.geofabrik.de (20:00:57Z): `Disallow: *.osm.pbf` and `Disallow: *.shp.zip`, so its Newfoundland extracts are out. Only the
+      500 MB+ GeoPackage format is not listed, and using that gap would dodge the rule's intent.
+    - ftp.maps.canada.ca (20:01:48Z): `Disallow: /pub`, which covers the NRCan copy of the National Road Network.
+    - open.canada.ca (20:01:55Z): the dataset catalogue page is allowed, with `Crawl-delay: 20`. The lead fetched that page 2 s after its
+      robots.txt, 18 s short of the delay, and waited properly before the one later request (the licence page).
+    - geo.statcan.gc.ca (20:02:41Z): no robots.txt (HTTP 404), which under RFC 9309 means no restrictions. The catalogue's Newfoundland and
+      Labrador GeoPackage link points here; it was downloaded once.
+69. **The points now come from Statistics Canada's National Road Network (NRN), Newfoundland and Labrador edition 7.0**, under the Open
+    Government Licence – Canada, whose page (fetched 20:02:49Z) requires, when the provider gives no specific statement: "Contains
+    information licensed under the Open Government Licence – Canada." That statement is in `data/sample-clients.json`, `data/sources/README.md`
+    and the README. Method, run locally on the GeoPackage (sha256 `5250ddf9…`): for each street, take the road segments whose left or right
+    place name is Grand Falls-Windsor and that fall inside the town's box, then pin the segment vertex nearest the middle of all that street's
+    vertices, so every pin lies on its street. The used segments are saved as `data/sources/nrn-gfw-sample-streets.geojson` (72 KB); the
+    24 MB archive is not kept. Against the old pins the median move is 226 m. Two moved about 2 km: the yard, because NRN's Mill Road is a
+    144 m stretch in the old Grand Falls part of town, and Scott Avenue, a 5.5 km road whose middle vertex is further east. Birch Drive is not
+    in NRN 7.0, so Frankie (SAMPLE) moved to Sapling Street, the nearest unused NRN street to the old pin (122 m). Every client, name, price,
+    note and truck is otherwise unchanged. NRN 7.0 is 2018 data, which is enough for SAMPLE pins on long-standing streets.
+70. **Migration `0002_company.sql` is edited in place to the new yard** rather than superseded by a new migration. Nothing is deployed,
+    every local database (tests, demo) is rebuilt from the migrations on each run, and a unit test ties 0002 to the sample data. Once there is a
+    real deploy, applied migrations are never edited.

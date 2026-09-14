@@ -6,7 +6,7 @@ INSERT INTO company (id, name, timezone, yard_label, yard_lat, yard_lng, pin) VA
   'SAMPLE Snow Clearing — Grand Falls-Windsor (demo)',
   'America/St_Johns',
   'SAMPLE yard, Mill Road',
-  48.94346,
-  -55.67465,
+  48.92729,
+  -55.66127,
   '{"alg":"PBKDF2-SHA256","iterations":100000,"salt":"Ay+jMoQWyfu0mNpxNZJ4uA==","hash":"4n5oZIa+DAUN104kr3zlt0JXB5z4XUNafgYbU2C30HA="}'
 );

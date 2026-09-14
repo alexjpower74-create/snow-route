@@ -13,7 +13,7 @@ const BASE = process.env.BASE || `http://127.0.0.1:${process.env.PORT || 7602}`
 const START = '2026-01-12T08:05:00.000Z' // Mon Jan 12, 4:35 AM NST
 const at = minutes => new Date(Date.parse(START) + minutes * 60000).toISOString()
 const COMPANY = 'SAMPLE Snow Clearing — Grand Falls-Windsor (demo)'
-const YARD = { label: 'SAMPLE yard, Mill Road', lat: 48.94346, lng: -55.67465 }
+const YARD = { label: 'SAMPLE yard, Mill Road', lat: 48.92729, lng: -55.66127 }
 
 async function api (method, path, { body, token, key, now = START, ip = '10.0.0.1', headers = {}, raw } = {}) {
   const res = await fetch(BASE + path, {
@@ -120,8 +120,8 @@ test('clients: 25 SAMPLE clients, sorted by name, full shape', async () => {
     id: samSeed.id,
     name: 'Sam (SAMPLE)',
     address: 'Harris Avenue, Grand Falls-Windsor, NL',
-    lat: 48.94434,
-    lng: -55.64701,
+    lat: 48.94155,
+    lng: -55.6461,
     type: 'driveway',
     type_label: 'Driveway',
     priority: 'none',

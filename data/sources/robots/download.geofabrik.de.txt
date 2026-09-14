@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: *.osm.pbf
+Disallow: *.osm.bz2
+Disallow: *.osc.gz
+Disallow: *.shp.zip
+Disallow: state.txt
+Disallow: *.state.txt
+Disallow: *updates*
+Disallow: *.md5

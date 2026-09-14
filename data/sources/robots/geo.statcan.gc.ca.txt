@@ -1,0 +1,1 @@
+geo.statcan.gc.ca/robots.txt answered HTTP 404 (no robots.txt) when fetched 2026-09-14T20:02:41Z. Under RFC 9309 an unavailable robots.txt (4xx) means no crawl restrictions.

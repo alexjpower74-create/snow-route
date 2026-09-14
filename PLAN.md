@@ -1,5 +1,9 @@
 # Snow Route: build contract
 
+> **After the overnight build:** map tiles moved to OpenFreeMap (DECISIONS 62-67), and the SAMPLE street points moved to Statistics Canada's
+> National Road Network after the first source turned out to be disallowed by robots.txt (DECISIONS 68-70). The slice tasks below are kept
+> as they were written.
+
 One plan file. It is the contract, and it lives at the repo root so every agent reads the same copy.
 Then read `docs/API.md` (the contract between slices) and `DECISIONS.md`. `BRIEF.md` is the original brief. `AGENTS.md` has ports.
 

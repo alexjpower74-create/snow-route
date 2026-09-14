@@ -23,8 +23,10 @@ Read PLAN.md first (the Rig contract), then docs/API.md (the contract between sl
 - **Nothing is sent.** No SMS, email or Slack; messages to clients are "copy this text" buttons.
 - **SAMPLE on every screen.** The company is "SAMPLE Snow Clearing — Grand Falls-Windsor (demo)". Client names are SAMPLE.
   Streets are real, house numbers are deliberately absent.
-- **Map tiles:** Leaflet + OpenStreetMap tiles, attribution always visible, no prefetching or bulk download. Tests never
-  fetch real tiles: they route `tile.openstreetmap.org` to a local placeholder.
+- **Map tiles:** OpenFreeMap's vector style via MapLibre GL inside Leaflet (`MAP_STYLE_URL`), its attribution always visible. Tests never
+  fetch it: the fixture answers `tiles.openfreemap.org/styles/*` with a local style (DECISIONS 62-67).
+- **SAMPLE street points** come from Statistics Canada's National Road Network (Open Government Licence – Canada). Never fetch from a host
+  whose robots.txt disallows the path (DECISIONS 68-70).
 - **Times are NL time** (`America/St_Johns`). A check-in keeps the time the driver tapped, not the time it synced.
 - **Billing counts only plowed, non-voided check-ins.** A skipped stop never bills.
 - **Driver tap targets are at least 56 px.** Gloves.
