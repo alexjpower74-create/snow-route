@@ -436,19 +436,20 @@ async function refreshStorm() {
 
 const routeLists = () => state.storm.trucks.map((t) => ({ truck_id: t.id, client_ids: t.stops.map((s) => s.client_id) }))
 
-// Every route change goes through the route PUT. A 409 (the route changed underneath) reloads and says so.
+// Every route change goes through the route PUT with the route_version of the Storm on screen. A 409 (the route changed on another
+// screen) reloads and says so (clarification 32).
 async function saveRoute(lists) {
   if (state.saving) return
   state.saving = true
   document.querySelectorAll('.stop-tools button, .drag-handle').forEach((b) => { b.disabled = true })
   try {
-    state.storm = await api.owner.saveRoute(state.storm.id, lists)
+    state.storm = await api.owner.saveRoute(state.storm.id, lists, state.storm.route_version)
     state.saving = false
     paintStorm()
   } catch (e) {
     state.saving = false
     if (e.status === 401 && !e.field) return
-    if (e.status === 409 || (e.status === 400 && e.field === 'trucks')) {
+    if (e.status === 409) {
       state.stormNotice = e.message
       return renderTonight()
     }

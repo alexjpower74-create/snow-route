@@ -95,8 +95,11 @@ test('a route changed on another screen: the move is refused, the page reloads t
   const answer = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${storm.id}/route`) && r.request().method() === 'PUT')
   await tap(page, rowsOf(page, truck.id).nth(1).getByRole('button', { name: 'Move up' }), 'Move up (stale route)')
   const refused = await answer
-  expect([400, 409], 'the Worker refuses a route built from the old stop list').toContain(refused.status())
-  await expect(page.locator('#storm-notice')).toHaveText((await refused.json()).error)
+  expect(refused.status(), 'a route edited from a stale screen is 409, not a malformed request').toBe(409)
+  const body = await refused.json()
+  expect(body.code).toBe('bad_state')
+  expect(body.error).toBe('The route changed while you were editing it. Reload and try again.')
+  await expect(page.locator('#storm-notice')).toHaveText('The route changed while you were editing it. Reload and try again.')
   await expect(rowsOf(page, truck.id), 'reloaded: the added stop is there').toHaveCount(truck.stops.length + 1)
   await expect(rowsOf(page, truck.id).last().locator('.row-name')).toHaveText(left.name)
 })

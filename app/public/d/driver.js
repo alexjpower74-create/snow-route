@@ -10,6 +10,7 @@ const UNDO_MS = 15_000
 const LOCK_MS = 700 // a second glove tap on the same spot must not land on the next stop's button
 const REFRESH_MS = 120_000
 const ROUTE_PREFIX = 'snow-route:route:'
+const KEYS = 'snow-route:keys' // { driver key: truck id }, never overwritten by a newer route for the same truck (clarification 27)
 const PHOTO_NOTES = 'snow-route:photo-not-sent' // { checkin id: server message } for photos the server refused
 
 function photoNotes() {
@@ -24,7 +25,7 @@ function notePhotoDropped(id, message) {
 const key = new URLSearchParams(location.search).get('k') || ''
 const state = {
   route: null, savedAt: null, fromCache: false, error: '', loading: true,
-  items: [], last: null, focus: null, locked: false, notice: '', sheet: null, routeVersion: 0,
+  items: [], last: null, focus: null, locked: false, notice: '', sheet: null, routeVersion: 0, confirmUndo: null,
 }
 const app = document.getElementById('app')
 
@@ -46,9 +47,20 @@ function writeCache() {
     localStorage.setItem(ROUTE_PREFIX + state.route.truck.id, JSON.stringify({ key, saved_at: state.savedAt, route: state.route }))
   } catch {}
 }
-// The truck a driver key belonged to, from the route saved with it on this phone.
+function knownKeys() {
+  try { return JSON.parse(localStorage.getItem(KEYS)) || {} } catch { return {} }
+}
+function rememberKey(k, truckId) {
+  const keys = knownKeys()
+  if (keys[k] === truckId) return
+  keys[k] = truckId
+  try { localStorage.setItem(KEYS, JSON.stringify(keys)) } catch {}
+}
+// The truck a driver key belongs to: the key store first, then (for phones from before it) a route saved with that key.
 function truckOfKey(k) {
   if (k === key && state.route?.truck) return state.route.truck.id
+  const known = knownKeys()[k]
+  if (known != null) return known
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const name = localStorage.key(i)
@@ -88,7 +100,7 @@ function elsewhere() {
   const route = state.route
   if (!route) return []
   const here = new Set(route.storm ? route.stops.map((s) => s.client_id) : [])
-  return state.items.filter((i) => ours(i) && i.op === 'checkin' && i.state !== 'rejected' && !i.stuck
+  return state.items.filter((i) => ours(i) && i.op === 'checkin' && i.state !== 'rejected' && i.state !== 'undone' && !i.stuck
     && (!route.storm || i.body.storm_id !== route.storm.id || !here.has(i.body.client_id)))
 }
 
@@ -98,7 +110,7 @@ function stops() {
   const list = route.stops.map((s) => ({ ...s, queued: false }))
   const byClient = new Map(list.map((s) => [s.client_id, s]))
   for (const item of state.items) {
-    if (!ours(item) || item.stuck || item.state === 'rejected' || item.body.storm_id !== route.storm.id) continue
+    if (!ours(item) || item.stuck || item.state === 'rejected' || item.state === 'undone' || item.body.storm_id !== route.storm.id) continue
     const s = byClient.get(item.body.client_id)
     if (!s) continue
     const b = item.body
@@ -173,7 +185,7 @@ function renderBar() {
 
 function renderStrip() {
   const strip = $('strip')
-  const live = state.items.filter((i) => ours(i) && i.state !== 'rejected' && !i.stuck)
+  const live = state.items.filter((i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && !i.stuck)
   const toSend = live.filter((i) => i.state === 'send').length
   const photos = live.filter((i) => i.state === 'photo').length
   const offline = !navigator.onLine || sender.problem === 'network'
@@ -298,7 +310,7 @@ function renderList() {
 
 function renderOldLink() {
   const box = painter('oldlink')
-  const rows = state.items.filter((i) => ours(i) && i.state !== 'rejected' && (i.key !== key || i.rekeyed_from))
+  const rows = state.items.filter((i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && (i.key !== key || i.rekeyed_from))
   if (!rows.length) { box.innerHTML = ''; return }
   box.innerHTML = `
     <div class="queue-note" id="old-link">
@@ -330,7 +342,7 @@ function renderElsewhere() {
           <li data-qid="${esc(i.qid)}">
             <strong>${esc(i.label)}</strong>
             <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}${i.state === 'photo' ? ' · photo to send' : ''}</span>
-            <button class="btn-row" type="button" data-action="undo-item" data-qid="${esc(i.qid)}">Undo</button>
+            ${state.confirmUndo === i.qid ? confirmUndoMarkup(i.qid) : `<button class="btn-row" type="button" data-action="undo-item" data-qid="${esc(i.qid)}">Undo</button>`}
           </li>`).join('')}
       </ul>
     </div>`
@@ -358,9 +370,23 @@ function renderRejected() {
 
 // Inline above the stop, never over a button, and the same height whether Undo is still offered or not, so nothing
 // moves under a glove when the 15 s run out.
+// Asked before an Undo would delete a check-in that has not been sent (clarification 28).
+function confirmUndoMarkup(qid) {
+  return `<div class="undo-confirm" role="group" aria-labelledby="undo-confirm-text">
+      <span class="undo-confirm-text" id="undo-confirm-text">This check-in has not reached the office yet. Delete it from this phone?</span>
+      <span class="undo-confirm-buttons">
+        <button class="btn-undo" id="undo-delete" type="button" data-action="undo-confirm" data-qid="${esc(qid)}">Delete it</button>
+        <button class="btn-undo btn-undo-keep" id="undo-keep" type="button" data-action="undo-keep">Keep it</button>
+      </span></div>`
+}
+
 function renderUndo() {
   const box = painter('undo')
   const u = state.last
+  if (u && state.confirmUndo === u.id) {
+    box.innerHTML = `<div class="undo-bar is-confirm">${confirmUndoMarkup(u.id)}</div>`
+    return
+  }
   box.innerHTML = u
     ? `<div class="undo-bar${u.canUndo ? '' : ' is-past'}" role="status"><span class="undo-text">${esc(u.canUndo ? u.text : u.past)}</span>
          ${u.canUndo ? '<button class="btn-undo" id="undo-btn" type="button" data-action="undo">Undo</button>' : ''}</div>`
@@ -408,6 +434,7 @@ async function record(clientId, { kind, reason = null, note = '', at, photo = nu
   if (kind === 'skipped') body.reason = reason
   try {
     await queue.add({ qid: id, op: 'checkin', state: 'send', key, truck_id: pageTruck(), label: stop.name, body, photo, error: null })
+    state.lastItem = { key, truck_id: pageTruck(), label: stop.name, body: { id, storm_id: body.storm_id, client_id: clientId } }
   } catch {
     state.notice = 'This phone could not save the check-in. Try again, or tell the owner.'
     render()
@@ -415,7 +442,8 @@ async function record(clientId, { kind, reason = null, note = '', at, photo = nu
   }
   state.focus = null
   const word = kind === 'plowed' ? 'Plowed' : 'Skipped'
-  state.last = { id, canUndo: true, text: `${word}: ${stop.name}`, past: `Last stop: ${stop.name}, ${word.toLowerCase()} at ${timeLabel(at, zone())}` }
+  state.last = { id, canUndo: true, text: `${word}: ${stop.name}`, past: `Last stop: ${stop.name}, ${word.toLowerCase()} at ${timeLabel(at, zone())}`, item: state.lastItem }
+  state.confirmUndo = null
   clearTimeout(undoTimer)
   undoTimer = setTimeout(() => { if (state.last?.id === id) { state.last.canUndo = false; renderUndo() } }, UNDO_MS)
   lockButtons()
@@ -425,28 +453,39 @@ async function record(clientId, { kind, reason = null, note = '', at, photo = nu
   sender.flush()
 }
 
-// Take back one queued item. Never sent ('send') or refused by the server ('rejected', clarification 19): remove it from the phone
-// only. Its check-in is on the server and only its photo waits ('photo'): drop the photo and queue the undo.
-async function takeBack(item, fallback = {}) {
-  if (!item || item.state === 'send' || item.state === 'rejected') {
-    if (item) await queue.remove(item.qid)
-    if (item || !fallback.id) return
-  } else {
-    await queue.remove(item.qid)
+// Take back one queued item, decided in one transaction (clarifications 19 and 26):
+// - not sent yet ('send'): mark it 'undone'; the sender deletes it, or sends the undo if it was already on its way;
+// - refused by the server ('rejected'): remove it from the phone only;
+// - on the server with its photo still waiting ('photo'), or gone because it was sent: queue the undo (a DELETE).
+// `known` is the item as the screen last saw it ({ key, truck_id, label, body }), for when it has already left the queue.
+async function takeBack(qid, known) {
+  const outcome = await queue.update(qid, (it) => {
+    if (!it) return { result: 'gone' }
+    if (it.state === 'send') return { item: { ...it, state: 'undone' }, result: 'marked' }
+    if (it.state === 'rejected') return { item: null, result: 'removed' }
+    if (it.state === 'photo') { known = it; return { item: null, result: 'on-server' } }
+    return { result: 'kept' }
+  })
+  if ((outcome === 'on-server' || outcome === 'gone') && known) {
+    await queue.add({ qid: `void:${known.body.id}`, op: 'void', state: 'send', key: known.key, truck_id: known.truck_id ?? truckOfKey(known.key),
+      label: known.label, body: { id: known.body.id, storm_id: known.body.storm_id, client_id: known.body.client_id }, photo: null, error: null })
   }
-  const id = item?.body.id ?? fallback.id
-  const s = state.route?.stops.find((x) => x.checkin?.id === id)
-  await queue.add({ qid: `void:${id}`, op: 'void', state: 'send', key, truck_id: pageTruck(), label: item?.label || s?.name || fallback.label,
-    body: { id, storm_id: item?.body.storm_id ?? state.route.storm.id, client_id: item?.body.client_id ?? s?.client_id }, photo: null, error: null })
+  return outcome
 }
 
-async function undo() {
+const unsent = async (qid) => (await queue.get(qid))?.state === 'send'
+
+async function undo(confirmed = false) {
   const u = state.last
-  if (!u?.canUndo) return
+  if (!u || (!u.canUndo && state.confirmUndo !== u.id)) return
+  if (!confirmed && await unsent(u.id)) {
+    state.confirmUndo = u.id
+    return renderUndo()
+  }
   clearTimeout(undoTimer)
+  state.confirmUndo = null
   state.last = { id: u.id, canUndo: false, past: `Undone: ${u.text}` }
-  // No item left means the check-in (and any photo) is on the server: fallback queues the undo for it.
-  await takeBack(await queue.get(u.id), { id: u.id, label: u.text })
+  await takeBack(u.id, u.item)
   await refreshItems()
   render()
   sender.flush()
@@ -552,6 +591,20 @@ document.addEventListener('click', async (e) => {
       return renderSheet()
     case 'undo':
       return undo()
+    case 'undo-confirm': {
+      const qid = t.dataset.qid
+      if (state.last?.id === qid) return undo(true)
+      const known = state.items.find((i) => i.qid === qid)
+      state.confirmUndo = null
+      await takeBack(qid, known)
+      await refreshItems()
+      render()
+      return sender.flush()
+    }
+    case 'undo-keep':
+      if (state.last && state.confirmUndo === state.last.id) state.last.canUndo = false
+      state.confirmUndo = null
+      return render()
     case 'plowed-now':
       state.focus = clientId
       state.notice = ''
@@ -560,11 +613,17 @@ document.addEventListener('click', async (e) => {
     case 'back':
       state.focus = null
       return render()
-    case 'undo-item':
-      await takeBack(await queue.get(t.dataset.qid))
+    case 'undo-item': {
+      const qid = t.dataset.qid
+      if (await unsent(qid)) {
+        state.confirmUndo = qid
+        return render()
+      }
+      await takeBack(qid, state.items.find((i) => i.qid === qid))
       await refreshItems()
       render()
       return sender.flush()
+    }
     case 'dismiss':
       await queue.remove(t.dataset.qid)
       await refreshItems()
@@ -609,6 +668,7 @@ async function loadRoute() {
     state.fromCache = false
     state.error = ''
     writeCache()
+    rememberKey(key, route.truck.id)
     sender.setPage({ key, truckId: route.truck.id, working: true })
   } catch (e) {
     if (e.code === 'network') {
