@@ -300,7 +300,10 @@ textarea.field { min-height: 88px; resize: vertical; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 15px; }
 .data-table th, .data-table td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 .data-table thead th { background: var(--raised); color: var(--muted); font-size: 14px; white-space: nowrap; }
-.data-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* not .num: that class is the round stop-number badge */
+.data-table .cell-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.table-hint { margin: 8px 0 0; font-size: 14px; }
+@media (min-width: 900px) { .table-hint { display: none; } }
 .data-table tbody th .row-name { display: block; font-size: 16px; }
 .data-table tbody th .row-addr { display: block; font-weight: 400; }
 .data-table tfoot th, .data-table tfoot td { font-weight: 800; border-bottom: 0; background: var(--raised); }

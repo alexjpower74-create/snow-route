@@ -578,9 +578,9 @@ async function renderSummary(id) {
       <h2 class="section-title">Per truck</h2>
       <div class="table-wrap">
         <table class="data-table" id="summary-trucks">
-          <thead><tr><th scope="col">Truck</th><th scope="col" class="num">Plowed</th><th scope="col" class="num">Skipped</th><th scope="col" class="num">Not reached</th><th scope="col">First check-in</th><th scope="col">Last check-in</th></tr></thead>
+          <thead><tr><th scope="col">Truck</th><th scope="col" class="cell-num">Plowed</th><th scope="col" class="cell-num">Skipped</th><th scope="col" class="cell-num">Not reached</th><th scope="col">First check-in</th><th scope="col">Last check-in</th></tr></thead>
           <tbody>
-            ${summary.trucks.map((t) => `<tr data-truck-id="${t.id}"><th scope="row">${esc(t.name)}</th><td class="num">${t.plowed}</td><td class="num">${t.skipped}</td><td class="num">${t.pending}</td><td>${esc(t.first_label || '—')}</td><td>${esc(t.last_label || '—')}</td></tr>`).join('')}
+            ${summary.trucks.map((t) => `<tr data-truck-id="${t.id}"><th scope="row">${esc(t.name)}</th><td class="cell-num">${t.plowed}</td><td class="cell-num">${t.skipped}</td><td class="cell-num">${t.pending}</td><td>${esc(t.first_label || '—')}</td><td>${esc(t.last_label || '—')}</td></tr>`).join('')}
           </tbody>
         </table>
       </div>
@@ -955,28 +955,29 @@ async function renderBilling() {
         </div>
       </div>
       <p class="lead" id="billing-lead">${esc(data.label)}: ${plural(t.pushes, 'push', 'pushes')}, ${money(t.total_cents)} with HST.</p>
+      <p class="muted table-hint">On a phone, slide the table sideways to see every column.</p>
       <div class="table-wrap">
         <table class="data-table billing-table" id="billing-table">
           <thead><tr>
-            <th scope="col">Client</th><th scope="col">Billing</th><th scope="col" class="num">Pushes</th><th scope="col">Push dates</th>
-            <th scope="col" class="num">Price</th><th scope="col" class="num">Amount</th><th scope="col" class="num">HST ${Math.round(data.hst_rate * 100)}%</th><th scope="col" class="num">Total</th>
+            <th scope="col">Client</th><th scope="col">Billing</th><th scope="col" class="cell-num">Pushes</th><th scope="col">Push dates</th>
+            <th scope="col" class="cell-num">Price</th><th scope="col" class="cell-num">Amount</th><th scope="col" class="cell-num">HST ${Math.round(data.hst_rate * 100)}%</th><th scope="col" class="cell-num">Total</th>
           </tr></thead>
           <tbody>
             ${data.rows.map((r) => `
               <tr data-client-id="${r.client_id}">
                 <th scope="row"><span class="row-name">${esc(r.name)}</span><span class="row-addr">${esc(r.address)}</span></th>
                 <td data-col="billing">${esc(r.billing_label)}</td>
-                <td class="num" data-col="pushes">${pushesOf(r)}</td>
+                <td class="cell-num" data-col="pushes">${pushesOf(r)}</td>
                 <td data-col="dates">${esc(r.dates.map(dayLabel).join(', ') || '—')}</td>
-                <td class="num" data-col="price">${money(r.price_cents)}</td>
-                <td class="num" data-col="amount">${money(r.amount_cents)}</td>
-                <td class="num" data-col="hst">${money(r.hst_cents)}</td>
-                <td class="num" data-col="total">${money(r.total_cents)}</td>
+                <td class="cell-num" data-col="price">${money(r.price_cents)}</td>
+                <td class="cell-num" data-col="amount">${money(r.amount_cents)}</td>
+                <td class="cell-num" data-col="hst">${money(r.hst_cents)}</td>
+                <td class="cell-num" data-col="total">${money(r.total_cents)}</td>
               </tr>`).join('')}
           </tbody>
           <tfoot><tr id="billing-totals">
-            <th scope="row">Total</th><td></td><td class="num" data-col="pushes">${t.pushes}</td><td></td><td></td>
-            <td class="num" data-col="amount">${money(t.subtotal_cents)}</td><td class="num" data-col="hst">${money(t.hst_cents)}</td><td class="num" data-col="total">${money(t.total_cents)}</td>
+            <th scope="row">Total</th><td></td><td class="cell-num" data-col="pushes">${t.pushes}</td><td></td><td></td>
+            <td class="cell-num" data-col="amount">${money(t.subtotal_cents)}</td><td class="cell-num" data-col="hst">${money(t.hst_cents)}</td><td class="cell-num" data-col="total">${money(t.total_cents)}</td>
           </tr></tfoot>
         </table>
       </div>
