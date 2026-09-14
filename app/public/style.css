@@ -103,6 +103,8 @@ body.has-undo .driver-main { padding-bottom: 140px; }
 .rejected { margin-top: 28px; padding: 4px 16px 16px; border-radius: var(--radius); border: 2px solid var(--danger); background: var(--surface); }
 .rejected-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 14px; }
 .rejected-list li { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.queue-note { margin-top: 28px; padding: 4px 16px 16px; border-radius: var(--radius); border: 2px solid var(--st-skipped); background: var(--surface); }
+.queue-note-status { color: var(--st-skipped); font-weight: 700; }
 
 .undo-bar {
   display: flex; align-items: center; gap: 12px; min-height: 76px; margin: 6px 0 4px; padding: 10px 10px 10px 16px;

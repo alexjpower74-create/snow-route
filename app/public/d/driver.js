@@ -46,6 +46,19 @@ function writeCache() {
     localStorage.setItem(ROUTE_PREFIX + state.route.truck.id, JSON.stringify({ key, saved_at: state.savedAt, route: state.route }))
   } catch {}
 }
+// The truck a driver key belonged to, from the route saved with it on this phone.
+function truckOfKey(k) {
+  if (k === key && state.route?.truck) return state.route.truck.id
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const name = localStorage.key(i)
+      if (!name.startsWith(ROUTE_PREFIX)) continue
+      const v = JSON.parse(localStorage.getItem(name))
+      if (v?.key === k && v.route?.truck) return v.route.truck.id
+    }
+  } catch {}
+  return null
+}
 function clearCache() {
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -58,6 +71,26 @@ function clearCache() {
 /* ---- the screen's view of the route: server stops + the queue --------- */
 const zone = () => state.route?.company?.timezone || 'America/St_Johns'
 const reasonText = (reason, note) => (reason === 'other' && note ? `Other: ${note}` : REASON_LABEL[reason] || '')
+const pageTruck = () => state.route?.truck?.id ?? null
+
+// Items this page answers for: saved under its own key, saved under another link of the same truck (an old link), or saved under a
+// key the Worker refused (the sender re-keys those to this page, clarifications 17 and 24).
+function ours(item) {
+  if (item.key === key) return true
+  const truck = item.truck_id ?? truckOfKey(item.key)
+  return (truck != null && truck === pageTruck()) || sender.isDead(item.key)
+}
+const itemWhat = (i) => (i.op === 'void' ? 'Undo' : i.body.kind === 'plowed' ? 'Plowed' : `Skipped: ${reasonText(i.body.reason, i.body.note)}`)
+const itemAt = (i) => (i.body.at ? ` at ${timeLabel(i.body.at, zone())}` : '')
+
+// Queued check-ins whose stop is not on this route any more (moved to another truck, or another storm): still sent, still shown.
+function elsewhere() {
+  const route = state.route
+  if (!route) return []
+  const here = new Set(route.storm ? route.stops.map((s) => s.client_id) : [])
+  return state.items.filter((i) => ours(i) && i.op === 'checkin' && i.state !== 'rejected' && !i.stuck
+    && (!route.storm || i.body.storm_id !== route.storm.id || !here.has(i.body.client_id)))
+}
 
 function stops() {
   const route = state.route
@@ -65,7 +98,7 @@ function stops() {
   const list = route.stops.map((s) => ({ ...s, queued: false }))
   const byClient = new Map(list.map((s) => [s.client_id, s]))
   for (const item of state.items) {
-    if (item.key !== key || item.state === 'rejected' || item.body.storm_id !== route.storm.id) continue
+    if (!ours(item) || item.stuck || item.state === 'rejected' || item.body.storm_id !== route.storm.id) continue
     const s = byClient.get(item.body.client_id)
     if (!s) continue
     const b = item.body
@@ -105,6 +138,8 @@ app.innerHTML = `
   <main class="wrap driver-main">
     <div id="undo"></div>
     <section id="stop" aria-live="polite"></section>
+    <section id="oldlink"></section>
+    <section id="elsewhere"></section>
     <section id="rejected"></section>
     <section id="list"></section>
   </main>
@@ -124,6 +159,8 @@ function render() {
   renderBar()
   renderStrip()
   renderStop()
+  renderOldLink()
+  renderElsewhere()
   renderRejected()
   renderList()
   renderUndo()
@@ -136,7 +173,7 @@ function renderBar() {
 
 function renderStrip() {
   const strip = $('strip')
-  const live = state.items.filter((i) => i.key === key && i.state !== 'rejected')
+  const live = state.items.filter((i) => ours(i) && i.state !== 'rejected' && !i.stuck)
   const toSend = live.filter((i) => i.state === 'send').length
   const photos = live.filter((i) => i.state === 'photo').length
   const offline = !navigator.onLine || sender.problem === 'network'
@@ -259,9 +296,49 @@ function renderList() {
     </ol>`
 }
 
+function renderOldLink() {
+  const box = painter('oldlink')
+  const rows = state.items.filter((i) => ours(i) && i.state !== 'rejected' && (i.key !== key || i.rekeyed_from))
+  if (!rows.length) { box.innerHTML = ''; return }
+  box.innerHTML = `
+    <div class="queue-note" id="old-link">
+      <h2 class="section-title">Saved under an old driver link</h2>
+      <ul class="rejected-list">
+        ${rows.map((i) => `
+          <li data-qid="${esc(i.qid)}">
+            <strong>${esc(i.label)}</strong>
+            <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}</span>
+            ${i.stuck
+              ? `<span class="error-text">This ${i.op === 'void' ? 'undo' : 'photo'} belongs to another truck's link, so this link cannot send it.</span>
+                 <button class="btn-row" type="button" data-action="dismiss" data-qid="${esc(i.qid)}">Remove from this phone</button>`
+              : '<span class="queue-note-status">Saved under an old driver link, sending with this one.</span>'}
+          </li>`).join('')}
+      </ul>
+    </div>`
+}
+
+function renderElsewhere() {
+  const box = painter('elsewhere')
+  const rows = elsewhere()
+  if (!rows.length) { box.innerHTML = ''; return }
+  box.innerHTML = `
+    <div class="queue-note" id="other-route">
+      <h2 class="section-title">Saved for stops on another route</h2>
+      <p class="muted">The owner moved these stops off this route. They still send, with the time you tapped.</p>
+      <ul class="rejected-list">
+        ${rows.map((i) => `
+          <li data-qid="${esc(i.qid)}">
+            <strong>${esc(i.label)}</strong>
+            <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}${i.state === 'photo' ? ' · photo to send' : ''}</span>
+            <button class="btn-row" type="button" data-action="undo-item" data-qid="${esc(i.qid)}">Undo</button>
+          </li>`).join('')}
+      </ul>
+    </div>`
+}
+
 function renderRejected() {
   const box = painter('rejected')
-  const bad = state.items.filter((i) => i.key === key && i.state === 'rejected')
+  const bad = state.items.filter((i) => ours(i) && i.state === 'rejected')
   if (!bad.length) { box.innerHTML = ''; return }
   box.innerHTML = `
     <div class="rejected" id="not-accepted">
@@ -271,7 +348,7 @@ function renderRejected() {
         ${bad.map((i) => `
           <li>
             <strong>${esc(i.label)}</strong>
-            <span class="muted">${esc(i.op === 'void' ? 'Undo' : i.body.kind === 'plowed' ? 'Plowed' : `Skipped: ${reasonText(i.body.reason, i.body.note)}`)}${i.body.at ? ` at ${esc(timeLabel(i.body.at, zone()))}` : ''}</span>
+            <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}</span>
             <span class="error-text">${esc(i.error)}</span>
             <button class="btn-row" type="button" data-action="dismiss" data-qid="${esc(i.qid)}">Remove from this phone</button>
           </li>`).join('')}
@@ -330,7 +407,7 @@ async function record(clientId, { kind, reason = null, note = '', at, photo = nu
   const body = { id, storm_id: state.route.storm.id, client_id: clientId, kind, note, at, has_photo: !!photo }
   if (kind === 'skipped') body.reason = reason
   try {
-    await queue.add({ qid: id, op: 'checkin', state: 'send', key, label: stop.name, body, photo, error: null })
+    await queue.add({ qid: id, op: 'checkin', state: 'send', key, truck_id: pageTruck(), label: stop.name, body, photo, error: null })
   } catch {
     state.notice = 'This phone could not save the check-in. Try again, or tell the owner.'
     render()
@@ -348,20 +425,28 @@ async function record(clientId, { kind, reason = null, note = '', at, photo = nu
   sender.flush()
 }
 
+// Take back one queued item. Never sent ('send') or refused by the server ('rejected', clarification 19): remove it from the phone
+// only. Its check-in is on the server and only its photo waits ('photo'): drop the photo and queue the undo.
+async function takeBack(item, fallback = {}) {
+  if (!item || item.state === 'send' || item.state === 'rejected') {
+    if (item) await queue.remove(item.qid)
+    if (item || !fallback.id) return
+  } else {
+    await queue.remove(item.qid)
+  }
+  const id = item?.body.id ?? fallback.id
+  const s = state.route?.stops.find((x) => x.checkin?.id === id)
+  await queue.add({ qid: `void:${id}`, op: 'void', state: 'send', key, truck_id: pageTruck(), label: item?.label || s?.name || fallback.label,
+    body: { id, storm_id: item?.body.storm_id ?? state.route.storm.id, client_id: item?.body.client_id ?? s?.client_id }, photo: null, error: null })
+}
+
 async function undo() {
   const u = state.last
   if (!u?.canUndo) return
   clearTimeout(undoTimer)
   state.last = { id: u.id, canUndo: false, past: `Undone: ${u.text}` }
-  const item = await queue.get(u.id)
-  if (item?.state === 'send') {
-    await queue.remove(u.id) // never left the phone: just take it back
-  } else {
-    if (item) await queue.remove(u.id) // its photo was still waiting; the check-in itself is on the server
-    const s = state.route.stops.find((x) => x.checkin?.id === u.id)
-    await queue.add({ qid: `void:${u.id}`, op: 'void', state: 'send', key, label: s?.name || u.text,
-      body: { id: u.id, storm_id: state.route.storm.id, client_id: s?.client_id ?? item?.body.client_id }, photo: null, error: null })
-  }
+  // No item left means the check-in (and any photo) is on the server: fallback queues the undo for it.
+  await takeBack(await queue.get(u.id), { id: u.id, label: u.text })
   await refreshItems()
   render()
   sender.flush()
@@ -475,6 +560,11 @@ document.addEventListener('click', async (e) => {
     case 'back':
       state.focus = null
       return render()
+    case 'undo-item':
+      await takeBack(await queue.get(t.dataset.qid))
+      await refreshItems()
+      render()
+      return sender.flush()
     case 'dismiss':
       await queue.remove(t.dataset.qid)
       await refreshItems()
@@ -501,6 +591,7 @@ const sender = queue.createSender({
   },
   onDrained: () => loadRoute(),
   onPhotoDropped: (itemKey, id, message) => { notePhotoDropped(id, message); renderList() },
+  truckOf: (k) => truckOfKey(k),
 })
 
 async function loadRoute() {
@@ -518,10 +609,12 @@ async function loadRoute() {
     state.fromCache = false
     state.error = ''
     writeCache()
+    sender.setPage({ key, truckId: route.truck.id, working: true })
   } catch (e) {
     if (e.code === 'network') {
       if (!state.route) state.error = 'No signal, and this phone has not saved the route yet. It loads when signal comes back.'
     } else if (e.status === 401) {
+      sender.setPage({ key, truckId: null, working: false })
       clearCache()
       state.route = null
       state.error = e.message

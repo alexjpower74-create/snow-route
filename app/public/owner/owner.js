@@ -15,7 +15,7 @@ const TRUCK_COLOURS = ['#7cc4ff', '#f0abfc', '#fdba74', '#86efac']
 const STORM_REFRESH_MS = 30_000
 
 const app = document.getElementById('app')
-const state = { company: null, clients: [], trucks: [], storm: null, editing: null, pin: null, picking: null, notice: '' }
+const state = { company: null, clients: [], trucks: [], storm: null, editing: null, pin: null, picking: null, notice: '', stormNotice: '' }
 let map = null
 let pinMarker = null
 let stormTimer = null
@@ -26,10 +26,11 @@ const round5 = (n) => Math.round(n * 1e5) / 1e5
 const currentView = () => (VIEWS.some(([id]) => id === location.hash.slice(1)) ? location.hash.slice(1) : 'tonight')
 const options = (list, value) => list.map(([v, l]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('')
 
-// "45", "45.5", "$1,200.00" → cents; anything else → null, so the API answers with its own message.
-function dollarsToCents(text) {
-  const t = String(text).trim().replace(/^\$/, '').replace(/,/g, '')
-  return /^\d+(\.\d{1,2})?$/.test(t) ? Math.round(Number(t) * 100) : null
+// "45", "45.5", "45.50", ".50", "45." and "$1,200.00" → cents; anything else → null (clarification 23).
+const PRICE_TEXT = 'Type a price in dollars and cents.'
+export function dollarsToCents(text) {
+  const t = String(text).trim().replace(/^\$/, '').replace(/,(?=\d{3}(\D|$))/g, '')
+  return /^(\d+\.?\d{0,2}|\.\d{1,2})$/.test(t) ? Math.round(Number(t) * 100) : null
 }
 
 /* ---- map ------------------------------------------------------------------ */
@@ -199,7 +200,13 @@ async function buildRoute() {
     state.picking = null
     paintStorm()
   } catch (e) {
-    if (e.status === 401) return
+    if (e.status === 401 && !e.field) return
+    if (e.status === 409 && e.code === 'bad_state') {
+      // A storm was started on another screen: close the picker and show it, with the API's message (clarification 22).
+      state.picking = null
+      state.stormNotice = e.message
+      return renderTonight()
+    }
     ;($(`err-${e.field}`) || $('form-error')).textContent = e.message
     btn.disabled = false
   }
@@ -213,7 +220,10 @@ function ownerStatus(s) {
 
 function paintStorm() {
   const s = state.storm
+  const notice = state.stormNotice
+  state.stormNotice = ''
   $('view').innerHTML = `
+    ${notice ? `<p class="notice" id="storm-notice" role="alert">${esc(notice)}</p>` : ''}
     <div class="storm-head">
       <h1 class="view-title">${esc(s.name)}</h1>
       <p class="muted">Started ${esc(s.started_label)} · ${s.counts.plowed} plowed · ${s.counts.skipped} skipped · ${s.counts.pending} to go</p>
@@ -421,6 +431,12 @@ async function saveClient(form) {
     billing: g('f-billing').value, price_cents: dollarsToCents(g('f-price').value), truck_id: truck ? Number(truck) : null,
     active: c ? g('f-active').checked : true,
   }
+  if (body.price_cents === null) {
+    const el = $('err-price_cents')
+    el.textContent = PRICE_TEXT
+    el.scrollIntoView({ block: 'center' })
+    return
+  }
   const btn = $('save-client')
   btn.disabled = true
   try {
@@ -430,7 +446,7 @@ async function saveClient(form) {
     state.notice = c ? `Saved ${saved.name}.` : `Added ${saved.name}.`
     await renderClients()
   } catch (e) {
-    if (e.status === 401) return
+    if (e.status === 401 && !e.field) return
     const target = $(`err-${e.field === 'lng' ? 'lat' : e.field}`) || $('form-error')
     target.textContent = e.message
     target.scrollIntoView({ block: 'center' })

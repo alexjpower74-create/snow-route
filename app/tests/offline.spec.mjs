@@ -109,7 +109,7 @@ test.describe(() => {
     await page.route('**/api/driver/checkins', async (route) => {
       posts += 1
       if (posts === 1) {
-        return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Something went wrong on our side. Please try again.', code: 'server_error' }) })
+        return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' }) })
       }
       return route.continue()
     })

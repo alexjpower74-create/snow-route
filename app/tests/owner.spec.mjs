@@ -1,5 +1,5 @@
 // The owner side on sr1's M1 routes, against the real Worker.
-import { test, expect, tap, tapAt, typeText, api, ownerToken, signIn, hitTest, shot } from './helpers.mjs'
+import { test, expect, tap, tapAt, typeText, api, ownerToken, startStorm, signIn, hitTest, shot } from './helpers.mjs'
 
 test('a wrong PIN says so, and the sign-in answer is 401', async ({ page }) => {
   await page.goto('/owner/')
@@ -110,4 +110,51 @@ test('trucks: each driver link with Copy link', async ({ page, seed }, testInfo)
   // Chromium grants nothing here, so the page either says Copied or selects the link and says how to copy it. Both are real outcomes.
   await expect(page.locator('.truck-row').first()).toContainText(/Copied|copy it from there/)
   await shot(page, testInfo, 'owner-trucks')
+})
+
+test('a storm started on another screen: Build shows the running storm with the API message', async ({ page, request }) => {
+  await signIn(page)
+  await tap(page, page.locator('#start-storm'), 'Start a storm')
+  await expect(page.locator('#pick-clients input:checked')).toHaveCount(25)
+  await startStorm(request, await ownerToken(request)) // the owner's other device
+  const answer = page.waitForResponse((r) => r.url().endsWith('/api/owner/storms') && r.request().method() === 'POST')
+  await tap(page, page.locator('#build-route'), "Build tonight's route")
+  const refused = await answer
+  expect(refused.status()).toBe(409)
+  const body = await refused.json()
+  expect(body.code).toBe('bad_state')
+  await expect(page.locator('#storm-notice')).toHaveText(body.error)
+  await expect(page.locator('#storm-form'), 'the picker is closed').toHaveCount(0)
+  await expect(page.locator('#order-note')).toHaveText('Order is by distance, not road time.')
+  await expect(page.locator('.truck-stops')).toHaveCount(2)
+})
+
+test('price input: .50 and 45. are prices; 4.5.0 is refused on the form without sending', async ({ page, request }) => {
+  const puts = []
+  page.on('request', (r) => { if (r.method() === 'PUT' && r.url().includes('/api/owner/clients/')) puts.push(r.url()) })
+  await signIn(page)
+  await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
+  const token = await ownerToken(request)
+  const priceOf = async (name) => (await api(request, 'GET', '/api/owner/clients', { token })).body.clients.find((c) => c.name === name).price_cents
+  const setPrice = async (text) => {
+    await tap(page, page.getByRole('button', { name: 'Edit Alex (SAMPLE)' }), 'Edit Alex')
+    await tap(page, page.locator('#f-price'), 'Price')
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type(text)
+    await tap(page, page.locator('#save-client'), 'Save client')
+  }
+
+  await setPrice('4.5.0')
+  await expect(page.locator('#err-price_cents')).toHaveText('Type a price in dollars and cents.')
+  expect(puts, 'nothing sent for a price that is not one').toEqual([])
+  await tap(page, page.getByRole('button', { name: 'Cancel' }), 'Cancel')
+
+  await setPrice('.50')
+  await expect(page.locator('.client-row', { hasText: 'Alex (SAMPLE)' })).toContainText('$0.50 per push')
+  expect(await priceOf('Alex (SAMPLE)')).toBe(50)
+
+  await setPrice('45.')
+  await expect(page.locator('.client-row', { hasText: 'Alex (SAMPLE)' })).toContainText('$45.00 per push')
+  expect(await priceOf('Alex (SAMPLE)')).toBe(4500)
+  expect(puts).toHaveLength(2)
 })

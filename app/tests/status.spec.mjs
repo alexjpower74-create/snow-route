@@ -1,5 +1,5 @@
 // The client status page against the real Worker.
-import { test, expect, tap, ownerToken, startStorm, ownerStorm, choosePhoto, shot } from './helpers.mjs'
+import { test, expect, tap, api, ownerToken, startStorm, ownerStorm, choosePhoto, shot } from './helpers.mjs'
 
 test('waiting says the same stop number as the driver list; after the plow: Plowed at h:mm AM and the photo', async ({ page, context, request, seed }, testInfo) => {
   const token = await ownerToken(request)
@@ -46,4 +46,30 @@ test('a bad status link shows the plain message', async ({ page }) => {
   await page.goto('/s/?k=not-a-real-status-key-000')
   await expect(page.locator('#answer')).toHaveText("This status link doesn't work. Ask your snow clearing company for a new one.")
   await expect(page.locator('[data-sample]')).toBeVisible()
+})
+
+test('a mangled link (trailing dot) shows the bad-link text, and after that 404 the page stops checking', async ({ page, request, seed }) => {
+  const good = new URL(seed.clients[0].status_url)
+  const lookups = []
+  page.on('request', (r) => { if (r.url().includes('/api/status/')) lookups.push(r.url()) })
+  // Headless Playwright never changes visibilityState on a tab switch (probed in chromium and webkit), so the test dispatches the
+  // event itself. First it proves the page listens: on a good link one dispatch makes one more lookup.
+  const returnToTab = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await page.goto(good.pathname + good.search)
+  await expect(page.locator('#answer')).toBeVisible()
+  const before = lookups.length
+  await returnToTab()
+  await expect.poll(() => lookups.length, { message: 'a good link checks again when the tab comes back' }).toBe(before + 1)
+
+  // A messaging app glued a dot onto the link.
+  const answer = await api(request, 'GET', `/api/status/${good.searchParams.get('k')}.`)
+  expect(answer.status, 'the Worker answers the mangled key 404').toBe(404)
+  await page.goto(good.pathname + good.search + '.')
+  await expect(page.locator('#answer')).toHaveText("This status link doesn't work. Ask your snow clearing company for a new one.")
+  await expect(page.locator('[data-sample]')).toBeVisible()
+  const after = lookups.length
+  await returnToTab()
+  await returnToTab()
+  await page.waitForTimeout(1500)
+  expect(lookups.length, 'no lookup after the 404').toBe(after)
 })

@@ -61,12 +61,13 @@ async function call(method, path, options) {
   throw new ApiError(r.status, r.data)
 }
 
-// Owner routes carry the session token. A 401 on any of them (other than the sign-in itself) ends the session on this device.
+// Owner routes carry the session token. A 401 without a `field` means the session ended: clear it and sign out. A 401 with a
+// `field` (a wrong current PIN) is a form error and keeps the session (clarification 21).
 async function owner(method, path, json) {
   const token = session.get()
   const r = await send(method, path, { json, headers: token ? { Authorization: `Bearer ${token}` } : {} })
   if (r.status >= 200 && r.status < 300) return r.data
-  if (r.status === 401) {
+  if (r.status === 401 && !r.data?.field) {
     session.clear()
     window.dispatchEvent(new CustomEvent(SIGNED_OUT, { detail: r.data?.error || '' }))
   }
