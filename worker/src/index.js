@@ -227,6 +227,7 @@ function stormView (data, ctx) {
     ended_at: storm.ended_at,
     ended_label: storm.ended_at ? fullLabel(storm.ended_at) : null,
     order_note: ORDER_NOTE,
+    route_version: storm.route_version,
     counts,
     trucks: data.trucks.map(t => ({ id: t.id, name: t.name, stops: stops.filter(s => s.truck_id === t.id) }))
   }
@@ -649,8 +650,8 @@ async function putCompany (request, env, ctx) {
   if (!name || chars(name) > 80) throw badRequest('name', 'Give the company a name (up to 80 characters).')
   const yard = body.yard && typeof body.yard === 'object' ? body.yard : {}
   const label = typeof yard.label === 'string' ? yard.label.trim() : ''
-  if (!label || chars(label) > 80) throw badRequest('yard', 'Give the yard a name (up to 80 characters).')
-  if (!inNewfoundlandAndLabrador(yard.lat, yard.lng)) throw badRequest('yard', 'Put a pin on the map for the yard.')
+  if (!label || chars(label) > 80) throw badRequest('yard.label', 'Give the yard a name (up to 80 characters).')
+  if (!inNewfoundlandAndLabrador(yard.lat, yard.lng)) throw badRequest('yard.pin', 'Put a pin on the map for the yard.')
   await env.DB.prepare('UPDATE company SET name = ?1, yard_label = ?2, yard_lat = ?3, yard_lng = ?4 WHERE id = 1')
     .bind(name, label, yard.lat, yard.lng).run()
   return json(200, companyView(await loadCompany(env.DB)))
@@ -742,30 +743,41 @@ async function editableStorm (env, ctx) {
   return data
 }
 
+const ROUTE_CHANGED = 'The route changed while you were editing it. Reload and try again.'
+// Refuses a route write inside its batch when another edit has bumped the version since this screen loaded the route (clarification 32).
+const ROUTE_VERSION_GUARD_SQL = "SELECT json(CASE WHEN (SELECT route_version FROM storms WHERE id = ?1) <> ?2 THEN 'route changed' ELSE '0' END)"
+const bumpRouteVersion = (db, stormId) => db.prepare('UPDATE storms SET route_version = route_version + 1 WHERE id = ?1').bind(stormId)
+
 async function putRoute (request, env, ctx) {
   const db = env.DB
   const data = await editableStorm(env, ctx)
   const body = await readJson(request)
+  if (!Number.isInteger(body.route_version)) throw badRequest('route_version', 'Reload the route and try again.')
   const refuse = () => badRequest('trucks', 'List every truck in this storm once and every stop once.')
   const truckIds = new Set(data.trucks.map(t => t.id))
   const stopIds = new Set(data.stopRows.map(r => r.client_id))
   const seenTrucks = new Set()
   const seenStops = new Set()
+  // Malformed (not arrays, a foreign truck, a truck or a stop twice): 400 whatever the version.
   if (!Array.isArray(body.trucks)) throw refuse()
   for (const t of body.trucks) {
     if (!t || typeof t !== 'object' || !truckIds.has(t.truck_id) || seenTrucks.has(t.truck_id) || !Array.isArray(t.client_ids)) throw refuse()
     seenTrucks.add(t.truck_id)
     for (const c of t.client_ids) {
-      if (!stopIds.has(c) || seenStops.has(c)) throw refuse()
+      if (!Number.isInteger(c) || seenStops.has(c)) throw refuse()
       seenStops.add(c)
     }
   }
-  if (seenTrucks.size !== truckIds.size || seenStops.size !== stopIds.size) throw refuse()
+  // Well formed but not this storm's trucks and stops: sent from a stale screen that is "the route changed" (409), else 400. This read
+  // only chooses between two refusals; a body that matches is decided by the version guard inside the write batch below.
+  const sameSet = seenTrucks.size === truckIds.size && seenStops.size === stopIds.size && [...seenStops].every(c => stopIds.has(c))
+  if (!sameSet) throw body.route_version !== data.storm.route_version ? badState(ROUTE_CHANGED) : refuse()
 
   const stormId = data.storm.id
   const stmts = [
     endedGuard(db, stormId),
-    db.prepare("SELECT json(CASE WHEN (SELECT COUNT(*) FROM storm_stops WHERE storm_id = ?1) <> ?2 THEN 'stops changed' ELSE '0' END)").bind(stormId, stopIds.size)
+    db.prepare(ROUTE_VERSION_GUARD_SQL).bind(stormId, body.route_version),
+    bumpRouteVersion(db, stormId)
   ]
   for (const t of body.trucks) {
     t.client_ids.forEach((c, i) => stmts.push(db.prepare('UPDATE storm_stops SET truck_id = ?1, position = ?2 WHERE storm_id = ?3 AND client_id = ?4')
@@ -776,7 +788,7 @@ async function putRoute (request, env, ctx) {
   } catch (e) {
     if (!isGuardRefusal(e)) throw e
     const now = await db.prepare('SELECT ended_at FROM storms WHERE id = ?1').bind(stormId).first()
-    throw badState(now.ended_at ? STORM_ENDED : 'The route changed while you were editing it. Reload and try again.')
+    throw badState(now.ended_at ? STORM_ENDED : ROUTE_CHANGED)
   }
   return json(200, await ownerStormView(env, ctx, stormId))
 }
@@ -794,7 +806,8 @@ async function addStop (request, env, ctx) {
     await db.batch([
       endedGuard(db, data.storm.id),
       db.prepare(`INSERT INTO storm_stops (storm_id, client_id, truck_id, position)
-        SELECT ?1, ?2, ?3, COALESCE(MAX(position), 0) + 1 FROM storm_stops WHERE storm_id = ?1 AND truck_id = ?3`).bind(data.storm.id, client.id, body.truck_id)
+        SELECT ?1, ?2, ?3, COALESCE(MAX(position), 0) + 1 FROM storm_stops WHERE storm_id = ?1 AND truck_id = ?3`).bind(data.storm.id, client.id, body.truck_id),
+      bumpRouteVersion(db, data.storm.id)
     ])
   } catch (e) {
     if (isGuardRefusal(e)) throw badState(STORM_ENDED)
@@ -823,7 +836,8 @@ async function removeStop (request, env, ctx) {
       // The numbering comes from one window-function snapshot (UPDATE … FROM), never from rows this statement already rewrote.
       db.prepare(`UPDATE storm_stops SET position = r.rn
         FROM (SELECT client_id, ROW_NUMBER() OVER (PARTITION BY truck_id ORDER BY position, client_id) AS rn FROM storm_stops WHERE storm_id = ?1) AS r
-        WHERE storm_stops.storm_id = ?1 AND storm_stops.client_id = r.client_id`).bind(data.storm.id)
+        WHERE storm_stops.storm_id = ?1 AND storm_stops.client_id = r.client_id`).bind(data.storm.id),
+      bumpRouteVersion(db, data.storm.id)
     ])
   } catch (e) {
     if (!isGuardRefusal(e)) throw e
