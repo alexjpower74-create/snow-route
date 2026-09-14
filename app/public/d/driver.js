@@ -507,8 +507,9 @@ async function takeBack(qid, known) {
     return { result: 'kept' }
   })
   if (outcome === 'gone' && known) {
-    // Sent and answered (the row exists): nothing left to replace, so the undo is simply added.
-    await queue.add(queue.voidFor(known, { truckId: known.truck_id ?? truckOfKey(known.key) }))
+    // Sent and answered (the row exists): add the undo through update(), leaving an undo already queued for it untouched (clarification 53).
+    const undoItem = { ...queue.voidFor(known, { truckId: known.truck_id ?? truckOfKey(known.key) }), seq: Date.now() }
+    await queue.update(undoItem.qid, (existing) => (existing ? { result: false } : { item: undoItem, result: true }))
   }
   return outcome
 }

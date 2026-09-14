@@ -160,7 +160,7 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       // from that answer, and only then send the DELETE on the next step, so the DELETE always finds the row.
       let again
       try {
-        again = await api.driver.checkin(item.key, item.checkin)
+        again = await api.driver.checkin(item.key, { ...item.checkin, undo: true }) // clarification 52: never stored → stored already voided
       } catch (e) {
         return failed(e.code === 'network' ? 'network' : 'error', e.message)
       }
@@ -172,6 +172,12 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       }
       if (again.status !== 200 && again.status !== 201) {
         await reject(item, again.data?.error || `The undo was not accepted (error ${again.status}).`)
+        return true
+      }
+      if (again.status === 201 && again.data?.checkin?.voided === true) {
+        // It had never reached the office: the re-send stored it already voided, so there is nothing left to DELETE (clarification 52).
+        await update(item.qid, (it) => (it ? { item: null, result: true } : { result: false }))
+        onSent(item.key, again.data?.stop)
         return true
       }
       const stored = again.data?.checkin?.truck_id ?? item.truck_id
