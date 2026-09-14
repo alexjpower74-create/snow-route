@@ -60,3 +60,11 @@ Alexander was asleep for this build; every real call is written here with its re
     instead of trusting a view that could hide a duplicate. Both answer 404 without `TEST_MODE`, checked before the database is touched.
 21. **At most one active storm is enforced by a unique partial index** (sr1's addition), for the same reason as the check-ins: two
     Start taps at once must give one storm and one refusal, not two storms.
+
+## 2026-09-14, lead (after sr2 M1)
+
+22. **The in-browser mock (`api.mock.js`, `mock-data.js`) stays in `app/public`.** It only switches on with `?mock=1`, holds SAMPLE
+    data only, never talks to the Worker, and lets the pages be shown with no Worker running. Every Playwright test runs against the
+    real Worker, so nothing is graded on the mock. Removing it from a production build is a one-line deploy choice (DEPLOY.md).
+23. **A 429 is a failure, not a refusal, and a refused photo drops only the photo** (API.md clarification 11). sr2's M1 queue put
+    a 429 in "Not accepted", where the driver would have to clear a check-in that would have gone through a minute later.

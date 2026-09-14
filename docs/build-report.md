@@ -10,8 +10,17 @@ reasoning and every attempt.
 | Merge | sha | Worker unit | Worker API (`wrangler dev --local`) | Negative controls run by the lead | Playwright |
 |---|---|---|---|---|---|
 | sr1 M1 | `8863e14` | 18 / 0 / 0 | 34 / 0 / 0 | twoopt, tiers, idempotent, time: all red | n/a |
+| sr2 M1 | `110f190` | (unchanged) | (unchanged) | sr2's own queue control against its mock (not re-run by the lead: M2 moves it to the real Worker) | integration smoke, below |
 
 Counts are passed / failed / skipped.
+
+## Integration smoke (lead, `110f190`, before any cross-slice test suite existed)
+
+sr2's M1 pages were checked only against its in-browser mock, so the lead ran them against sr1's real Worker in the QA worktree on 7609
+(`TEST_MODE=1`, fresh state) with Playwright chromium at 390: reset → owner sign-in → start a storm with all 25 clients and both trucks →
+the driver page shows "Stop 1 of 13", Pat (SAMPLE), Medical, the notes, Navigate / Plowed / Plowed, no photo / Skip → the second stop's
+status link says "On the route tonight. You're stop 2." → a plowed check-in through the API answers 201 → the first client's status link
+says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero console errors, zero API answers ≥ 400.
 
 ## Negative controls (what each break proved)
 
