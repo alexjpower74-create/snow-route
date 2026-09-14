@@ -310,3 +310,9 @@ textarea.field { min-height: 88px; resize: vertical; }
 .billing-table { min-width: 760px; }
 .month-pick { display: grid; gap: 4px; min-width: 220px; }
 .seasonal-note { margin: 14px 0 0; padding: 10px 14px; border-radius: var(--radius); border-left: 6px solid var(--accent); background: var(--surface); }
+
+/* Five owner tabs do not fit in one row on a phone: wrap them, so none is scrolled out of sight. */
+@media (max-width: 520px) {
+  .tabs { flex-wrap: wrap; overflow-x: visible; padding: 0 8px; gap: 0 2px; }
+  .tab { min-height: 48px; padding: 0 12px; }
+}
