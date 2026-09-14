@@ -4,6 +4,13 @@
 
 const MOCK_KEY = 'snow-route:mock'
 export const TOKEN_KEY = 'snow-route:owner-token'
+export const SIGNED_OUT = 'snow-route:signed-out'
+
+export const session = {
+  get() { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } },
+  set(token) { try { localStorage.setItem(TOKEN_KEY, token) } catch {} },
+  clear() { try { localStorage.removeItem(TOKEN_KEY) } catch {} },
+}
 
 const mode = new URLSearchParams(location.search).get('mock')
 let mocked = false
@@ -54,6 +61,18 @@ async function call(method, path, options) {
   throw new ApiError(r.status, r.data)
 }
 
+// Owner routes carry the session token. A 401 on any of them (other than the sign-in itself) ends the session on this device.
+async function owner(method, path, json) {
+  const token = session.get()
+  const r = await send(method, path, { json, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (r.status >= 200 && r.status < 300) return r.data
+  if (r.status === 401) {
+    session.clear()
+    window.dispatchEvent(new CustomEvent(SIGNED_OUT, { detail: r.data?.error || '' }))
+  }
+  throw new ApiError(r.status, r.data)
+}
+
 const q = encodeURIComponent
 const driverHeaders = (key) => ({ 'X-Driver-Key': key })
 
@@ -61,6 +80,17 @@ export const api = {
   mocked,
   company: () => call('GET', '/api/company'),
   status: (key) => call('GET', `/api/status/${q(key)}`),
+  owner: {
+    signin: (pin) => call('POST', '/api/owner/signin', { json: { pin } }),
+    signout: () => owner('POST', '/api/owner/signout'),
+    clients: () => owner('GET', '/api/owner/clients?include_inactive=1'),
+    createClient: (body) => owner('POST', '/api/owner/clients', body),
+    updateClient: (id, body) => owner('PUT', `/api/owner/clients/${q(id)}`, body),
+    trucks: () => owner('GET', '/api/owner/trucks'),
+    currentStorm: () => owner('GET', '/api/owner/storms/current'),
+    startStorm: (body) => owner('POST', '/api/owner/storms', body),
+    storm: (id) => owner('GET', `/api/owner/storms/${q(id)}`),
+  },
   driver: {
     route: (key) => call('GET', '/api/driver/route', { headers: driverHeaders(key) }),
     // The queue needs every status code (201, 200 duplicate, 409, 5xx), so these answer { status, data } instead of throwing.

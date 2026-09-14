@@ -1,8 +1,10 @@
 // The driver's offline queue. Every check-in is written to IndexedDB (database `snow-route`, store `queue`) before
 // anything else happens, with its photo bytes. A sender posts the oldest item first and removes it ONLY after the
 // server answered: 200/201 for a check-in (then its photo is PUT and removed only after a 200), 200 for an undo.
-// A refusal (409 already_plowed, any other 4xx) moves the item to "rejected" with the server's message: it stays on the
-// phone and on screen, never silently dropped. No signal or a 5xx leaves the queue exactly as it was and backs off.
+// A refusal (409 already_plowed, 400, 404, any other 4xx) moves the item to "rejected" with the server's message: it stays on the
+// phone and on screen, never silently dropped. No signal, a 5xx or a 429 leaves the queue exactly as it was and backs off; a 401
+// keeps everything queued too. A photo refused with 404/413/415 drops only the photo (the check-in is already on the server):
+// the item is removed and onPhotoDropped reports the server's message for that stop (API.md clarification 11).
 //
 // Item: { qid, seq, created_at, key (driver key), op: 'checkin' | 'void', state: 'send' | 'photo' | 'rejected',
 //         label (stop name), body (the POST body, or { id, storm_id, client_id } for a void), photo: { bytes, type } | null,
@@ -58,7 +60,7 @@ const pending = (items) => items.filter((i) => i.state !== 'rejected')
 
 // onChange(): the queue or the sender's state changed. onSent(key, stop): the server answered with a stop to show.
 // onDrained(): the queue went empty after sending something (a good moment to reload the route).
-export function createSender({ onChange = () => {}, onSent = () => {}, onDrained = () => {} } = {}) {
+export function createSender({ onChange = () => {}, onSent = () => {}, onDrained = () => {}, onPhotoDropped = () => {} } = {}) {
   const st = { busy: false, again: false, failures: 0, problem: null, message: '', timer: null, started: false }
 
   const failed = (problem, message = '') => {
@@ -83,7 +85,7 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       return failed(e.code === 'network' ? 'network' : 'error', e.message)
     }
     const { status, data } = r
-    if (status >= 500) return failed('server', data?.error || '')
+    if (status >= 500 || status === 429) return failed('server', data?.error || '')
     if (status === 401) return failed('unauthorized', data?.error || '')
 
     if (item.op === 'void') {
@@ -95,8 +97,14 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     }
 
     if (item.state === 'photo') {
-      if (status === 200) await remove(item.qid)
-      else await reject(item, data?.error || `The photo was not accepted (error ${status}).`)
+      if (status === 200) {
+        await remove(item.qid)
+      } else if (status === 404 || status === 413 || status === 415) {
+        await remove(item.qid)
+        onPhotoDropped(item.key, item.body.id, data?.error || `error ${status}`)
+      } else {
+        return failed('server', data?.error || '')
+      }
       return true
     }
 
@@ -159,7 +167,8 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
   function start() {
     if (st.started) return
     st.started = true
-    window.addEventListener('online', () => flush())
+    // Signal coming back is news: try at once, and start the backoff over (failures while offline must not delay this).
+    window.addEventListener('online', () => { st.failures = 0; flush() })
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush() })
     flush()
   }

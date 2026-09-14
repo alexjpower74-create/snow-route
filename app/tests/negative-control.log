@@ -37,3 +37,132 @@ mock chromium-1280 offline
 0 passed, 2 failed
 exit 1 -> RED as expected: the check is wired
 
+== 2026-09-14T08:53:50.953Z queue: queue.js removes the item from IndexedDB before sending it, so it is gone whatever the server says
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: 2 check-ins saved on 7606, copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:39:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped (1.6s) |   1 passed (5.1s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:39:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#stop-name')
+    Expected: "SAMPLE Clinic walkway"
+    Received: "Pat (SAMPLE)"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#stop-name') with timeout 10000ms
+      - waiting for locator('#stop-name')
+        24 × locator resolved to <h1 id="stop-name" class="stop-name">Pat (SAMPLE)</h1>
+           - unexpected value "Pat (SAMPLE)"
+
+
+      29 |   if (photo) await choosePhoto(page, page.locator('#plowed'), 'Plowed (no signal)')
+      30 |   else await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo (no signal)')
+    > 31 |   await expect(page.locator('#stop-name')).toHaveText(s2.name)
+         |                                            ^
+      32 |   await expect(page.locator('#skip')).toBeEnabled()
+      33 |   await tap(page, page.locator('#skip'), 'Skip this stop (no signal)')
+      34 |   await tap(page, page.getByRole('button', { name: 'Car in the way', exact: true }), 'Car in the way')
+        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:31:44)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:42:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/offline.spec.mjs:39:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+
+== 2026-09-14T08:54:10.971Z time: queue.js sets body.at to the phone clock at send time
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: 2 check-ins saved on 7606, copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:39:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped (1.6s) |   1 passed (5.1s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:39:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+    Error: Pat (SAMPLE): at is the time the driver tapped, not the sync time
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-09-14T09:00:00.000Z"
+    Received: "2026-09-14T09:40:00.000Z"
+
+      72 |     const row = rows.find((r) => r.client_id === stop.client_id)
+      73 |     expect(row?.kind, `${stop.name} is ${kind}`).toBe(kind)
+    > 74 |     expect(row.at, `${stop.name}: at is the time the driver tapped, not the sync time`).toBe(iso(T))
+         |                                                                                         ^
+      75 |     expect(row.at_adjusted).toBe(0)
+      76 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
+      77 |   }
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:74:89
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/offline.spec.mjs:39:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+
+== 2026-09-14T08:54:22.082Z overlay: a transparent, full-size element sits on top of the Plowed button
+   spec: playwright test targets.spec.mjs --project chromium-390 -g every driver button on 7606, copy in app/.negative/overlay
+   unbroken copy:   ✓  1 [chromium-390] › tests/targets.spec.mjs:15:1 › every driver button is at least 56 px and hit-tests to itself at 390 (1.9s) |   1 passed (5.3s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/targets.spec.mjs:15:1 › every driver button is at least 56 px and hit-tests to itself at 390 
+
+    Error: Plowed: hit-tests to itself
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: ""
+    Received: "<div class=\"negative-overlay\" aria-hidden=\"true\"></div>"
+
+      10 |   expect(box.height, `${label}: at least 56 px tall`).toBeGreaterThanOrEqual(56)
+      11 |   expect(box.width, `${label}: at least 56 px wide`).toBeGreaterThanOrEqual(56)
+    > 12 |   expect(hit, `${label}: hit-tests to itself`).toBe('')
+         |                                                ^
+      13 | }
+      14 |
+      15 | test('every driver button is at least 56 px and hit-tests to itself at 390', async ({ page, request, seed }, testInfo) => {
+        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:12:48)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:23:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/targets-every-driver-butto-0a0f2--hit-tests-to-itself-at-390-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/targets-every-driver-butto-0a0f2--hit-tests-to-itself-at-390-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/targets-every-driver-butto-0a0f2--hit-tests-to-itself-at-390-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/targets-every-driver-butto-0a0f2--hit-tests-to-itself-at-390-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/targets.spec.mjs:15:1 › every driver button is at least 56 px and hit-tests to itself at 390 
+
+

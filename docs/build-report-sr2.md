@@ -119,3 +119,40 @@ the real Worker, (b) time, (c) overlay are not done yet: they are M2.
   but some ICU versions print U+202F before AM/PM. If workerd's does, labels from the Worker will not equal the app's own queued
   labels (`timeLabel` in `ui.js` builds them from parts with a plain space).
 - `rig guard --agent sr2`: ok, all inside the slice. This report is under `docs/` because the brief names that path.
+
+## M2 — 2026-09-14
+
+### Cross-review of sr1 M1 (read-only, `worker/src/index.js` at 110f190 against docs/API.md, from the app's side)
+
+Read before writing M2. Checked: the JSON shapes the pages read (Company, Client, Truck, Stop, Checkin, Storm, the driver
+route, client status), status codes, error texts and `field`, label format, headers, and the test routes.
+
+Matches the contract (no action):
+- Company, Client, Truck, Stop, Checkin and Storm views have every field API.md names, with the listed labels. Driver views
+  carry no `messages`, prices or billing; owner storm views add `messages` with the exact templates.
+- Labels are cleaned to a plain space before AM/PM (clarification 1): the app's own queued labels match them.
+- Check-ins: 201 new, 200 `duplicate: true` for a known id whatever the body says (including a body that would be refused),
+  409 `already_plowed` with `checkin`, 400 with `field` for id/kind/reason/note/at/has_photo, 404 for an unknown storm or a
+  client that is not a stop. Accepted for an ended storm. The time window rule is as written. `reason` is stored null on plowed.
+- Photo PUT: 415 before reading the body, 413 on Content-Length or actual size, 404 for another truck's check-in, a new token on
+  every upload. Photo GET 404 for a voided check-in; SVG gets the CSP.
+- Status: `tonight` only for an active storm that has the client; `stops_done` counts plowed + skipped on that truck; `last` is the
+  latest non-voided plowed; no notes/price/trucks in the answer. Unknown key 404 with the contract's text.
+- `sample` is derived from the name; `status_url`/`driver_url`/`photo_url` are absolute from the request origin.
+- Every JSON answer carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `nosniff` (clarification 9).
+- Owner 401 for a missing/expired token is "Please sign in again." (not in the table; the app shows it as is).
+
+Mismatches and gaps (built against the contract anyway; for the lead to relay):
+1. **`note` is stored on a plowed check-in.** Clarification 10 says `reason` *and* `note` are ignored on plowed; `checkinInput`
+   keeps `note.trim()` for plowed too (only `reason` is nulled). The app sends no note on plowed, so nothing shows, but a plowed
+   row can carry a note if another client sends one. Minor.
+2. **500 text.** Clarification 6 gives `"Something went wrong on our side. Try again in a minute."`; the Worker answers
+   `"Something went wrong on our side. Please try again."`. The app shows whatever comes back, so this is wording only.
+3. **Not in the Worker yet (sr1 M2 by plan, noted so nobody reads a green run as coverage):** `DELETE /api/driver/checkins/:id`
+   (undo), the sign-in and status-key rate guards (429), `PUT /api/owner/pin`, company PUT, reset-link, messages, trucks POST/PUT,
+   route PUT, stops, end, summary, billing. The app's Undo on a *sent* check-in therefore gets 404 "There's nothing here." today,
+   and per clarification 5 that undo lands in "Not accepted". `driver.spec.mjs` probes for the route and skips its Undo test with
+   that reason until the route exists; it runs by itself once sr1 M2 is merged.
+4. **Unknown check-in path shape.** The photo PUT route only matches a 36-character hex/hyphen id; a malformed id falls through to
+   404 "There's nothing here." rather than "We couldn't find that check-in." Harmless for the app (it only sends its own UUIDs).
+5. **`POST /api/test/storms/:id/end` accepts any `at`**, including one before `started_at`. Test-only; the app never calls it.
