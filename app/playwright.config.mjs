@@ -1,6 +1,7 @@
 // Snow Route end-to-end suite. Every spec runs against the real Worker (it serves app/public too), started fresh by
 // tests/start-worker.mjs on E2E_PORT (default 7603, inspector +10) with TEST_MODE=1. One worker: the specs share one D1.
 // E2E_WORKER_DIR points the server at a copy of the Worker (negative controls, port 7606).
+// Tests tagged @phone are phone-width checks: the 1280 projects do not run them (filtered, not skipped).
 import { defineConfig, devices } from '@playwright/test'
 
 const PORT = Number(process.env.E2E_PORT || 7603)
@@ -31,8 +32,8 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium-390', use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true } },
-    { name: 'chromium-1280', use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } } },
+    { name: 'chromium-1280', grepInvert: /@phone/, use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } } },
     { name: 'webkit-390', use: { ...devices['iPhone 14'], browserName: 'webkit' } },
-    { name: 'webkit-1280', use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },
+    { name: 'webkit-1280', grepInvert: /@phone/, use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },
   ],
 })

@@ -1,8 +1,6 @@
 // Tap targets, the SAMPLE badge, no sideways scroll, action colour contrast, and a check that the network guard can fail.
 import { test, expect, tap, hitTest, ownerToken, startStorm, signIn, guard, contrast, rgb } from './helpers.mjs'
 
-const is390 = (testInfo) => testInfo.project.name.endsWith('-390')
-
 async function bigAndOnTop(locator, label) {
   await locator.scrollIntoViewIfNeeded()
   const { box, hit } = await hitTest(locator)
@@ -12,8 +10,7 @@ async function bigAndOnTop(locator, label) {
   expect(hit, `${label}: hit-tests to itself`).toBe('')
 }
 
-test('every driver button is at least 56 px and hit-tests to itself at 390', async ({ page, request, seed }, testInfo) => {
-  test.skip(!is390(testInfo), 'phone-width check')
+test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
@@ -53,8 +50,7 @@ test('the SAMPLE badge and the company name are on every page', async ({ page, r
   }
 })
 
-test('no horizontal scroll at 390 on any screen', async ({ page, request, seed }, testInfo) => {
-  test.skip(!is390(testInfo), 'phone-width check')
+test('no horizontal scroll at 390 on any screen @phone', async ({ page, request, seed }) => {
   const token = await ownerToken(request)
   await startStorm(request, token)
   const wide = async (label) => {

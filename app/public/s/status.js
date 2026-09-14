@@ -1,5 +1,6 @@
 // Client status page /s/?k=<status key>: one card with the big answer. Checks again every 60 s and whenever the page
-// comes back into view. No map, no neighbours, no live GPS.
+// comes back into view. No map, no neighbours, no live GPS. Any 404 shows this page's own bad-link text and stops checking
+// until a reload (clarification 18): each unknown-key lookup counts toward the per-IP guard.
 import { api } from '/api.js'
 import { esc, brandBar, timeLabel, plural } from '/ui.js'
 
@@ -9,6 +10,7 @@ const key = new URLSearchParams(location.search).get('k') || ''
 const app = document.getElementById('app')
 let last = null
 let timer = null
+let stopped = false
 
 const lowerFirst = (s) => (s ? s[0].toLowerCase() + s.slice(1) : '')
 
@@ -64,20 +66,26 @@ async function renderBadLink(message) {
 }
 
 async function check() {
-  if (!key) return renderBadLink(BAD_LINK)
+  if (stopped) return
+  if (!key) {
+    stopped = true
+    clearInterval(timer)
+    return renderBadLink(BAD_LINK)
+  }
   try {
     last = await api.status(key)
     render(last)
   } catch (e) {
     if (e.status === 404) {
+      stopped = true
       clearInterval(timer)
-      return renderBadLink(e.message)
+      return renderBadLink(BAD_LINK)
     }
     if (last) return render(last, e.code === 'network' ? 'Could not check just now (no signal). Showing the last answer.' : e.message)
     app.innerHTML = `<article class="status-card"><header class="status-head">${brandBar(null)}</header><p class="answer-sub" role="alert">${esc(e.message)}</p></article>`
   }
 }
 
-check()
 timer = setInterval(check, POLL_MS)
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check() })
+check()
+document.addEventListener('visibilitychange', () => { if (!stopped && document.visibilityState === 'visible') check() })

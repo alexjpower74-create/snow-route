@@ -4,12 +4,13 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "negative": "node tests/negative-queue.mjs && node tests/negative-time.mjs && node tests/negative-overlay.mjs",
+    "negative": "node tests/negative-queue.mjs && node tests/negative-time.mjs && node tests/negative-overlay.mjs && node tests/negative-relink.mjs",
     "negative:queue": "node tests/negative-queue.mjs",
     "negative:time": "node tests/negative-time.mjs",
     "negative:overlay": "node tests/negative-overlay.mjs",
     "dev": "node serve.mjs 7601",
-    "shots:m1": "node tests/shots-m1.mjs"
+    "shots:m1": "node tests/shots-m1.mjs",
+    "negative:relink": "node tests/negative-relink.mjs"
   },
   "dependencies": {
     "leaflet": "1.9.4"

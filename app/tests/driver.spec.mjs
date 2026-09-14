@@ -1,6 +1,6 @@
 // The driver page against the real Worker: the route as built, Navigate, Plowed with a photo, Skip with a reason, what the
 // owner then sees, and Undo of a check-in the server already has.
-import { test, expect, tap, api, ownerToken, startStorm, ownerStorm, dbCheckins, choosePhoto, shot } from './helpers.mjs'
+import { test, expect, tap, ownerToken, startStorm, ownerStorm, dbCheckins, choosePhoto, shot } from './helpers.mjs'
 
 test('driver link: Stop 1 is medical, Navigate, Plowed with a photo, Skip → Gate locked, and the owner sees both', async ({ page, request, seed }, testInfo) => {
   const token = await ownerToken(request)
@@ -56,10 +56,6 @@ test('Undo on a check-in the server already has puts the stop back to pending', 
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
   const key = seed.trucks.find((t) => t.id === truck.id).driver_key
-  const probe = await api(request, 'DELETE', '/api/driver/checkins/00000000-0000-4000-8000-000000000000', { headers: { 'X-Driver-Key': key } })
-  test.skip(probe.status === 404 && probe.body?.error === "There's nothing here.",
-    'DELETE /api/driver/checkins/:id is an sr1 M2 route; the Worker on this branch does not have it yet')
-
   const s1 = truck.stops[0]
   await page.goto(`/d/?k=${key}`)
   await expect(page.locator('#stop-name')).toHaveText(s1.name)
