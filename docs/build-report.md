@@ -14,6 +14,7 @@ reasoning and every attempt.
 | sr1 M2 | `9de4176` | 23 / 0 / 0 | 53 / 0 / 0 | a-h: all eight red | n/a |
 | sr1 M3 | `6df5a27` | 23 / 0 / 0 | 56 / 0 / 0 | a-h, stoprace, pinguard: all ten red | n/a |
 | sr1 M4 | `7ca9f24` | 23 / 0 / 0 | 57 / 0 / 0 | the ten above plus statusroute: all eleven red | n/a |
+| sr2 M2 | `69076b5` | (Worker as `7ca9f24`) | (as `7ca9f24`) | app: queue, time, overlay: all red | 56 / 0 / 4 (the 4 skips: two phone-width checks on each 1280 project, replaced by project filters in sr2 M3a) |
 
 Counts are passed / failed / skipped.
 
@@ -39,6 +40,9 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | An undone check-in never bills | billing stops checking `voided_at` | Chris (SAMPLE), undone, billed 1 push |
 | A check-in never lands on a stop being removed | the stop guard dropped from the check-in batch (both runs get the same 25 ms stand-in gap) | guarded: 0 of 10 check-ins on removed stops; broken: 10 of 10, each answering 500 |
 | Wrong current PINs on PIN change count toward the lockout | the PIN change's attempt slot removed | the 6th try answers 204 instead of 429 |
+| App: a check-in made with no signal survives until the server has it | the copy's queue removes the item before sending | the photo check-in was gone from the phone; the driver screen went back to Pat (SAMPLE) |
+| App: the queue sends the time the driver tapped | the copy's queue stamps `at` when it sends | `at` 09:40Z instead of the tapped 09:00Z |
+| App: taps land on the button they aim at | a transparent full-size element over Plowed | the hit-test found the overlay `div`, not the button |
 | A mangled status link reads as a bad status link | the old router pattern `[A-Za-z0-9_-]{1,128}` restored | a trailing dot got "There's nothing here." instead of "Ask your snow clearing company for a new one." |
 
 ## Cross-review
