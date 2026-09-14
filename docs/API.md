@@ -330,3 +330,15 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 11. **Queue, exactly** (sharpens 5, sr2 M1 differs): a **429** is a failure, not a refusal: keep it queued and retry with backoff. A
     photo PUT refused with 404/413/415 drops **only the photo**: the check-in is already on the server, so remove the item and show
     "Photo not sent: <server message>" on that stop's row; it never sits in "Not accepted".
+12. **Status-link guard blocks the whole IP.** Once an IP has 30 unknown-key lookups inside 10 minutes, every status lookup from it
+    answers 429, known keys included, so a guesser cannot spot a hit by a different answer.
+13. **Summary per truck:** `plowed` / `skipped` / `pending` count the stops on that truck now; `first_label` / `last_label` come from the
+    non-voided check-ins that truck made. After a stop moves between trucks the two can differ, on purpose.
+14. **Small shapes from sr1 M2, adopted:** `POST /api/owner/storms/:id/stops` answers **200** with the Storm; route PUT answers 409
+    `bad_state` "The route changed while you were editing it. Reload and try again." when the stop set changed underneath; undo leaves the
+    R2 object but its `photo_url` answers 404; sr1's M2 error texts (docs/build-report-sr1.md, M2 choice 1) are the contract.
+15. **(sr1 M3) A check-in for a stop being removed never lands.** The check-in insert and the stop DELETE each guard the other inside
+    their own statement/batch, so of a racing check-in and removal exactly one wins: the check-in (and the DELETE answers 409), or the
+    removal (and the check-in answers 404, which the phone puts in "Not accepted").
+16. **(sr1 M3) Wrong `current` PINs on `PUT /api/owner/pin` count toward the sign-in guard** (same 5 per 15 minutes per IP). A stolen
+    session must not be able to try every PIN and lock the owner out.
