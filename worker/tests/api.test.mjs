@@ -1431,3 +1431,115 @@ test('removable: a fresh stop is removable; after a plowed check-in it is not; a
   const summary = await api('GET', `/api/owner/storms/${storm.id}/summary`, { token })
   assert.ok(!summary.text.includes('removable'))
 })
+
+// ================================================================ M8
+
+test('undo flag: a new id is stored already voided: 201 voided, the stop stays pending, no push billed, no status last, removable false', async () => {
+  const { seed, token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const stop = truck.stops[0]
+  const client = seed.clients.find(c => c.id === stop.client_id)
+  const body = { ...checkin(storm, stop, { at: at(30) }), undo: true }
+  const r = await post(keyOf(truck.id), body, at(31))
+  assert.equal(r.status, 201, r.text)
+  assert.equal(r.body.duplicate, undefined)
+  assert.equal(r.body.checkin.id, body.id)
+  assert.equal(r.body.checkin.voided, true, 'stored already voided')
+  assert.equal(r.body.stop.status, 'pending', 'a voided row never decides the stop')
+  assert.equal(r.body.stop.checkin, null)
+
+  const rows = await storedRows(storm.id, stop.client_id)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].voided_at, at(31), 'voided in the same statement')
+  assert.equal(rows[0].voided_at, rows[0].received_at)
+
+  const owner = await ownerStop(token, storm.id, stop.client_id)
+  assert.equal(owner.status, 'pending')
+  assert.equal(owner.removable, false, 'a check-in row exists')
+  assert.deepEqual((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.counts, { stops: 25, plowed: 0, skipped: 0, pending: 25 })
+  const bill = await billing(token, JAN)
+  assert.equal(rowOf(bill, stop.client_id)?.pushes ?? 0, 0, 'never bills')
+  assert.equal(bill.totals.pushes, 0)
+  assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [] })
+  const status = await api('GET', `/api/status/${client.status_key}`, { now: at(40) })
+  assert.equal(status.body.last, null, 'the status link has no last for it')
+  assert.equal(status.body.tonight.state, 'waiting')
+  assert.equal((await ownerClient(token, stop.client_id)).last_plowed_at, null)
+  // Resending the same undo is a duplicate, and a DELETE of the voided row is 200 as is.
+  const again = await post(keyOf(truck.id), body, at(33))
+  assert.equal(again.status, 200)
+  assert.equal(again.body.duplicate, true)
+  assert.equal(again.body.checkin.voided, true)
+  assert.equal((await api('DELETE', `/api/driver/checkins/${body.id}`, { key: keyOf(truck.id), now: at(34) })).status, 200)
+})
+
+test('undo flag: an id already stored answers 200 duplicate, not voided; a DELETE then voids it', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const key = keyOf(truck.id)
+  const stop = truck.stops[0]
+  const body = checkin(storm, stop, { at: at(30) })
+  assert.equal((await post(key, body, at(31))).status, 201)
+  const resent = await post(key, { ...body, undo: true }, at(35))
+  assert.equal(resent.status, 200, resent.text)
+  assert.equal(resent.body.duplicate, true)
+  assert.equal(resent.body.checkin.voided, false, 'nothing changes for a stored id')
+  assert.equal(resent.body.stop.status, 'plowed')
+  assert.equal((await storedRows(storm.id, stop.client_id))[0].voided_at, null)
+  assert.equal(rowOf(await billing(token, JAN), stop.client_id)?.pushes ?? 0, 1, 'still a push until the DELETE')
+  const undone = await api('DELETE', `/api/driver/checkins/${body.id}`, { key, now: at(36) })
+  assert.equal(undone.status, 200, undone.text)
+  assert.equal(undone.body.checkin.voided, true)
+  assert.equal((await ownerStop(token, storm.id, stop.client_id)).status, 'pending')
+  assert.equal(rowOf(await billing(token, JAN), stop.client_id)?.pushes ?? 0, 0)
+})
+
+test('undo flag: undo true on a skip for a plowed stop answers 201 voided and the stop stays plowed', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const key = keyOf(truck.id)
+  const stop = truck.stops[0]
+  const plowed = checkin(storm, stop, { at: at(30) })
+  assert.equal((await post(key, plowed, at(31))).status, 201)
+  // Without undo that skip is refused (the skip-after-plowed guard) ...
+  expectError(await post(key, checkin(storm, stop, { kind: 'skipped', reason: 'gate', at: at(32) }), at(33)), 409, 'already_plowed')
+  // ... with undo it is stored voided, and the plowed check-in still decides the stop.
+  const skip = await post(key, { ...checkin(storm, stop, { kind: 'skipped', reason: 'gate', at: at(32) }), undo: true }, at(33))
+  assert.equal(skip.status, 201, skip.text)
+  assert.equal(skip.body.checkin.voided, true)
+  assert.equal(skip.body.checkin.kind, 'skipped')
+  assert.equal(skip.body.stop.status, 'plowed')
+  assert.equal(skip.body.stop.checkin.id, plowed.id)
+  const rows = await storedRows(storm.id, stop.client_id)
+  assert.equal(rows.length, 2)
+  assert.equal(rows.filter(k => k.voided_at === null).length, 1, 'only the plowed row is live')
+  assert.equal(rowOf(await billing(token, JAN), stop.client_id).pushes, 1)
+  // A plowed undo for a stop another check-in already plowed is also stored voided (never a second live plowed row).
+  const second = await post(key, { ...checkin(storm, stop, { at: at(34) }), undo: true }, at(35))
+  assert.equal(second.status, 201, second.text)
+  assert.equal(second.body.checkin.voided, true)
+  assert.equal(rowOf(await billing(token, JAN), stop.client_id).pushes, 1)
+})
+
+test('undo flag: undo "yes" answers 400 field undo; undo false is a normal check-in; undo true for a client removed from the route answers 404', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const key = keyOf(truck.id)
+  const [a, b, c] = truck.stops
+  for (const undo of ['yes', 1, null]) {
+    const r = await post(key, { ...checkin(storm, a), undo })
+    expectError(r, 400, 'bad_request', 'undo')
+    assert.equal(r.body.error, 'The undo flag could not be read.')
+  }
+  assert.equal((await storedRows(storm.id, a.client_id)).length, 0)
+
+  const normal = await post(key, { ...checkin(storm, b), undo: false })
+  assert.equal(normal.status, 201, normal.text)
+  assert.equal(normal.body.checkin.voided, false)
+  assert.equal(normal.body.stop.status, 'plowed')
+
+  const removed = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${c.client_id}`, { token })
+  assert.equal(removed.status, 200, removed.text)
+  expectError(await post(key, { ...checkin(storm, c), undo: true }), 404, 'not_found')
+  assert.equal((await storedRows(storm.id, c.client_id)).length, 0, 'the stop guard still applies to an undo')
+})
