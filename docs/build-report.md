@@ -202,3 +202,13 @@ Nothing below can lose a check-in or bill wrongly on its own; every such finding
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.
+
+## Hand-off (lead, 2026-09-14 09:36 NDT)
+
+- Private repo `alexjpower74-create/snow-route` created and pushed (`main`).
+- Slice tabs `sr1` (`wW:tQ`) and `sr2` (`wW:tR`) closed by id after checking their labels; no other tab touched. No dev server was running
+  from either worktree; worktrees `sr1`, `sr2` and `qa` removed. The `rig/sr1` and `rig/sr2` branches stay local, fully merged.
+- `cd ~/"Projects/Snow Route" && npm run demo` run from a clean start: landing, owner, driver, client status and API all 200; the owner
+  storm showed 10 plowed, 2 skipped, 13 pending; September billing 58 pushes, $2,369.00. The demo was then stopped and ports 7601/7611
+  checked free, so the command works for Alexander in the morning.
+- Status file: `~/Projects/Prospecting/overnight/status/snow-route.md`.
