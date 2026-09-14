@@ -195,3 +195,29 @@ test("the 30 s refresh never paints an older route over a Move made while it was
   expect((await next).status(), 'the next Move carries the current route_version').toBe(200)
   await expect.poll(() => orderOf(request, token, storm.id, truck.id)).toEqual(names)
 })
+
+test('Remove follows the office: none on a stop whose only check-in was undone; a stop already removed on another screen (404) reloads the route and says so', async ({ page, request, seed }) => {
+  const token = await ownerToken(request)
+  const storm = await startStorm(request, token)
+  const truck = storm.trucks[0]
+  const key = seed.trucks.find((t) => t.id === truck.id).driver_key
+  const [s1, s2] = truck.stops
+  const id = '77777777-7777-4777-8777-777777777777'
+  expect((await api(request, 'POST', '/api/driver/checkins', { headers: { 'X-Driver-Key': key },
+    data: { id, storm_id: storm.id, client_id: s1.client_id, kind: 'plowed', note: '', at: new Date().toISOString(), has_photo: false } })).status).toBe(201)
+  expect((await api(request, 'DELETE', `/api/driver/checkins/${id}`, { headers: { 'X-Driver-Key': key } })).status).toBe(200)
+
+  await signIn(page)
+  const row = (c) => page.locator(`.owner-stops li[data-client-id="${c}"]`)
+  await expect(row(s1.client_id)).toHaveCount(1)
+  await expect(row(s1.client_id).getByRole('button', { name: 'Remove from tonight' }), 'an undone check-in is still a record: removable is false').toHaveCount(0)
+
+  await tap(page, row(s2.client_id).getByRole('button', { name: 'Remove from tonight' }), 'Remove from tonight (stop 2)')
+  expect((await api(request, 'DELETE', `/api/owner/storms/${storm.id}/stops/${s2.client_id}`, { token })).status, 'removed on another screen').toBe(200)
+  const answer = page.waitForResponse((r) => r.url().endsWith(`/stops/${s2.client_id}`) && r.request().method() === 'DELETE')
+  await tap(page, row(s2.client_id).getByRole('button', { name: 'Yes, remove it' }), 'Yes, remove it')
+  const refused = await answer
+  expect(refused.status()).toBe(404)
+  await expect(page.locator('#storm-notice')).toHaveText((await refused.json()).error)
+  await expect(row(s2.client_id), 'reloaded: the stop is gone').toHaveCount(0)
+})

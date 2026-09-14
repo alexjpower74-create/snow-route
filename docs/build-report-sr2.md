@@ -574,3 +574,44 @@ Each passes on its unbroken copy first, then goes red on the break (`app/tests/n
 | (h) hst | page shows `Math.floor(amount * 0.15)` | expected "$5.33", received "$5.32" |
 | **(i) attempted** | an undone item is deleted with no DELETE even when attempted | "the tapped Undo reached the Worker: the push is voided", received `null` |
 | **(j) missingundo** | only "missing after 200/201 means undone" (lock code untouched), no-locks run | "the push was not voided", received a `voided_at` |
+
+## M3e — 2026-09-14 (last app round, short)
+
+Merged main (sr1 M7: `removable`; clarifications 42–51). Commits: `0590380` (steps 1–2, committed when green), then the final commit.
+
+### Fixed (DONE)
+- **49 (BILLING):** an undone, attempted item becomes an undo with `resend`: the sender POSTs the check-in again under its own id
+  (201, or 200 duplicate), takes `truck_id` from that answer, marks it stuck if that is not its key's truck, and only then sends the
+  DELETE. After that order a 404 goes to Not accepted with the server's text; 38's quiet 404 is gone. A check-in that never arrived is
+  stored and voided at once (never billed).
+- **50 (BILLING):** `update()` can put other items in the same readwrite transaction, so the undo replaces the undone item in **one**
+  transaction after a 200/201, in the sweep, and in the driver's Undo on a photo-waiting check-in. `rekey()` and `reject()` change items
+  only through `update()`. **No test for a reload between two transactions:** the gap is inside one run of the page's own code, between
+  two IndexedDB requests a few microseconds apart. Playwright can only reload between tasks it can see (a request, an event), so hitting
+  that gap would need a pause point in the shipped queue, a test switch the rules forbid. The fix removes the gap instead.
+- **51:** check-ins and undos go before any photo. The no-locks two-tab run waits until both tabs are at the gate and requires exactly 2 POSTs.
+- **43:** after a 200/201 the item takes `data.checkin.truck_id`; a photo or undo for another truck is stuck, and stuck items are never sent.
+- **42 / 44:** Remove from tonight only when `removable` is true; a removal answered 404 reloads the Storm and shows the message.
+- **45:** refused-photo notes (keyed by storm) sit under their own "Photos not sent" heading.
+- **46:** two per-push clients at $35.50: row HST 533 + 533 = 1066 in the totals, where 15% of the $71.00 subtotal would be 1065; both HST
+  cells `$5.33` and the totals cell `$10.66`. The stale `Math.round` comment is replaced.
+- **47:** a spec leaves the driver page, stores the kind of item an older build left (a photo waiting, no `truck_id`) under truck 1's key,
+  resets that link and opens truck 2's link: the item is listed as another truck's, and no PUT goes out under truck 2's key.
+- **48:** `negative-lib.mjs` replaces the repository roots (this worktree, and the checkout `node_modules` resolves to) and their
+  `file://` form with `<repo>`, and the home folder with `<home>`, before appending. The existing log was rewritten once: 54 machine paths
+  before, 0 after.
+
+### Specs changed
+`queue.spec.mjs`: the new re-send test (no Web Locks; tab A's POST held; Undo it; tab B's DELETE answers 200; after tab A's late POST
+the database shows one check-in, voided); the keys-store test; tried-but-never-stored now ends stored and voided; the moved-stop Undo
+now ends stored and voided (signal comes back to retry). `route-edit.spec.mjs`: an undone check-in leaves no Remove; a 404 removal
+reloads. `billing.spec.mjs` as above.
+
+### Verified
+Full suite, four projects, final code (`17e78b7`): **188 passed, 0 failed, 0 skipped (10.2 min).**
+
+### Negative controls a–k, run last (7606 free), on the final code
+All eleven pass on the unbroken copy, then go red on the break (`app/tests/negative-control.log`, 11:16–11:22Z; the log has 0 machine paths).
+(a) queue, (b) time, (c) overlay, (d) relink, (e) billing, (f) twotabs, (g) crosstruck, (h) hst, (i) attempted, (j) missingundo: red as
+in M3d. **(k) resend** (`tests/negative-resend.mjs`: the DELETE goes without re-sending the check-in, and a 404 undo is dropped): red,
+tab B's DELETE answered **404** where the spec requires **200** (the row was not there yet), so the tapped Undo would have been lost.

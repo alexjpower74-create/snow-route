@@ -20,7 +20,7 @@ const noteText = (n) => (typeof n === 'string' ? n : n?.message || '')
 // A refused photo keeps a note: the message, and (clarification 30) enough to list it when its stop is not on this route.
 function notePhotoDropped(id, message, item) {
   const notes = photoNotes()
-  notes[id] = { message, label: item?.label || '', at: item?.body?.at || null, client_id: item?.body?.client_id ?? null, dismissed: false }
+  notes[id] = { message, label: item?.label || '', at: item?.body?.at || null, client_id: item?.body?.client_id ?? null, storm_id: item?.body?.storm_id ?? null, dismissed: false }
   try { localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes)) } catch {}
 }
 
@@ -353,18 +353,27 @@ function renderElsewhere() {
   const { ended, moved } = offRoute()
   const onRoute = new Set((state.route?.stops || []).map((s) => s.checkin?.id).filter(Boolean))
   const notes = Object.entries(photoNotes()).filter(([id, n]) => typeof n === 'object' && !n.dismissed && !onRoute.has(id))
+    .sort(([, a], [, b]) => (a.storm_id ?? 0) - (b.storm_id ?? 0))
   const endedBlock = ended.length ? `
     <div class="queue-note" id="ended-storm">
       <h2 class="section-title">Saved from the storm that ended, still sending</h2>
       <p class="muted">The owner ended that storm. These still count, with the time you tapped.</p>
       <ul class="rejected-list">${ended.map(offRouteRow).join('')}</ul>
     </div>` : ''
-  const movedBlock = moved.length || notes.length ? `
+  const movedBlock = moved.length ? `
     <div class="queue-note" id="other-route">
       <h2 class="section-title">Saved for stops on another route</h2>
       <p class="muted">The owner moved these stops off this route. They still send, with the time you tapped.</p>
       <ul class="rejected-list">
         ${moved.map(offRouteRow).join('')}
+      </ul>
+    </div>` : ''
+  // Refused photos have their own neutral heading, keyed by storm, never under wording about moved stops (clarification 45).
+  const photosBlock = notes.length ? `
+    <div class="queue-note" id="photos-not-sent">
+      <h2 class="section-title">Photos not sent</h2>
+      <p class="muted">The office has these stops as plowed, without the photo.</p>
+      <ul class="rejected-list">
         ${notes.map(([id, n]) => `
           <li data-note="${esc(id)}">
             <strong>${esc(n.label)}</strong>
@@ -373,7 +382,7 @@ function renderElsewhere() {
           </li>`).join('')}
       </ul>
     </div>` : ''
-  box.innerHTML = endedBlock + movedBlock
+  box.innerHTML = endedBlock + movedBlock + photosBlock
 }
 
 function renderRejected() {
@@ -493,12 +502,13 @@ async function takeBack(qid, known) {
     if (!it) return { result: 'gone' }
     if (it.state === 'send') return { item: { ...it, state: 'undone' }, result: 'marked' }
     if (it.state === 'rejected') return { item: null, result: 'removed' }
-    if (it.state === 'photo') { known = it; return { item: null, result: 'on-server' } }
+    // Its check-in is on the server and only its photo waits: the undo replaces it in this same transaction (clarification 50).
+    if (it.state === 'photo') return { item: null, also: [queue.voidFor(it, { stuck: !!it.stuck })], result: 'on-server' }
     return { result: 'kept' }
   })
-  if ((outcome === 'on-server' || outcome === 'gone') && known) {
-    await queue.add({ qid: `void:${known.body.id}`, op: 'void', state: 'send', key: known.key, truck_id: known.truck_id ?? truckOfKey(known.key),
-      label: known.label, body: { id: known.body.id, storm_id: known.body.storm_id, client_id: known.body.client_id }, photo: null, error: null })
+  if (outcome === 'gone' && known) {
+    // Sent and answered (the row exists): nothing left to replace, so the undo is simply added.
+    await queue.add(queue.voidFor(known, { truckId: known.truck_id ?? truckOfKey(known.key) }))
   }
   return outcome
 }

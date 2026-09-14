@@ -10,7 +10,7 @@ process.exit(control({
   breakIt: (copy) => {
     const file = path.join(copy, 'app', 'public', 'd', 'queue.js')
     replaceOnce(file, `        if (!still) return { result: 'gone' } // another tab sent it and removed it: nothing was undone`,
-      `        if (!still) return { result: 'undone' } // NEGATIVE CONTROL (f): missing read as undone`)
+      `        if (!still) return { also: [voidFor({ ...item, truck_id: stored })], result: 'undone' } // NEGATIVE CONTROL (f): missing read as undone`)
     replaceOnce(file, `  if (!globalThis.navigator?.locks) return fn()`,
       `  return fn() // NEGATIVE CONTROL (f): no lock`)
   },
