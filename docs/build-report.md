@@ -89,6 +89,20 @@ all checked out, and `queue.spec`'s link-reset test measures what it claims. Sev
 | M3a-6 | A storm-start notice could surface on the next storm | owner | API.md 31 |
 | M3a-7 | A re-keyed check-in for another route's stop was listed twice | driver | API.md 31 |
 
+**sr1 read sr2's M3b while it was in progress** (`7a9876c`). Route PUT bodies, Add a stop, End storm and the summary, billing cells from the
+API rows, the CSV passed through as a blob, trucks, clients, settings and exact copy texts all checked out. Eight findings:
+
+| # | Defect | Who it hurts | Adopted as |
+|---|---|---|---|
+| M3b-1 | An edit from a stale route got 400 "List every truck… once" instead of "the route changed", and the spec accepted either | owner on two screens | API.md 32 (`route_version`, sr1 M6) |
+| M3b-2 | The billing spec's prices needed no HST rounding, so a page recomputing money would pass | the lead's QA, the accountant | API.md 34 + a negative control |
+| M3b-3 | The CSV check compared cells, not the Worker's bytes | the accountant | API.md 35 |
+| M3b-4 | Two screens editing the route: the last save silently won | owner and helper | API.md 32 |
+| M3b-5 | End storm / Add a stop refused because the storm ended elsewhere left the owner on a dead storm | owner | API.md 36 |
+| M3b-6 | No way to past storms while a storm is on | owner | API.md 36 |
+| M3b-7 | No way to take a stop off tonight's route | owner | API.md 37 |
+| M3b-8 | The yard's map error showed under the yard name box | owner | API.md 33 (sr1 M6) |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.

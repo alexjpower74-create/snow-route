@@ -384,3 +384,18 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     row there until the driver dismisses it.
 31. **(sr2 M3c, review M3a-6/7)** The storm-start notice is cleared when Tonight finds no storm. A re-keyed check-in for a stop on another
     route is listed once, in "Saved for stops on another route", with a small "moved from an old driver link" note.
+32. **(sr1 M6 + sr2 M3c, review M3b-1/M3b-4) The route has a version.** Every Storm (owner view) carries `"route_version": <integer>`,
+    starting at 1 and bumped by every route PUT, stop add and stop remove (inside the same batch). `PUT …/route` requires
+    `"route_version"` in its body (missing or not an integer → 400 field `route_version`). A well-formed body whose `route_version` is not the
+    stored one → **409 `bad_state` "The route changed while you were editing it. Reload and try again."**, whatever its stop set. The 400 field
+    `trucks` stays for malformed bodies only (a truck or stop twice, a foreign truck, non-arrays) sent with the current version. So an edit
+    made from a stale screen always reads as "the route changed", and two screens can no longer silently undo each other.
+33. **(sr1 M6 + sr2 M3c, review M3b-8) Yard errors name their part:** `PUT /api/owner/company` answers `field: "yard.label"` for the yard
+    name and `field: "yard.pin"` for missing or out-of-province coordinates. The page shows each by its own input (the pin one by the map).
+34. **(sr2 M3c, review M3b-2) The billing spec uses a price whose HST needs rounding** (3550 cents, HST $5.33 by the half-up rule) and asserts
+    every money cell equals the API row. A negative control recomputes HST on the page with `Math.round(amount * 0.15)` and the spec goes red.
+35. **(sr2 M3c, review M3b-3) The downloaded CSV is byte-for-byte the Worker's** `GET /api/owner/billing.csv` answer; the spec compares bytes.
+36. **(sr2 M3c, review M3b-5/M3b-6)** End storm, Add a stop and route edits answering 409 because the storm ended elsewhere close the confirm or
+    form and repaint Tonight with the API's message (End storm shows that storm's summary). A "Past storms" link is shown while a storm is on.
+37. **(sr2 M3c, review M3b-7) "Remove from tonight"** on a stop with no check-ins, behind an inline confirm, calling
+    `DELETE /api/owner/storms/:id/stops/:client_id` (a 409 shows the API's message on that stop). Stops with check-ins show no Remove.

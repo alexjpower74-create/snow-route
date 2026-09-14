@@ -140,3 +140,15 @@ Alexander was asleep for this build; every real call is written here with its re
     negative control.
 42. **The M3a review findings go to sr2 as M3c after M3b**, not by interrupting M3b. The bug needs two tabs of the same driver link, which is
     rare tonight (nothing is deployed) and common in the field; it must be fixed and QA'd before this build is called done, not before M3b.
+
+## 2026-09-14, lead (after sr1's early review of sr2 M3b, `7a9876c`)
+
+43. **The route gets a version number** (API.md 32), sr1's proposal. Without one, an edit from a stale screen got a message about a
+    malformed request, and two screens editing the route silently undid each other (the last save won). One integer bumped inside the same
+    batch as every route change gives both a precise "the route changed" and a real guard. It is a contract change on both sides: sr1 builds
+    it as M6 now, sr2 sends it in M3c.
+44. **"Remove from tonight" is added** (API.md 37). The Worker route existed and a client calling to cancel is an ordinary storm-night
+    event; without it the owner could only skip the stop from a driver's phone.
+45. **Test honesty over test count.** Two of sr1's findings (M3b-2, M3b-3) were specs that passed for the right code but would also pass for
+    a page that recomputes money or rebuilds the CSV. Both get a data change that forces the difference to show, and the HST one gets a
+    negative control.
