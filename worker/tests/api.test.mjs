@@ -1200,3 +1200,25 @@ test('PIN change: wrong current PINs count toward the sign-in guard, then 429 ev
   assert.equal((await change('2468', '10.8.8.8')).status, 204)
   assert.equal((await signinFrom('1357', '10.8.8.8')).status, 200)
 })
+
+// ================================================================ M4
+
+test('status link: a mangled key answers the status 404 text and counts toward the unknown-key guard', async () => {
+  const seed = await reset()
+  const good = seed.clients[0].status_key
+  const TEXT = "This status link doesn't work. Ask your snow clearing company for a new one."
+  const ip = '10.9.1.1'
+  const lookup = (key, from = ip) => api('GET', `/api/status/${key}`, { ip: from, now: at(1) })
+  const mangled = [`${good}.`, `${good})`, `${good}%20`, '', 'a'.repeat(129), `${good}${'x'.repeat(200)}`]
+  for (const key of mangled) {
+    const r = await lookup(key)
+    expectError(r, 404, 'not_found')
+    assert.equal(r.body.error, TEXT, `key ${JSON.stringify(key.slice(0, 40))}`)
+    assert.equal(r.headers.get('cache-control'), 'no-store')
+  }
+  // Six mangled lookups so far; 24 more reach the limit of 30, and the 31st answers 429, known keys included.
+  for (let i = mangled.length; i < 30; i++) expectError(await lookup(`${good}.`), 404, 'not_found')
+  expectError(await lookup(`${good}%20`), 429, 'rate_limited')
+  expectError(await lookup(good), 429, 'rate_limited')
+  assert.equal((await lookup(good, '10.9.2.2')).status, 200)
+})
