@@ -55,3 +55,54 @@ test('End storm with the confirm → the summary lists the skip with its reason 
   await tap(page, past.getByRole('link', { name: /^Open the summary of / }), 'Open summary')
   await expect(page.locator('#summary-skipped li')).toContainText('Gate locked')
 })
+
+test('End storm refused because it ended on another screen: the confirm closes and that storm\'s summary shows the message', async ({ page, request }) => {
+  const token = await ownerToken(request)
+  const storm = await startStorm(request, token)
+  await signIn(page)
+  await tap(page, page.locator('#end-storm'), 'End storm')
+  await expect(page.locator('#end-confirm')).toBeVisible()
+  expect((await api(request, 'POST', `/api/owner/storms/${storm.id}/end`, { token })).status, 'ended on another screen').toBe(200)
+  const answer = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${storm.id}/end`) && r.request().method() === 'POST')
+  await tap(page, page.locator('#end-yes'), 'Yes, end the storm')
+  const refused = await answer
+  expect(refused.status()).toBe(409)
+  await expect(page.locator('#summary')).toHaveAttribute('data-storm-id', String(storm.id))
+  await expect(page.locator('#storm-notice')).toHaveText((await refused.json()).error)
+  await expect(page.locator('#end-confirm')).toHaveCount(0)
+})
+
+test('Add a stop refused because the storm ended elsewhere: the form closes and Tonight repaints with the message', async ({ page, request }) => {
+  const token = await ownerToken(request)
+  const clients = (await api(request, 'GET', '/api/owner/clients', { token })).body.clients
+  const trucks = (await api(request, 'GET', '/api/owner/trucks', { token })).body.trucks
+  const left = clients.find((c) => c.name === 'Drew (SAMPLE)')
+  const started = await api(request, 'POST', '/api/owner/storms', { token, data: { client_ids: clients.filter((c) => c !== left).map((c) => c.id), truck_ids: trucks.map((t) => t.id) } })
+  expect(started.status).toBe(201)
+  await signIn(page)
+  await tap(page, page.locator('#add-stop'), 'Add a stop')
+  await page.locator('#stop-client').selectOption(String(left.id))
+  expect((await api(request, 'POST', `/api/owner/storms/${started.body.id}/end`, { token })).status).toBe(200)
+  const answer = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${started.body.id}/stops`) && r.request().method() === 'POST')
+  await tap(page, page.locator('#add-stop-save'), 'Add to the end of that route')
+  const refused = await answer
+  expect(refused.status()).toBe(409)
+  await expect(page.locator('#storm-notice')).toHaveText((await refused.json()).error)
+  await expect(page.getByText('No storm on right now.')).toBeVisible()
+  await expect(page.locator('#add-stop-form')).toHaveCount(0)
+})
+
+test('while a storm is on, Past storms opens the list and each summary', async ({ page, request }) => {
+  const token = await ownerToken(request)
+  const first = await startStorm(request, token)
+  expect((await api(request, 'POST', `/api/owner/storms/${first.id}/end`, { token })).status).toBe(200)
+  await startStorm(request, token)
+  await signIn(page)
+  await expect(page.locator('#order-note')).toBeVisible()
+  await tap(page, page.locator('#past-storms-link'), 'Past storms')
+  const past = page.locator('#past-storms li')
+  await expect(past).toHaveCount(1)
+  await expect(past).toHaveAttribute('data-storm-id', String(first.id))
+  await tap(page, past.getByRole('link', { name: /^Open the summary of / }), 'Open summary')
+  await expect(page.locator('#summary')).toHaveAttribute('data-storm-id', String(first.id))
+})

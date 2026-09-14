@@ -16,9 +16,11 @@ const PHOTO_NOTES = 'snow-route:photo-not-sent' // { checkin id: server message 
 function photoNotes() {
   try { return JSON.parse(localStorage.getItem(PHOTO_NOTES)) || {} } catch { return {} }
 }
-function notePhotoDropped(id, message) {
+const noteText = (n) => (typeof n === 'string' ? n : n?.message || '')
+// A refused photo keeps a note: the message, and (clarification 30) enough to list it when its stop is not on this route.
+function notePhotoDropped(id, message, item) {
   const notes = photoNotes()
-  notes[id] = message
+  notes[id] = { message, label: item?.label || '', at: item?.body?.at || null, client_id: item?.body?.client_id ?? null, dismissed: false }
   try { localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes)) } catch {}
 }
 
@@ -95,14 +97,19 @@ function ours(item) {
 const itemWhat = (i) => (i.op === 'void' ? 'Undo' : i.body.kind === 'plowed' ? 'Plowed' : `Skipped: ${reasonText(i.body.reason, i.body.note)}`)
 const itemAt = (i) => (i.body.at ? ` at ${timeLabel(i.body.at, zone())}` : '')
 
-// Queued check-ins whose stop is not on this route any more (moved to another truck, or another storm): still sent, still shown.
-function elsewhere() {
+// Queued check-ins not on this route: from a storm that has ended (or an earlier one), or for a stop moved to another truck in this
+// storm. Both still send and keep their time; each is listed once (clarifications 20, 28, 31).
+function offRoute() {
   const route = state.route
-  if (!route) return []
+  if (!route) return { ended: [], moved: [] }
   const here = new Set(route.storm ? route.stops.map((s) => s.client_id) : [])
-  return state.items.filter((i) => ours(i) && i.op === 'checkin' && i.state !== 'rejected' && i.state !== 'undone' && !i.stuck
-    && (!route.storm || i.body.storm_id !== route.storm.id || !here.has(i.body.client_id)))
+  const rows = state.items.filter((i) => ours(i) && i.op === 'checkin' && i.state !== 'rejected' && i.state !== 'undone' && !i.stuck)
+  return {
+    ended: rows.filter((i) => !route.storm || i.body.storm_id !== route.storm.id),
+    moved: rows.filter((i) => route.storm && i.body.storm_id === route.storm.id && !here.has(i.body.client_id)),
+  }
 }
+const elsewhere = () => { const o = offRoute(); return [...o.ended, ...o.moved] }
 
 function stops() {
   const route = state.route
@@ -276,7 +283,7 @@ function renderStop() {
 
 function statusLine(s, next) {
   const saved = s.queued ? ' · saved on this phone' : ''
-  const dropped = s.checkin && photoNotes()[s.checkin.id]
+  const dropped = s.checkin && noteText(photoNotes()[s.checkin.id])
   if (s.status === 'plowed') {
     const photo = dropped ? ` · Photo not sent: ${dropped}` : s.checkin?.photo === 'waiting' ? ' · photo to send' : ''
     return `Plowed ${s.checkin?.at_label || ''}${photo}${saved}`
@@ -310,7 +317,8 @@ function renderList() {
 
 function renderOldLink() {
   const box = painter('oldlink')
-  const rows = state.items.filter((i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && (i.key !== key || i.rekeyed_from))
+  const off = new Set(elsewhere().map((i) => i.qid))
+  const rows = state.items.filter((i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && !off.has(i.qid) && (i.key !== key || i.rekeyed_from))
   if (!rows.length) { box.innerHTML = ''; return }
   box.innerHTML = `
     <div class="queue-note" id="old-link">
@@ -329,23 +337,42 @@ function renderOldLink() {
     </div>`
 }
 
+function offRouteRow(i) {
+  return `
+    <li data-qid="${esc(i.qid)}">
+      <strong>${esc(i.label)}</strong>
+      <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}${i.state === 'photo' ? ' · photo to send' : ''}</span>
+      ${i.rekeyed_from || i.key !== key ? '<span class="muted">Moved from an old driver link.</span>' : ''}
+      ${state.confirmUndo === i.qid ? confirmUndoMarkup(i.qid) : `<button class="btn-row" type="button" data-action="undo-item" data-qid="${esc(i.qid)}">Undo</button>`}
+    </li>`
+}
+
 function renderElsewhere() {
   const box = painter('elsewhere')
-  const rows = elsewhere()
-  if (!rows.length) { box.innerHTML = ''; return }
-  box.innerHTML = `
+  const { ended, moved } = offRoute()
+  const onRoute = new Set((state.route?.stops || []).map((s) => s.checkin?.id).filter(Boolean))
+  const notes = Object.entries(photoNotes()).filter(([id, n]) => typeof n === 'object' && !n.dismissed && !onRoute.has(id))
+  const endedBlock = ended.length ? `
+    <div class="queue-note" id="ended-storm">
+      <h2 class="section-title">Saved from the storm that ended, still sending</h2>
+      <p class="muted">The owner ended that storm. These still count, with the time you tapped.</p>
+      <ul class="rejected-list">${ended.map(offRouteRow).join('')}</ul>
+    </div>` : ''
+  const movedBlock = moved.length || notes.length ? `
     <div class="queue-note" id="other-route">
       <h2 class="section-title">Saved for stops on another route</h2>
       <p class="muted">The owner moved these stops off this route. They still send, with the time you tapped.</p>
       <ul class="rejected-list">
-        ${rows.map((i) => `
-          <li data-qid="${esc(i.qid)}">
-            <strong>${esc(i.label)}</strong>
-            <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}${i.state === 'photo' ? ' · photo to send' : ''}</span>
-            ${state.confirmUndo === i.qid ? confirmUndoMarkup(i.qid) : `<button class="btn-row" type="button" data-action="undo-item" data-qid="${esc(i.qid)}">Undo</button>`}
+        ${moved.map(offRouteRow).join('')}
+        ${notes.map(([id, n]) => `
+          <li data-note="${esc(id)}">
+            <strong>${esc(n.label)}</strong>
+            <span class="error-text">Photo not sent: ${esc(n.message)}</span>
+            <button class="btn-row" type="button" data-action="dismiss-note" data-id="${esc(id)}">Dismiss</button>
           </li>`).join('')}
       </ul>
-    </div>`
+    </div>` : ''
+  box.innerHTML = endedBlock + movedBlock
 }
 
 function renderRejected() {
@@ -624,6 +651,12 @@ document.addEventListener('click', async (e) => {
       render()
       return sender.flush()
     }
+    case 'dismiss-note': {
+      const notes = photoNotes()
+      if (typeof notes[t.dataset.id] === 'object') notes[t.dataset.id].dismissed = true
+      try { localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes)) } catch {}
+      return render()
+    }
     case 'dismiss':
       await queue.remove(t.dataset.qid)
       await refreshItems()
@@ -649,7 +682,7 @@ const sender = queue.createSender({
     writeCache()
   },
   onDrained: () => loadRoute(),
-  onPhotoDropped: (itemKey, id, message) => { notePhotoDropped(id, message); renderList() },
+  onPhotoDropped: (itemKey, id, message, item) => { notePhotoDropped(id, message, item); render() },
   truckOf: (k) => truckOfKey(k),
 })
 

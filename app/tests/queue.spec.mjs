@@ -193,3 +193,113 @@ test('two open tabs of the same driver link: one check-in ends as one stored pus
   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
   expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
 })
+
+test("a photo and an undo saved under truck 1's link, that link reset, truck 2's link opened: both are listed as another truck's and nothing is sent under truck 2's key", async ({ page, context, request, seed }) => {
+  const { token, storm, truck, key } = await driverAtT(page, context, request, seed)
+  const other = storm.trucks.find((t) => t.id !== truck.id)
+  const key2 = seed.trucks.find((t) => t.id === other.id).driver_key
+  const [s1, s2, s3] = truck.stops
+  const writes = []
+  context.on('request', (r) => {
+    if (['PUT', 'DELETE'].includes(r.method()) && r.url().includes('/api/driver/checkins/')) writes.push({ method: r.method(), key: r.headers()['x-driver-key'] })
+  })
+  // Photos and undos cannot get through for now; check-in POSTs can.
+  // ** so the photo PUT (/checkins/<id>/photo) is held back as well as the undo DELETE (/checkins/<id>).
+  await context.route('**/api/driver/checkins/**', (route) => route.abort('internetdisconnected'))
+
+  // Stop 1: Plowed, no photo, sent.
+  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo (stop 1)')
+  await expect(page.locator('#stop-name')).toHaveText(s2.name)
+  await expect(page.locator('#sync-text')).toHaveText('All sent')
+  // A second tab on truck 1's link plows stop 2 with a photo: the check-in is sent, the photo waits.
+  const tab2 = await context.newPage()
+  await tab2.goto(`/d/?k=${key}`)
+  await expect(tab2.locator('#stop-name')).toHaveText(s2.name)
+  const chooser = tab2.waitForEvent('filechooser')
+  await tap(tab2, tab2.locator('#plowed'), 'Plowed with a photo (stop 2, tab 2)')
+  const { PHOTO } = await import('./helpers.mjs')
+  await (await chooser).setFiles(PHOTO)
+  await expect(tab2.locator('#stop-name')).toHaveText(s3.name)
+  await expect(tab2.locator('#sync-text')).toHaveText(/1 photo saved on this phone/)
+  await tab2.close()
+  // Back in tab 1, Undo stop 1 (it reached the server, so no question): the undo waits too.
+  await tap(page, page.locator('#undo-btn'), 'Undo (stop 1)')
+  await expect(page.locator('#undo-delete')).toHaveCount(0)
+  await expect(page.locator('#stop-name')).toHaveText(s1.name)
+
+  // The owner resets truck 1's link; truck 2's link is opened on this phone. From now on nothing is held back: anything sent reaches the Worker.
+  expect((await api(request, 'POST', `/api/owner/trucks/${truck.id}/reset-link`, { token })).status).toBe(200)
+  await context.unroute('**/api/driver/checkins/**')
+  await page.goto(`/d/?k=${key2}`)
+  await expect(page.locator('#stop-name')).toHaveText(other.stops[0].name)
+  const old = page.locator('#old-link')
+  await expect(old.locator('li')).toHaveCount(2, { timeout: 30_000 })
+  await expect(old.locator('li', { hasText: s2.name })).toContainText("This photo belongs to another truck's link, so this link cannot send it.")
+  await expect(old.locator('li', { hasText: s1.name })).toContainText("This undo belongs to another truck's link, so this link cannot send it.")
+  await page.waitForTimeout(1500)
+  expect(writes.filter((w) => w.key === key2), "no PUT or DELETE under truck 2's key").toEqual([])
+
+  const rows = await dbCheckins(request, storm.id)
+  expect(rows.find((r) => r.client_id === s1.client_id).voided_at, 'the undo was never sent to a truck that cannot take it').toBeNull()
+  const view = (await ownerStorm(request, token, storm.id)).trucks.find((t) => t.id === truck.id).stops
+  expect(view.find((s) => s.client_id === s2.client_id).checkin.photo, 'the photo was never sent').toBe('waiting')
+})
+
+test('a check-in queued before the owner ended the storm reads as that storm, still sending, and Undo asks before deleting it', async ({ page, context, request, seed }) => {
+  const { token, storm, truck } = await driverAtT(page, context, request, seed)
+  const s1 = truck.stops[0]
+  await context.setOffline(true)
+  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo (no signal)')
+  await expect(page.locator('#stop-name')).toHaveText(truck.stops[1].name)
+
+  expect((await api(request, 'POST', `/api/owner/storms/${storm.id}/end`, { token })).status).toBe(200)
+  await page.route('**/api/driver/checkins', (route) => route.abort('internetdisconnected'))
+  await context.setOffline(false)
+  await expect(page.getByRole('heading', { name: 'No storm on right now' })).toBeVisible()
+  const ended = page.locator('#ended-storm')
+  await expect(ended).toContainText('Saved from the storm that ended, still sending')
+  await expect(ended.locator('li', { hasText: s1.name })).toContainText('Plowed at 6:30 AM')
+  await expect(page.locator('#other-route'), 'not "moved off this route"').toHaveCount(0)
+
+  await tap(page, ended.getByRole('button', { name: 'Undo' }), 'Undo (ended storm)')
+  await expect(ended).toContainText('This check-in has not reached the office yet. Delete it from this phone?')
+  await tap(page, ended.getByRole('button', { name: 'Keep it' }), 'Keep it')
+  await expect(ended.getByRole('button', { name: 'Undo' })).toBeVisible()
+
+  await page.unroute('**/api/driver/checkins')
+  await tap(page, page.getByRole('button', { name: 'Check again' }), 'Check again')
+  await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
+  await expect(ended).toHaveCount(0)
+  const rows = await dbCheckins(request, storm.id)
+  expect(rows, 'kept, and accepted after the storm ended').toHaveLength(1)
+  expect(rows[0].voided_at).toBeNull()
+})
+
+test('a photo refused for a stop that then moved off this route keeps a Photo not sent row until it is dismissed', async ({ page, context, request, seed }) => {
+  const { token, storm, truck } = await driverAtT(page, context, request, seed)
+  const [s1, s2] = truck.stops
+  // The Worker's own 413 text. The page downscales photos, so a real one never gets that big: the answer is served locally.
+  await context.route('**/api/driver/checkins/*/photo', (route) => route.fulfill({
+    status: 413, contentType: 'application/json', body: JSON.stringify({ error: 'That photo is too big. It has to be under 5 MB.', code: 'too_large' }) }))
+  const { PHOTO } = await import('./helpers.mjs')
+  const chooser = page.waitForEvent('filechooser')
+  await tap(page, page.locator('#plowed'), 'Plowed with a photo (stop 1)')
+  await (await chooser).setFiles(PHOTO)
+  await expect(page.locator('#stop-name')).toHaveText(s2.name)
+  await expect(page.locator('#sync-text')).toHaveText('All sent')
+  await expect(page.locator(`.stop-row[data-client="${s1.client_id}"] .row-status`)).toContainText('Photo not sent: That photo is too big.')
+
+  const view = await ownerStorm(request, token, storm.id)
+  const otherTruck = view.trucks.find((t) => t.id !== truck.id)
+  const moved = await api(request, 'PUT', `/api/owner/storms/${storm.id}/route`, { token, data: { route_version: view.route_version, trucks: [
+    { truck_id: truck.id, client_ids: view.trucks.find((t) => t.id === truck.id).stops.map((s) => s.client_id).filter((id) => id !== s1.client_id) },
+    { truck_id: otherTruck.id, client_ids: [...otherTruck.stops.map((s) => s.client_id), s1.client_id] },
+  ] } })
+  expect(moved.status).toBe(200)
+
+  await page.reload()
+  const note = page.locator('#other-route li', { hasText: s1.name })
+  await expect(note).toContainText('Photo not sent: That photo is too big. It has to be under 5 MB.')
+  await tap(page, note.getByRole('button', { name: 'Dismiss' }), 'Dismiss')
+  await expect(page.locator('#other-route')).toHaveCount(0)
+})

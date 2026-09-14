@@ -118,6 +118,7 @@ export const api = {
     // route_version: the version of the Storm the edit was made on (clarification 32). A stale one answers 409.
     saveRoute: (id, trucks, routeVersion) => owner('PUT', `/api/owner/storms/${q(id)}/route`, { trucks, route_version: routeVersion }),
     addStop: (id, body) => owner('POST', `/api/owner/storms/${q(id)}/stops`, body),
+    removeStop: (id, clientId) => owner('DELETE', `/api/owner/storms/${q(id)}/stops/${q(clientId)}`),
     endStorm: (id) => owner('POST', `/api/owner/storms/${q(id)}/end`),
     summary: (id) => owner('GET', `/api/owner/storms/${q(id)}/summary`),
     clientMessages: (id) => owner('GET', `/api/owner/clients/${q(id)}/messages`),

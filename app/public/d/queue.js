@@ -156,7 +156,7 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
         await remove(item.qid)
       } else if (status === 404 || status === 413 || status === 415) {
         await remove(item.qid)
-        onPhotoDropped(item.key, item.body.id, data?.error || `error ${status}`)
+        onPhotoDropped(item.key, item.body.id, data?.error || `error ${status}`, item)
       } else {
         return failed('server', data?.error || '')
       }
