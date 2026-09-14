@@ -432,3 +432,6 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     1066, where 15% of the $71.00 subtotal would be 1065). The stale comment in `billing.spec.mjs` about `Math.round(3550 * 0.15)` is fixed.
 47. **(sr2 M3e, review M3c-11) The keys store is exercised:** a spec seeds the queue with one item that has no `truck_id` (arrangement of data an
     older build left), resets that truck's link, opens the other truck's link and expects the item listed as belonging to another truck.
+48. **(sr2 M3e, lead's pre-push scan) No machine paths in committed logs.** `app/tests/negative-control.log` carries stack traces with the
+    absolute path of the worktree. The negative-control lib replaces the repository root (and its `file://` URL form) with `<repo>` before
+    appending, as sr1's Worker log already does, and the existing log is rewritten the same way once.
