@@ -3,7 +3,7 @@
 
 export const TIMEZONE = 'America/St_Johns'
 
-const clean = s => s.replace(/[  ]/g, ' ')
+const clean = s => s.replace(/[\u202f\u2009\u00a0]/g, ' ')
 const toMs = t => (typeof t === 'number' ? t : Date.parse(t))
 
 const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TIMEZONE, hour: 'numeric', minute: '2-digit' })

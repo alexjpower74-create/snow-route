@@ -1,10 +1,11 @@
 // Snow Route Worker: the API in docs/API.md. Static files in ../app/public are served by [assets]; only /api/* reaches here.
 
-import { now as clockNow, isTestMode } from './clock.js'
+import { now as clockNow, clientIp, isTestMode } from './clock.js'
 import { buildRoute } from './route.js'
-import { timeLabel, dateLabel, fullLabel } from './time.js'
-import { randomKey, sha256Hex, verifyPin, isUuidV4 } from './auth.js'
-import { seedSample } from './sample.js'
+import { timeLabel, dateLabel, fullLabel, durationLabel, isMonth, monthBounds, nlMonth } from './time.js'
+import { randomKey, sha256Hex, hashPin, verifyPin, isUuidV4 } from './auth.js'
+import { seedSample, seedDemo } from './sample.js'
+import { billingReport, billingMonths, isBillable, toCsv, csvFilename } from './billing.js'
 
 const HST_RATE = 0.15
 const SESSION_DAYS = 30
@@ -208,7 +209,7 @@ async function loadStorm (db, stormId) {
     if (!byClient.has(k.client_id)) byClient.set(k.client_id, [])
     byClient.get(k.client_id).push(k)
   }
-  return { storm, trucks: trucks.results, stopRows: stops.results, checkinsFor: id => byClient.get(id) || [] }
+  return { storm, trucks: trucks.results, stopRows: stops.results, checkins: checkins.results, checkinsFor: id => byClient.get(id) || [] }
 }
 
 function stormView (data, ctx) {
@@ -255,9 +256,13 @@ async function requireDriver (request, env) {
 async function signin (request, env, ctx) {
   const body = await readJson(request)
   const company = await loadCompany(env.DB)
+  // Every try takes an attempt slot first, in one statement, so parallel guesses can't slip past the limit; a right PIN gives it back.
+  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)
+  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')
   if (!(await verifyPin(typeof body.pin === 'string' ? body.pin : '', company.pin))) {
     throw unauthorized('That PIN is not right.', 'pin')
   }
+  await env.DB.prepare('DELETE FROM signin_attempts WHERE id = ?1 OR at < ?2').bind(attempt, iso(ctx.now - 86400000)).run()
   const token = randomKey(32)
   const expires = iso(ctx.now + SESSION_DAYS * 86400000)
   await env.DB.prepare('INSERT INTO sessions (token_hash, created_at, expires_at) VALUES (?1, ?2, ?3)')
@@ -540,8 +545,15 @@ async function getPhoto (request, env, ctx) {
 
 async function clientStatus (request, env, ctx) {
   const db = env.DB
+  // Once an IP has used up its unknown-key lookups, every lookup from it is refused, so a guesser can't tell a hit by its answer.
+  const misses = await db.prepare("SELECT COUNT(*) AS c FROM signin_attempts WHERE kind = 'status' AND ip = ?1 AND at > ?2")
+    .bind(ctx.ip, iso(ctx.now - STATUS_LIMIT.minutes * 60000)).first('c')
+  if (misses >= STATUS_LIMIT.tries) throw rateLimited(TOO_MANY_LINKS)
   const client = await db.prepare('SELECT * FROM clients WHERE status_key = ?1').bind(ctx.params[0]).first()
-  if (!client) throw notFound("This status link doesn't work. Ask your snow clearing company for a new one.")
+  if (!client) {
+    if (!(await takeAttempt(db, 'status', ctx.ip, ctx.now, STATUS_LIMIT))) throw rateLimited(TOO_MANY_LINKS)
+    throw notFound("This status link doesn't work. Ask your snow clearing company for a new one.")
+  }
   const company = await loadCompany(db)
   const last = await db.prepare(`${CHECKIN_SELECT} WHERE ck.client_id = ?1 AND ck.kind = 'plowed' AND ck.voided_at IS NULL ORDER BY ck.at DESC LIMIT 1`)
     .bind(client.id).first()
@@ -579,7 +591,346 @@ async function clientStatus (request, env, ctx) {
   })
 }
 
+// ---- rate guards ----
+
+const SIGNIN_LIMIT = { tries: 5, minutes: 15 }
+const STATUS_LIMIT = { tries: 30, minutes: 10 }
+const TOO_MANY_LINKS = 'Too many wrong status links from here. Wait 10 minutes and try again.'
+const rateLimited = error => new HttpError(429, 'rate_limited', error)
+
+/** Records one attempt only while this IP is under the limit (one statement, so it can't race). Returns its id, or null. */
+async function takeAttempt (db, kind, ip, nowMs, limit) {
+  const row = await db.prepare(`INSERT INTO signin_attempts (kind, ip, at) SELECT ?1, ?2, ?3
+    WHERE (SELECT COUNT(*) FROM signin_attempts WHERE kind = ?1 AND ip = ?2 AND at > ?4) < ?5 RETURNING id`)
+    .bind(kind, ip, iso(nowMs), iso(nowMs - limit.minutes * 60000), limit.tries).first()
+  return row ? row.id : null
+}
+
+// ---- owner: PIN and company ----
+
+const inNewfoundlandAndLabrador = (lat, lng) =>
+  typeof lat === 'number' && typeof lng === 'number' && lat >= 46.5 && lat <= 60.5 && lng >= -67.9 && lng <= -52.5
+
+async function changePin (request, env, ctx) {
+  const body = await readJson(request)
+  const company = await loadCompany(env.DB)
+  if (!(await verifyPin(typeof body.current === 'string' ? body.current : '', company.pin))) {
+    throw unauthorized('That PIN is not right.', 'current')
+  }
+  if (typeof body.next !== 'string' || !/^\d{4,8}$/.test(body.next)) throw badRequest('next', 'A PIN is 4 to 8 digits.')
+  await env.DB.batch([
+    env.DB.prepare('UPDATE company SET pin = ?1 WHERE id = 1').bind(await hashPin(body.next)),
+    env.DB.prepare('DELETE FROM sessions WHERE token_hash <> ?1').bind(ctx.session)
+  ])
+  return new Response(null, { status: 204, headers: BASE_HEADERS })
+}
+
+async function putCompany (request, env, ctx) {
+  const body = await readJson(request)
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  if (!name || chars(name) > 80) throw badRequest('name', 'Give the company a name (up to 80 characters).')
+  const yard = body.yard && typeof body.yard === 'object' ? body.yard : {}
+  const label = typeof yard.label === 'string' ? yard.label.trim() : ''
+  if (!label || chars(label) > 80) throw badRequest('yard', 'Give the yard a name (up to 80 characters).')
+  if (!inNewfoundlandAndLabrador(yard.lat, yard.lng)) throw badRequest('yard', 'Put a pin on the map for the yard.')
+  await env.DB.prepare('UPDATE company SET name = ?1, yard_label = ?2, yard_lat = ?3, yard_lng = ?4 WHERE id = 1')
+    .bind(name, label, yard.lat, yard.lng).run()
+  return json(200, companyView(await loadCompany(env.DB)))
+}
+
+// ---- owner: client links and messages ----
+
+async function resetClientLink (request, env, ctx) {
+  const id = Number(ctx.params[0])
+  const r = await env.DB.prepare('UPDATE clients SET status_key = ?1 WHERE id = ?2').bind(randomKey(), id).run()
+  if (!r.meta.changes) throw notFound("We couldn't find that client.")
+  return json(200, clientView(await getClient(env.DB, id), ctx.origin))
+}
+
+async function clientMessages (request, env, ctx) {
+  const client = await getClient(env.DB, Number(ctx.params[0]))
+  if (!client) throw notFound("We couldn't find that client.")
+  const latest = await env.DB.prepare(`${CHECKIN_SELECT} WHERE ck.client_id = ?1 AND ck.voided_at IS NULL
+    ORDER BY ck.at DESC, ck.received_at DESC LIMIT 1`).bind(client.id).first()
+  const plowed = !!latest && latest.kind === 'plowed'
+  const stop = { status: plowed ? 'plowed' : 'none', checkin: plowed ? checkinView(latest, ctx.origin) : null }
+  const messages = stopMessages(stop, client, { origin: ctx.origin, company: await loadCompany(env.DB), stormActive: false })
+  return json(200, { messages })
+}
+
+// ---- owner: trucks ----
+
+function truckName (body) {
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  if (!name) throw badRequest('name', 'Give the truck a name.')
+  if (chars(name) > 40) throw badRequest('name', 'Keep the truck name under 40 characters.')
+  return name
+}
+
+async function createTruck (request, env, ctx) {
+  const name = truckName(await readJson(request))
+  const row = await env.DB.prepare('INSERT INTO trucks (name, active, driver_key) VALUES (?1, 1, ?2) RETURNING *').bind(name, randomKey()).first()
+  return json(201, truckView(row, ctx.origin))
+}
+
+async function updateTruck (request, env, ctx) {
+  const id = Number(ctx.params[0])
+  if (!(await env.DB.prepare('SELECT id FROM trucks WHERE id = ?1').bind(id).first())) throw notFound("We couldn't find that truck.")
+  const body = await readJson(request)
+  const name = truckName(body)
+  if (typeof body.active !== 'boolean') throw badRequest('active', 'Say whether this truck is active.')
+  const row = await env.DB.prepare('UPDATE trucks SET name = ?1, active = ?2 WHERE id = ?3 RETURNING *').bind(name, body.active ? 1 : 0, id).first()
+  return json(200, truckView(row, ctx.origin))
+}
+
+async function resetTruckLink (request, env, ctx) {
+  const row = await env.DB.prepare('UPDATE trucks SET driver_key = ?1 WHERE id = ?2 RETURNING *').bind(randomKey(), Number(ctx.params[0])).first()
+  if (!row) throw notFound("We couldn't find that truck.")
+  return json(200, truckView(row, ctx.origin))
+}
+
+// ---- owner: storm list, editing, end, summary ----
+
+const PLOWED_EXISTS = `EXISTS (SELECT 1 FROM checkins k WHERE k.storm_id = s.id AND k.client_id = ss.client_id AND k.kind = 'plowed' AND k.voided_at IS NULL)`
+const SKIPPED_EXISTS = `EXISTS (SELECT 1 FROM checkins k WHERE k.storm_id = s.id AND k.client_id = ss.client_id AND k.kind = 'skipped' AND k.voided_at IS NULL)`
+
+async function listStorms (request, env) {
+  const { results } = await env.DB.prepare(`SELECT s.id, s.name, s.started_at, s.ended_at, COUNT(ss.client_id) AS stops,
+    COALESCE(SUM(${PLOWED_EXISTS}), 0) AS plowed, COALESCE(SUM(NOT ${PLOWED_EXISTS} AND ${SKIPPED_EXISTS}), 0) AS skipped
+    FROM storms s LEFT JOIN storm_stops ss ON ss.storm_id = s.id GROUP BY s.id ORDER BY s.started_at DESC, s.id DESC`).all()
+  return json(200, {
+    storms: results.map(s => ({
+      id: s.id,
+      name: s.name,
+      status: s.ended_at ? 'ended' : 'active',
+      started_at: s.started_at,
+      started_label: fullLabel(s.started_at),
+      ended_at: s.ended_at,
+      ended_label: s.ended_at ? fullLabel(s.ended_at) : null,
+      counts: { stops: s.stops, plowed: s.plowed, skipped: s.skipped, pending: s.stops - s.plowed - s.skipped }
+    }))
+  })
+}
+
+const STORM_ENDED = "This storm has ended, so it can't be changed."
+// Raises inside the batch when the storm has ended since it was read, so an edit can't land on an ended storm.
+const endedGuard = (db, stormId) =>
+  db.prepare("SELECT json(CASE WHEN (SELECT ended_at FROM storms WHERE id = ?1) IS NOT NULL THEN 'ended' ELSE '0' END)").bind(stormId)
+
+async function editableStorm (env, ctx) {
+  const data = await loadStorm(env.DB, Number(ctx.params[0]))
+  if (!data) throw notFound("We couldn't find that storm.")
+  if (data.storm.ended_at) throw badState(STORM_ENDED)
+  return data
+}
+
+async function putRoute (request, env, ctx) {
+  const db = env.DB
+  const data = await editableStorm(env, ctx)
+  const body = await readJson(request)
+  const refuse = () => badRequest('trucks', 'List every truck in this storm once and every stop once.')
+  const truckIds = new Set(data.trucks.map(t => t.id))
+  const stopIds = new Set(data.stopRows.map(r => r.client_id))
+  const seenTrucks = new Set()
+  const seenStops = new Set()
+  if (!Array.isArray(body.trucks)) throw refuse()
+  for (const t of body.trucks) {
+    if (!t || typeof t !== 'object' || !truckIds.has(t.truck_id) || seenTrucks.has(t.truck_id) || !Array.isArray(t.client_ids)) throw refuse()
+    seenTrucks.add(t.truck_id)
+    for (const c of t.client_ids) {
+      if (!stopIds.has(c) || seenStops.has(c)) throw refuse()
+      seenStops.add(c)
+    }
+  }
+  if (seenTrucks.size !== truckIds.size || seenStops.size !== stopIds.size) throw refuse()
+
+  const stormId = data.storm.id
+  const stmts = [
+    endedGuard(db, stormId),
+    db.prepare("SELECT json(CASE WHEN (SELECT COUNT(*) FROM storm_stops WHERE storm_id = ?1) <> ?2 THEN 'stops changed' ELSE '0' END)").bind(stormId, stopIds.size)
+  ]
+  for (const t of body.trucks) {
+    t.client_ids.forEach((c, i) => stmts.push(db.prepare('UPDATE storm_stops SET truck_id = ?1, position = ?2 WHERE storm_id = ?3 AND client_id = ?4')
+      .bind(t.truck_id, i + 1, stormId, c)))
+  }
+  try {
+    await db.batch(stmts)
+  } catch (e) {
+    if (!isGuardRefusal(e)) throw e
+    const now = await db.prepare('SELECT ended_at FROM storms WHERE id = ?1').bind(stormId).first()
+    throw badState(now.ended_at ? STORM_ENDED : 'The route changed while you were editing it. Reload and try again.')
+  }
+  return json(200, await ownerStormView(env, ctx, stormId))
+}
+
+async function addStop (request, env, ctx) {
+  const db = env.DB
+  const data = await editableStorm(env, ctx)
+  const body = await readJson(request)
+  const client = Number.isInteger(body.client_id) ? await db.prepare('SELECT id, active FROM clients WHERE id = ?1').bind(body.client_id).first() : null
+  if (!client || !client.active) throw badRequest('client_id', 'Pick one of your active clients.')
+  const already = () => badRequest('client_id', 'That client is already on the route.')
+  if (data.stopRows.some(r => r.client_id === client.id)) throw already()
+  if (!data.trucks.some(t => t.id === body.truck_id)) throw badRequest('truck_id', 'Pick a truck that is out in this storm.')
+  try {
+    await db.batch([
+      endedGuard(db, data.storm.id),
+      db.prepare(`INSERT INTO storm_stops (storm_id, client_id, truck_id, position)
+        SELECT ?1, ?2, ?3, COALESCE(MAX(position), 0) + 1 FROM storm_stops WHERE storm_id = ?1 AND truck_id = ?3`).bind(data.storm.id, client.id, body.truck_id)
+    ])
+  } catch (e) {
+    if (isGuardRefusal(e)) throw badState(STORM_ENDED)
+    if (isUniqueViolation(e)) throw already()
+    throw e
+  }
+  return json(200, await ownerStormView(env, ctx, data.storm.id))
+}
+
+async function removeStop (request, env, ctx) {
+  const db = env.DB
+  const data = await editableStorm(env, ctx)
+  const clientId = Number(ctx.params[1])
+  const row = data.stopRows.find(r => r.client_id === clientId)
+  if (!row) throw notFound('That client is not a stop in this storm.')
+  const HAS_CHECKINS = 'This stop has check-ins, so it stays on the route.'
+  const hasCheckins = () => db.prepare('SELECT 1 FROM checkins WHERE storm_id = ?1 AND client_id = ?2').bind(data.storm.id, clientId).first()
+  if (await hasCheckins()) throw badState(HAS_CHECKINS)
+  try {
+    await db.batch([
+      endedGuard(db, data.storm.id),
+      db.prepare("SELECT json(CASE WHEN EXISTS (SELECT 1 FROM checkins WHERE storm_id = ?1 AND client_id = ?2) THEN 'has check-ins' ELSE '0' END)")
+        .bind(data.storm.id, clientId),
+      db.prepare('DELETE FROM storm_stops WHERE storm_id = ?1 AND client_id = ?2').bind(data.storm.id, clientId),
+      db.prepare('UPDATE storm_stops SET position = position - 1 WHERE storm_id = ?1 AND truck_id = ?2 AND position > ?3')
+        .bind(data.storm.id, row.truck_id, row.position)
+    ])
+  } catch (e) {
+    if (!isGuardRefusal(e)) throw e
+    throw badState((await hasCheckins()) ? HAS_CHECKINS : STORM_ENDED)
+  }
+  return json(200, await ownerStormView(env, ctx, data.storm.id))
+}
+
+function summaryView (data, view) {
+  const { storm } = data
+  const stops = view.trucks.flatMap(t => t.stops)
+  const live = data.checkins // non-voided
+  return {
+    storm_id: storm.id,
+    name: storm.name,
+    status: view.status,
+    started_label: view.started_label,
+    ended_label: view.ended_label,
+    duration_label: storm.ended_at ? durationLabel(Date.parse(storm.ended_at) - Date.parse(storm.started_at)) : null,
+    stops: stops.length,
+    plowed: view.counts.plowed,
+    billable_pushes: live.filter(isBillable).length,
+    skipped: stops.filter(s => s.status === 'skipped')
+      .map(s => ({ client_id: s.client_id, name: s.name, reason_text: s.checkin.reason_text, at_label: s.checkin.at_label })),
+    not_reached: stops.filter(s => s.status === 'pending').map(s => ({ client_id: s.client_id, name: s.name })),
+    trucks: view.trucks.map(t => {
+      const times = live.filter(k => k.truck_id === t.id).map(k => k.at).sort()
+      const count = status => t.stops.filter(s => s.status === status).length
+      return {
+        id: t.id,
+        name: t.name,
+        plowed: count('plowed'),
+        skipped: count('skipped'),
+        pending: count('pending'),
+        first_label: times.length ? timeLabel(times[0]) : null,
+        last_label: times.length ? timeLabel(times[times.length - 1]) : null
+      }
+    })
+  }
+}
+
+async function endStorm (request, env, ctx) {
+  const db = env.DB
+  const id = Number(ctx.params[0])
+  const r = await db.prepare('UPDATE storms SET ended_at = ?1 WHERE id = ?2 AND ended_at IS NULL').bind(iso(ctx.now), id).run()
+  if (!r.meta.changes) {
+    if (!(await db.prepare('SELECT 1 FROM storms WHERE id = ?1').bind(id).first())) throw notFound("We couldn't find that storm.")
+    throw badState('This storm has already ended.')
+  }
+  const data = await loadStorm(db, id)
+  const view = stormView(data, { origin: ctx.origin, owner: true, company: await loadCompany(db) })
+  return json(200, { storm: view, summary: summaryView(data, view) })
+}
+
+async function getSummary (request, env, ctx) {
+  const data = await loadStorm(env.DB, Number(ctx.params[0]))
+  if (!data) throw notFound("We couldn't find that storm.")
+  return json(200, summaryView(data, stormView(data, { origin: ctx.origin, owner: false })))
+}
+
+// ---- owner: billing ----
+
+function monthParam (ctx) {
+  const month = ctx.url.searchParams.get('month')
+  if (month === null || month === '') return nlMonth(ctx.now)
+  if (!isMonth(month)) throw badRequest('month', 'Pick a month like 2026-01.')
+  return month
+}
+
+/** The month's report. The query takes a padded window; billing.js decides what is a push. */
+async function monthReport (db, month) {
+  const { start, end } = monthBounds(month)
+  const pad = 2 * 86400000
+  const [clients, checkins] = await db.batch([
+    db.prepare('SELECT id, name, address, billing, price_cents, active FROM clients'),
+    db.prepare('SELECT client_id, kind, at, voided_at FROM checkins WHERE at >= ?1 AND at < ?2').bind(iso(Date.parse(start) - pad), iso(Date.parse(end) + pad))
+  ])
+  return billingReport(month, clients.results, checkins.results)
+}
+
+async function billingJson (request, env, ctx) {
+  return json(200, await monthReport(env.DB, monthParam(ctx)))
+}
+
+async function billingCsv (request, env, ctx) {
+  const month = monthParam(ctx)
+  const report = await monthReport(env.DB, month)
+  const company = await loadCompany(env.DB)
+  return new Response(toCsv(report), {
+    status: 200,
+    headers: {
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="${csvFilename(month, company.name.includes('SAMPLE'))}"`,
+      ...BASE_HEADERS
+    }
+  })
+}
+
+async function listBillingMonths (request, env) {
+  const { results } = await env.DB.prepare('SELECT kind, at, voided_at FROM checkins').all()
+  return json(200, { months: billingMonths(results) })
+}
+
+// ---- driver: undo ----
+
+const UNDO_MS = 15 * 60000
+
+async function undoCheckin (request, env, ctx) {
+  const db = env.DB
+  const truck = await requireDriver(request, env)
+  const id = ctx.params[0].toLowerCase()
+  const row = await getCheckin(db, id)
+  if (!row || row.truck_id !== truck.id) throw notFound("We couldn't find that check-in.")
+  if (!row.voided_at) {
+    if (ctx.now - Date.parse(row.received_at) > UNDO_MS) throw badState('Too late to undo. Ask the owner to fix it.')
+    await db.prepare('UPDATE checkins SET voided_at = ?1 WHERE id = ?2 AND voided_at IS NULL').bind(iso(ctx.now), id).run()
+  }
+  const stored = await getCheckin(db, id)
+  return json(200, { checkin: checkinView(stored, ctx.origin), stop: await driverStop(env, ctx, stored.storm_id, stored.client_id) })
+}
+
 // ---- test routes (TEST_MODE=1 only) ----
+
+async function testSeed (request, env, ctx) {
+  const body = await readJson(request)
+  if (body.scenario !== 'demo') throw badRequest('scenario', 'The only scenario is "demo".')
+  return json(200, await seedDemo(env, ctx.origin, ctx.now))
+}
 
 async function testReset (request, env, ctx) {
   return json(200, await seedSample(env, ctx.origin))
@@ -619,7 +970,26 @@ const ROUTES = [
   ['PUT', /^\/api\/driver\/checkins\/([0-9A-Fa-f-]{36})\/photo$/, 'public', putPhoto],
   ['GET', /^\/api\/photos\/([A-Za-z0-9_-]{16,64})$/, 'public', getPhoto],
   ['GET', /^\/api\/status\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus],
+  ['PUT', /^\/api\/owner\/pin$/, 'owner', changePin],
+  ['GET', /^\/api\/owner\/company$/, 'owner', async (req, env) => json(200, companyView(await loadCompany(env.DB)))],
+  ['PUT', /^\/api\/owner\/company$/, 'owner', putCompany],
+  ['POST', /^\/api\/owner\/clients\/(\d+)\/reset-link$/, 'owner', resetClientLink],
+  ['GET', /^\/api\/owner\/clients\/(\d+)\/messages$/, 'owner', clientMessages],
+  ['POST', /^\/api\/owner\/trucks$/, 'owner', createTruck],
+  ['PUT', /^\/api\/owner\/trucks\/(\d+)$/, 'owner', updateTruck],
+  ['POST', /^\/api\/owner\/trucks\/(\d+)\/reset-link$/, 'owner', resetTruckLink],
+  ['GET', /^\/api\/owner\/storms$/, 'owner', listStorms],
+  ['PUT', /^\/api\/owner\/storms\/(\d+)\/route$/, 'owner', putRoute],
+  ['POST', /^\/api\/owner\/storms\/(\d+)\/stops$/, 'owner', addStop],
+  ['DELETE', /^\/api\/owner\/storms\/(\d+)\/stops\/(\d+)$/, 'owner', removeStop],
+  ['POST', /^\/api\/owner\/storms\/(\d+)\/end$/, 'owner', endStorm],
+  ['GET', /^\/api\/owner\/storms\/(\d+)\/summary$/, 'owner', getSummary],
+  ['GET', /^\/api\/owner\/billing\/months$/, 'owner', listBillingMonths],
+  ['GET', /^\/api\/owner\/billing$/, 'owner', billingJson],
+  ['GET', /^\/api\/owner\/billing\.csv$/, 'owner', billingCsv],
+  ['DELETE', /^\/api\/driver\/checkins\/([0-9A-Fa-f-]{36})$/, 'public', undoCheckin],
   ['POST', /^\/api\/test\/reset$/, 'test', testReset],
+  ['POST', /^\/api\/test\/seed$/, 'test', testSeed],
   ['POST', /^\/api\/test\/storms\/(\d+)\/end$/, 'test', testEndStorm],
   ['GET', /^\/api\/test\/checkins$/, 'test', testCheckins]
 ]
@@ -630,7 +1000,7 @@ async function handle (request, env) {
     const m = re.exec(url.pathname)
     if (!m || method !== request.method) continue
     if (access === 'test' && !isTestMode(env)) break
-    const ctx = { url, origin: url.origin, params: m.slice(1), now: clockNow(request, env) }
+    const ctx = { url, origin: url.origin, params: m.slice(1), now: clockNow(request, env), ip: clientIp(request, env) }
     if (access === 'owner') ctx.session = await requireOwner(request, env, ctx)
     return await handler(request, env, ctx)
   }
@@ -644,7 +1014,7 @@ export default {
     } catch (e) {
       if (e instanceof HttpError) return json(e.status, e.body)
       console.error(e)
-      return json(500, { error: 'Something went wrong on our side. Please try again.', code: 'server_error' })
+      return json(500, { error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' })
     }
   }
 }

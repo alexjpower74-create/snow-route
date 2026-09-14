@@ -550,3 +550,583 @@ test('unknown API route answers 404 JSON', async () => {
   const r = await api('GET', '/api/nothing-here')
   expectError(r, 404, 'not_found')
 })
+
+// ================================================================ M2
+
+const JAN = '2026-01'
+const plus = (iso, minutes) => new Date(Date.parse(iso) + minutes * 60000).toISOString()
+const seedClient = (seed, ref) => seed.clients.find(c => c.ref === ref)
+
+async function ownerClient (token, id) {
+  return (await api('GET', '/api/owner/clients?include_inactive=1', { token })).body.clients.find(c => c.id === id)
+}
+async function editClient (token, id, over) {
+  const r = await api('PUT', `/api/owner/clients/${id}`, { token, body: { ...(await ownerClient(token, id)), ...over } })
+  assert.equal(r.status, 200, r.text)
+  return r.body
+}
+/** Start a storm at `start` with these clients and both trucks. */
+async function startAt (token, seed, start, clientIds) {
+  const r = await api('POST', '/api/owner/storms', { token, now: start, body: { client_ids: clientIds, truck_ids: seed.trucks.map(t => t.id) } })
+  assert.equal(r.status, 201, r.text)
+  return r.body
+}
+/** A check-in for a client on whatever truck its stop is on, sent one minute after `at`. */
+async function checkinAt (seed, storm, clientId, atIso, over = {}) {
+  const stop = stopsOf(storm).find(s => s.client_id === clientId)
+  const key = seed.trucks.find(t => t.id === stop.truck_id).driver_key
+  const body = checkin(storm, stop, { at: atIso, ...over })
+  const r = await post(key, body, plus(atIso, 1))
+  assert.equal(r.status, 201, r.text)
+  return { ...r.body, key }
+}
+async function endAt (token, stormId, now) {
+  const r = await api('POST', `/api/owner/storms/${stormId}/end`, { token, now })
+  assert.equal(r.status, 200, r.text)
+  return r.body
+}
+const billing = async (token, month, now) => (await api('GET', `/api/owner/billing${month ? `?month=${month}` : ''}`, { token, now })).body
+const rowOf = (report, clientId) => report.rows.find(r => r.client_id === clientId)
+
+// ---------------------------------------------------------------- PIN and company
+
+test('PIN change: wrong current 401, bad next 400, a change ends every other session and the new PIN works', async () => {
+  await reset()
+  const a = await signin()
+  const b = await signin()
+  expectError(await api('PUT', '/api/owner/pin', { token: a, body: { current: '0000', next: '1357' } }), 401, 'unauthorized', 'current')
+  for (const next of ['12', '123456789', 'abcd', 1357]) {
+    expectError(await api('PUT', '/api/owner/pin', { token: a, body: { current: '2468', next } }), 400, 'bad_request', 'next')
+  }
+  const r = await api('PUT', '/api/owner/pin', { token: a, body: { current: '2468', next: '1357' } })
+  assert.equal(r.status, 204, r.text)
+  assert.equal((await api('GET', '/api/owner/trucks', { token: a })).status, 200)
+  expectError(await api('GET', '/api/owner/trucks', { token: b }), 401, 'unauthorized')
+  expectError(await api('POST', '/api/owner/signin', { body: { pin: '2468' } }), 401, 'unauthorized', 'pin')
+  assert.equal((await api('POST', '/api/owner/signin', { body: { pin: '1357' } })).status, 200)
+  expectError(await api('PUT', '/api/owner/pin', { body: { current: '1357', next: '2468' } }), 401, 'unauthorized')
+})
+
+test('company: owner GET and PUT, validation, sample follows the name', async () => {
+  await reset()
+  const token = await signin()
+  assert.deepEqual((await api('GET', '/api/owner/company', { token })).body, (await api('GET', '/api/company')).body)
+  const yard = { label: 'Demo yard, Lincoln Road', lat: 48.95, lng: -55.66 }
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: ' ', yard } }), 400, 'bad_request', 'name')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, label: '' } } }), 400, 'bad_request', 'yard')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, lat: 30 } } }), 400, 'bad_request', 'yard')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing' } }), 400, 'bad_request', 'yard')
+  const r = await api('PUT', '/api/owner/company', { token, body: { name: ' Demo Snow Clearing ', yard } })
+  assert.equal(r.status, 200, r.text)
+  assert.deepEqual(r.body, { name: 'Demo Snow Clearing', sample: false, timezone: 'America/St_Johns', hst_rate: 0.15, yard })
+  assert.deepEqual((await api('GET', '/api/company')).body, r.body)
+  expectError(await api('PUT', '/api/owner/company', { body: { name: 'x', yard } }), 401, 'unauthorized')
+})
+
+// ---------------------------------------------------------------- messages and links
+
+test('messages: exact text for each kind, on stops and on the client', async () => {
+  const { seed, token, storm, keyOf } = await stormSetup()
+  const sam = seedClient(seed, 'sample-03') // driveway, truck 2
+  const diner = seedClient(seed, 'sample-11') // parking lot, truck 2
+  const intro = c => `Hi ${c.name}, this is ${COMPANY}. You can check when your`
+  let r = await api('GET', `/api/owner/clients/${sam.id}/messages`, { token })
+  assert.deepEqual(r.body, { messages: [{ kind: 'status_link', label: 'Copy status link text', text: `${intro(sam)} driveway was last cleared here: ${sam.status_url}` }] })
+
+  const samStop = stopsOf(storm).find(s => s.client_id === sam.id)
+  assert.deepEqual(samStop.messages[1], {
+    kind: 'on_route', label: 'Copy "on the route" text',
+    text: `Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop ${samStop.position} on the route. This link shows the time and a photo once it's done: ${sam.status_url}`
+  })
+  await post(keyOf(samStop.truck_id), checkin(storm, samStop, { at: '2026-01-12T10:12:00.000Z' }), '2026-01-12T10:13:00.000Z')
+  const plowedText = `Hi Sam (SAMPLE), your driveway was cleared at 6:42 AM. See it here: ${sam.status_url}`
+  r = await api('GET', `/api/owner/clients/${sam.id}/messages`, { token })
+  assert.deepEqual(r.body.messages.map(m => m.kind), ['status_link', 'plowed'])
+  assert.deepEqual(r.body.messages[1], { kind: 'plowed', label: 'Copy "done" text', text: plowedText })
+  assert.deepEqual((await ownerStop(token, storm.id, sam.id)).messages[1].text, plowedText)
+
+  const dinerStop = stopsOf(storm).find(s => s.client_id === diner.id)
+  await post(keyOf(dinerStop.truck_id), checkin(storm, dinerStop, { kind: 'skipped', reason: 'cancelled' }))
+  const dinerMessages = (await ownerStop(token, storm.id, diner.id)).messages
+  assert.equal(dinerMessages[0].text, `${intro(diner)} parking lot was last cleared here: ${diner.status_url}`)
+  assert.deepEqual(dinerMessages[1], {
+    kind: 'skipped', label: 'Copy "skipped" text',
+    text: "Hi SAMPLE Diner lot, we couldn't clear your parking lot tonight: client cancelled. We'll be in touch about it."
+  })
+  assert.deepEqual((await api('GET', `/api/owner/clients/${diner.id}/messages`, { token })).body.messages.map(m => m.kind), ['status_link'])
+  expectError(await api('GET', '/api/owner/clients/9999/messages', { token }), 404, 'not_found')
+})
+
+test('client reset-link: new status_url, the old key answers 404, the new one works', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const sam = seedClient(seed, 'sample-03')
+  const r = await api('POST', `/api/owner/clients/${sam.id}/reset-link`, { token })
+  assert.equal(r.status, 200, r.text)
+  assert.notEqual(r.body.status_url, sam.status_url)
+  expectError(await api('GET', `/api/status/${sam.status_key}`), 404, 'not_found')
+  const newKey = new URL(r.body.status_url).searchParams.get('k')
+  assert.equal((await api('GET', `/api/status/${newKey}`)).status, 200)
+  expectError(await api('POST', '/api/owner/clients/9999/reset-link', { token }), 404, 'not_found')
+  // Deactivating does not kill the link (clarification 4).
+  await editClient(token, sam.id, { active: false })
+  assert.equal((await api('GET', `/api/status/${newKey}`)).status, 200)
+})
+
+test('trucks: POST, PUT, validation, order, reset-link makes the old driver key 401', async () => {
+  const seed = await reset()
+  const token = await signin()
+  expectError(await api('POST', '/api/owner/trucks', { token, body: { name: ' ' } }), 400, 'bad_request', 'name')
+  expectError(await api('POST', '/api/owner/trucks', { token, body: { name: 'x'.repeat(41) } }), 400, 'bad_request', 'name')
+  const created = await api('POST', '/api/owner/trucks', { token, body: { name: 'Truck 3 (SAMPLE)' } })
+  assert.equal(created.status, 201, created.text)
+  assert.equal(created.body.name, 'Truck 3 (SAMPLE)')
+  assert.equal(created.body.active, true)
+  assert.match(created.body.driver_url, /\/d\/\?k=[A-Za-z0-9_-]{22,}$/)
+
+  const [t1, t2] = seed.trucks
+  expectError(await api('PUT', `/api/owner/trucks/${t1.id}`, { token, body: { name: 'Plow A (SAMPLE)' } }), 400, 'bad_request', 'active')
+  expectError(await api('PUT', '/api/owner/trucks/999', { token, body: { name: 'x', active: true } }), 404, 'not_found')
+  const put = await api('PUT', `/api/owner/trucks/${t1.id}`, { token, body: { name: 'Plow A (SAMPLE)', active: false } })
+  assert.equal(put.status, 200, put.text)
+  assert.deepEqual(put.body, { id: t1.id, name: 'Plow A (SAMPLE)', active: false, driver_url: t1.driver_url })
+  const list = (await api('GET', '/api/owner/trucks', { token })).body.trucks
+  assert.deepEqual(list.map(t => t.name), ['Truck 2 (SAMPLE)', 'Truck 3 (SAMPLE)', 'Plow A (SAMPLE)'])
+  // An inactive truck can't go out, but its link still works (clarification 4).
+  expectError(await api('POST', '/api/owner/storms', { token, body: { client_ids: [seed.clients[0].id], truck_ids: [t1.id] } }), 400, 'bad_request', 'truck_ids')
+  assert.equal((await api('GET', '/api/driver/route', { key: t1.driver_key })).status, 200)
+
+  const reset2 = await api('POST', `/api/owner/trucks/${t2.id}/reset-link`, { token })
+  assert.equal(reset2.status, 200)
+  assert.notEqual(reset2.body.driver_url, t2.driver_url)
+  expectError(await api('GET', '/api/driver/route', { key: t2.driver_key }), 401, 'unauthorized')
+  assert.equal((await api('GET', '/api/driver/route', { key: new URL(reset2.body.driver_url).searchParams.get('k') })).status, 200)
+  expectError(await api('POST', '/api/owner/trucks/999/reset-link', { token }), 404, 'not_found')
+})
+
+// ---------------------------------------------------------------- storm editing
+
+test('storms list: newest first, counts match the storm view', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const ids = seed.clients.map(c => c.id)
+  const a = await startAt(token, seed, START, ids)
+  await checkinAt(seed, a, ids[0], at(20))
+  await checkinAt(seed, a, ids[1], at(25), { kind: 'skipped', reason: 'car' })
+  await endAt(token, a.id, at(200))
+  const b = await startAt(token, seed, at(24 * 60), ids.slice(0, 5))
+  const r = await api('GET', '/api/owner/storms', { token })
+  assert.equal(r.status, 200)
+  assert.deepEqual(r.body.storms.map(s => [s.id, s.status]), [[b.id, 'active'], [a.id, 'ended']])
+  for (const s of r.body.storms) {
+    const view = (await api('GET', `/api/owner/storms/${s.id}`, { token })).body
+    const { trucks, order_note: _n, ...rest } = view
+    assert.deepEqual(s, rest)
+  }
+  assert.deepEqual(r.body.storms[1].counts, { stops: 25, plowed: 1, skipped: 1, pending: 23 })
+  assert.equal(r.body.storms[1].ended_label, 'Mon Jan 12, 7:55 AM')
+})
+
+test('route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a moved stop shows on the other driver\'s route', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const [t1, t2] = storm.trucks
+  const lists = () => [{ truck_id: t1.id, client_ids: t1.stops.map(s => s.client_id) }, { truck_id: t2.id, client_ids: t2.stops.map(s => s.client_id) }]
+  const putRoute = (trucks, now) => api('PUT', `/api/owner/storms/${storm.id}/route`, { token, body: { trucks }, now })
+
+  const missing = lists(); missing[0].client_ids.pop()
+  expectError(await putRoute(missing), 400, 'bad_request', 'trucks')
+  const duplicate = lists(); duplicate[1].client_ids.push(duplicate[0].client_ids[0])
+  expectError(await putRoute(duplicate), 400, 'bad_request', 'trucks')
+  expectError(await putRoute([...lists(), { truck_id: 999, client_ids: [] }]), 400, 'bad_request', 'trucks')
+  const foreign = lists(); foreign[1].truck_id = 999
+  expectError(await putRoute(foreign), 400, 'bad_request', 'trucks')
+  expectError(await putRoute([lists()[0]]), 400, 'bad_request', 'trucks')
+  const twice = lists(); twice[1].truck_id = t1.id
+  expectError(await putRoute(twice), 400, 'bad_request', 'trucks')
+  expectError(await putRoute('nope'), 400, 'bad_request', 'trucks')
+
+  // Plow t1's third stop, then move it to the end of truck 2 and reverse the rest of truck 1.
+  const moved = t1.stops[2]
+  await post(keyOf(t1.id), checkin(storm, moved))
+  const good = lists()
+  good[0].client_ids = good[0].client_ids.filter(c => c !== moved.client_id).reverse()
+  good[1].client_ids.push(moved.client_id)
+  const r = await putRoute(good, at(40))
+  assert.equal(r.status, 200, r.text)
+  assert.deepEqual(r.body.trucks.map(t => t.stops.map(s => s.client_id)), good.map(g => g.client_ids))
+  for (const t of r.body.trucks) assert.deepEqual(t.stops.map(s => s.position), t.stops.map((_, i) => i + 1))
+  const d2 = (await api('GET', '/api/driver/route', { key: keyOf(t2.id) })).body.stops
+  assert.equal(d2.at(-1).client_id, moved.client_id)
+  assert.equal(d2.at(-1).position, t2.stops.length + 1)
+  assert.equal(d2.at(-1).status, 'plowed')
+  assert.equal(d2.at(-1).checkin.truck_id, t1.id)
+  const d1 = (await api('GET', '/api/driver/route', { key: keyOf(t1.id) })).body.stops
+  assert.ok(!d1.some(s => s.client_id === moved.client_id))
+  assert.deepEqual(d1.map(s => s.client_id), good[0].client_ids)
+
+  // An empty list for a truck is allowed.
+  const empty = [{ truck_id: t1.id, client_ids: [] }, { truck_id: t2.id, client_ids: [...good[0].client_ids, ...good[1].client_ids] }]
+  assert.equal((await putRoute(empty)).status, 200)
+
+  await endAt(token, storm.id, at(100))
+  expectError(await putRoute(empty), 409, 'bad_state')
+  expectError(await api('PUT', '/api/owner/storms/999/route', { token, body: { trucks: [] } }), 404, 'not_found')
+})
+
+test('stops: POST appends and refuses, DELETE only a stop with no check-ins and renumbers, ended storm 409', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const [c1, c2, c3, c4, c5] = seed.clients.map(c => c.id)
+  const t1 = seed.trucks[0].id
+  const t2 = seed.trucks[1].id
+  const r0 = await api('POST', '/api/owner/storms', { token, body: { client_ids: [c1, c2, c3], truck_ids: [t1] } })
+  const storm = r0.body
+  const addStop = body => api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body })
+
+  expectError(await addStop({ client_id: c4, truck_id: t2 }), 400, 'bad_request', 'truck_id')
+  expectError(await addStop({ client_id: c1, truck_id: t1 }), 400, 'bad_request', 'client_id')
+  expectError(await addStop({ client_id: 9999, truck_id: t1 }), 400, 'bad_request', 'client_id')
+  await editClient(token, c5, { active: false })
+  expectError(await addStop({ client_id: c5, truck_id: t1 }), 400, 'bad_request', 'client_id')
+  const added = await addStop({ client_id: c4, truck_id: t1 })
+  assert.equal(added.status, 200, added.text)
+  assert.deepEqual(added.body.trucks[0].stops.at(-1).client_id, c4)
+  assert.deepEqual(added.body.trucks[0].stops.map(s => s.position), [1, 2, 3, 4])
+  assert.equal(added.body.counts.stops, 4)
+
+  const [first, second] = added.body.trucks[0].stops
+  await post(seed.trucks[0].driver_key, checkin(storm, first))
+  const del = id => api('DELETE', `/api/owner/storms/${storm.id}/stops/${id}`, { token })
+  expectError(await del(first.client_id), 409, 'bad_state')
+  expectError(await del(c5), 404, 'not_found')
+  const removed = await del(second.client_id)
+  assert.equal(removed.status, 200, removed.text)
+  assert.ok(!stopsOf(removed.body).some(s => s.client_id === second.client_id))
+  assert.deepEqual(removed.body.trucks[0].stops.map(s => s.position), [1, 2, 3])
+
+  // Even a voided check-in keeps the stop.
+  const third = removed.body.trucks[0].stops[1]
+  const k = checkin(storm, third)
+  await post(seed.trucks[0].driver_key, k)
+  assert.equal((await api('DELETE', `/api/driver/checkins/${k.id}`, { key: seed.trucks[0].driver_key, now: at(35) })).status, 200)
+  expectError(await del(third.client_id), 409, 'bad_state')
+
+  await endAt(token, storm.id, at(60))
+  expectError(await addStop({ client_id: second.client_id, truck_id: t1 }), 409, 'bad_state')
+  expectError(await del(removed.body.trucks[0].stops[2].client_id), 409, 'bad_state')
+})
+
+test('end and summary: counts, skipped with reason, not_reached, per-truck first and last, second end 409', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const [t1, t2] = storm.trucks
+  const key = keyOf(t1.id)
+  await post(key, checkin(storm, t1.stops[0], { at: at(20) }), at(21))
+  await post(key, checkin(storm, t1.stops[1], { kind: 'skipped', reason: 'gate', at: at(30) }), at(31))
+  await post(key, checkin(storm, t1.stops[2], { at: at(50) }), at(51))
+
+  const active = await api('GET', `/api/owner/storms/${storm.id}/summary`, { token, now: at(60) })
+  assert.equal(active.status, 200, active.text)
+  assert.equal(active.body.status, 'active')
+  assert.equal(active.body.ended_label, null)
+  assert.equal(active.body.duration_label, null)
+
+  const ended = await api('POST', `/api/owner/storms/${storm.id}/end`, { token, now: at(220) })
+  assert.equal(ended.status, 200, ended.text)
+  assert.equal(ended.body.storm.status, 'ended')
+  assert.equal(ended.body.storm.ended_at, at(220))
+  assert.ok(ended.body.storm.trucks[0].stops[0].messages, 'owner view has messages')
+  const pending = [...t1.stops.slice(3), ...t2.stops]
+  assert.deepEqual(ended.body.summary, {
+    storm_id: storm.id,
+    name: 'Storm of Mon Jan 12',
+    status: 'ended',
+    started_label: 'Mon Jan 12, 4:35 AM',
+    ended_label: 'Mon Jan 12, 8:15 AM',
+    duration_label: '3 h 40 min',
+    stops: 25,
+    plowed: 2,
+    billable_pushes: 2,
+    skipped: [{ client_id: t1.stops[1].client_id, name: t1.stops[1].name, reason_text: 'Gate locked', at_label: '5:05 AM' }],
+    not_reached: pending.map(s => ({ client_id: s.client_id, name: s.name })),
+    trucks: [
+      { id: t1.id, name: t1.name, plowed: 2, skipped: 1, pending: t1.stops.length - 3, first_label: '4:55 AM', last_label: '5:25 AM' },
+      { id: t2.id, name: t2.name, plowed: 0, skipped: 0, pending: t2.stops.length, first_label: null, last_label: null }
+    ]
+  })
+  assert.deepEqual((await api('GET', `/api/owner/storms/${storm.id}/summary`, { token })).body, ended.body.summary)
+  expectError(await api('POST', `/api/owner/storms/${storm.id}/end`, { token }), 409, 'bad_state')
+  expectError(await api('POST', '/api/owner/storms/999/end', { token }), 404, 'not_found')
+  expectError(await api('GET', '/api/owner/storms/999/summary', { token }), 404, 'not_found')
+  assert.equal((await api('GET', '/api/driver/route', { key })).body.storm, null)
+  // A new storm can start now.
+  assert.equal((await api('POST', '/api/owner/storms', { token, body: { client_ids: [t2.stops[0].client_id], truck_ids: [t2.id] } })).status, 201)
+})
+
+// ---------------------------------------------------------------- undo
+
+test('undo: within 15 min voided, stop pending again and no billing; after 16 min 409; other truck 404; again 200', async () => {
+  const { seed, token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const key = keyOf(truck.id)
+  const stop = truck.stops[0]
+  const body = checkin(storm, stop, { has_photo: true })
+  await post(key, body, at(31))
+  const photo = await api('PUT', `/api/driver/checkins/${body.id}/photo`, { key, raw: JPEG, headers: { 'content-type': 'image/jpeg' } })
+  const del = (id, now, k = key) => api('DELETE', `/api/driver/checkins/${id}`, { key: k, now })
+
+  expectError(await del(body.id, at(40), keyOf(storm.trucks[1].id)), 404, 'not_found')
+  expectError(await del(randomUUID(), at(40)), 404, 'not_found')
+  expectError(await del(body.id, at(40), 'bad-key'), 401, 'unauthorized')
+  const undone = await del(body.id, at(31 + 15))
+  assert.equal(undone.status, 200, undone.text)
+  assert.equal(undone.body.checkin.voided, true)
+  assert.equal(undone.body.stop.status, 'pending')
+  assert.equal(undone.body.stop.checkin, null)
+  const again = await del(body.id, at(120))
+  assert.equal(again.status, 200)
+  assert.equal(again.body.checkin.voided, true)
+
+  assert.equal((await ownerStop(token, storm.id, stop.client_id)).status, 'pending')
+  assert.equal(rowOf(await billing(token, JAN), stop.client_id)?.pushes ?? 0, 0)
+  assert.equal((await api('GET', `/api/status/${seed.clients.find(c => c.id === stop.client_id).status_key}`, { now: at(50) })).body.last, null)
+  expectError(await api('GET', new URL(photo.body.checkin.photo_url).pathname), 404, 'not_found')
+  assert.equal((await ownerClient(token, stop.client_id)).last_plowed_at, null)
+
+  // Plowed again after the undo is allowed; undo 16 minutes after it arrived is too late.
+  const second = checkin(storm, stop, { at: at(50) })
+  assert.equal((await post(key, second, at(51))).status, 201)
+  const late = await del(second.id, at(51 + 16))
+  expectError(late, 409, 'bad_state')
+  assert.equal(late.body.error, 'Too late to undo. Ask the owner to fix it.')
+  assert.equal((await ownerStop(token, storm.id, stop.client_id)).status, 'plowed')
+})
+
+// ---------------------------------------------------------------- billing
+
+test('billing: per-push amounts, HST half up, totals are row sums, seasonal rows', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const chris = seedClient(seed, 'sample-04').id // per push, truck 1
+  const robin = seedClient(seed, 'sample-07').id // per push, truck 2
+  const sam = seedClient(seed, 'sample-03').id // seasonal 55000
+  const kerry = seedClient(seed, 'sample-15').id // seasonal, made inactive
+  const taylor = seedClient(seed, 'sample-10').id // seasonal, no pushes
+  await editClient(token, chris, { price_cents: 3550 })
+  await editClient(token, robin, { price_cents: 3550 })
+  await editClient(token, kerry, { active: false })
+
+  const days = ['2026-01-05T08:00:00.000Z', '2026-01-12T08:00:00.000Z', '2026-01-19T08:00:00.000Z']
+  for (const [i, start] of days.entries()) {
+    const storm = await startAt(token, seed, start, [chris, robin, sam])
+    await checkinAt(seed, storm, chris, plus(start, 30))
+    if (i < 2) await checkinAt(seed, storm, sam, plus(start, 40))
+    if (i === 0) await checkinAt(seed, storm, robin, plus(start, 50))
+    await endAt(token, storm.id, plus(start, 120))
+  }
+
+  const r = await billing(token, JAN)
+  assert.equal(r.month, JAN)
+  assert.equal(r.label, 'January 2026')
+  assert.equal(r.hst_rate, 0.15)
+  assert.equal(r.seasonal_note, 'Seasonal contracts are billed on the contract, not by the push. Their pushes are counted here for your records.')
+  const chrisClient = await ownerClient(token, chris)
+  assert.deepEqual(rowOf(r, chris), {
+    client_id: chris, name: 'Chris (SAMPLE)', address: chrisClient.address, billing: 'per_push', billing_label: 'Per push', price_cents: 3550,
+    pushes: 3, dates: ['2026-01-05', '2026-01-12', '2026-01-19'], amount_cents: 10650, hst_cents: 1598, total_cents: 12248
+  })
+  assert.deepEqual([rowOf(r, robin).amount_cents, rowOf(r, robin).hst_cents, rowOf(r, robin).total_cents], [3550, 533, 4083])
+  const samRow = rowOf(r, sam)
+  assert.deepEqual([samRow.billing_label, samRow.pushes, samRow.dates, samRow.amount_cents, samRow.hst_cents, samRow.total_cents, samRow.price_cents],
+    ['Seasonal contract', 2, ['2026-01-05', '2026-01-12'], 0, 0, 0, 55000])
+  assert.deepEqual([rowOf(r, taylor).pushes, rowOf(r, taylor).total_cents], [0, 0])
+  assert.equal(rowOf(r, kerry), undefined, 'inactive seasonal client with no pushes is not listed')
+  const activeSeasonal = SAMPLE.clients.filter(c => c.billing === 'seasonal' && c.ref !== 'sample-15').length
+  assert.equal(r.rows.length, activeSeasonal + 2)
+  const names = r.rows.map(x => x.name.toLowerCase())
+  assert.deepEqual(names, [...names].sort())
+  const sum = key => r.rows.reduce((t, x) => t + x[key], 0)
+  assert.deepEqual(r.totals, { pushes: sum('pushes'), subtotal_cents: sum('amount_cents'), hst_cents: sum('hst_cents'), total_cents: sum('total_cents') })
+  assert.deepEqual(r.totals, { pushes: 6, subtotal_cents: 14200, hst_cents: 2131, total_cents: 16331 })
+
+  const csv = await api('GET', `/api/owner/billing.csv?month=${JAN}`, { token })
+  assert.ok(csv.text.split('\r\n').includes(`Chris (SAMPLE),"${chrisClient.address}",Per push,3,2026-01-05; 2026-01-12; 2026-01-19,35.50,106.50,15.98,122.48`))
+  assert.equal(csv.text.split('\r\n').at(-2), 'Total,,,6,,,142.00,21.31,163.31')
+  assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [JAN] })
+})
+
+test('billing: a skipped stop never bills', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const chris = seedClient(seed, 'sample-04').id
+  const jordan = seedClient(seed, 'sample-05').id // per push
+  const storm = await startAt(token, seed, '2026-01-05T08:00:00.000Z', [chris, jordan])
+  await checkinAt(seed, storm, chris, '2026-01-05T08:30:00.000Z')
+  await checkinAt(seed, storm, jordan, '2026-01-05T08:40:00.000Z', { kind: 'skipped', reason: 'car' })
+  await endAt(token, storm.id, '2026-01-05T10:00:00.000Z')
+  const r = await billing(token, JAN)
+  assert.equal(rowOf(r, jordan), undefined, `the skipped client billed: ${JSON.stringify(rowOf(r, jordan))}`)
+  assert.equal(rowOf(r, chris).pushes, 1)
+  assert.equal(r.totals.pushes, 1)
+  const summary = (await api('GET', `/api/owner/storms/${storm.id}/summary`, { token })).body
+  assert.equal(summary.billable_pushes, 1)
+})
+
+test('billing: a voided check-in never bills', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const chris = seedClient(seed, 'sample-04').id
+  const storm = await startAt(token, seed, '2026-01-05T08:00:00.000Z', [chris])
+  const made = await checkinAt(seed, storm, chris, '2026-01-05T08:30:00.000Z')
+  const undo = await api('DELETE', `/api/driver/checkins/${made.checkin.id}`, { key: made.key, now: '2026-01-05T08:36:00.000Z' })
+  assert.equal(undo.status, 200, undo.text)
+  const r = await billing(token, JAN)
+  assert.equal(rowOf(r, chris), undefined, `the voided check-in billed: ${JSON.stringify(rowOf(r, chris))}`)
+  assert.equal(r.totals.pushes, 0)
+  assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [] })
+})
+
+test('billing: NL month boundary (2026-02-01T03:00:00Z is Jan 31 11:30 PM NST and bills in January)', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const chris = seedClient(seed, 'sample-04').id
+  const storm = await startAt(token, seed, '2026-02-01T02:30:00.000Z', [chris])
+  const made = await checkinAt(seed, storm, chris, '2026-02-01T03:00:00.000Z')
+  assert.equal(made.checkin.at, '2026-02-01T03:00:00.000Z')
+  const jan = await billing(token, JAN)
+  assert.deepEqual([rowOf(jan, chris)?.pushes, rowOf(jan, chris)?.dates], [1, ['2026-01-31']])
+  const feb = await billing(token, '2026-02')
+  assert.equal(rowOf(feb, chris), undefined)
+  assert.equal(feb.totals.pushes, 0)
+  assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [JAN] })
+  // No month: the current NL month (Jan 31 at 11:45 PM NST).
+  assert.equal((await billing(token, null, '2026-02-01T03:15:00.000Z')).month, JAN)
+})
+
+test('billing CSV: header, CRLF, quoting, formula guard, filename', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const chris = seedClient(seed, 'sample-04').id
+  await editClient(token, seedClient(seed, 'sample-03').id, { name: 'Doe, "Jo" (SAMPLE)' })
+  await editClient(token, seedClient(seed, 'sample-10').id, { name: '=SUM(A1)' })
+  const storm = await startAt(token, seed, '2026-01-05T08:00:00.000Z', [chris])
+  await checkinAt(seed, storm, chris, '2026-01-05T08:30:00.000Z')
+
+  const r = await api('GET', `/api/owner/billing.csv?month=${JAN}`, { token })
+  assert.equal(r.status, 200, r.text)
+  assert.equal(r.headers.get('content-type'), 'text/csv; charset=utf-8')
+  assert.equal(r.headers.get('content-disposition'), 'attachment; filename="snow-route-SAMPLE-2026-01.csv"')
+  assert.ok(r.text.endsWith('\r\n'))
+  assert.ok(!r.text.replace(/\r\n/g, '').includes('\n'), 'bare LF')
+  const lines = r.text.slice(0, -2).split('\r\n')
+  assert.equal(lines[0], 'Client,Address,Billing,Pushes,Push dates,Price,Amount,HST 15%,Total')
+  assert.equal(lines[1], "'=SUM(A1),\"Memorial Avenue, Grand Falls-Windsor, NL\",Seasonal contract,0,,600.00,0.00,0.00,0.00")
+  assert.ok(lines.includes('Chris (SAMPLE),"Scott Avenue, Grand Falls-Windsor, NL",Per push,1,2026-01-05,35.00,35.00,5.25,40.25'))
+  assert.ok(lines.includes('"Doe, ""Jo"" (SAMPLE)","Harris Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,550.00,0.00,0.00,0.00'))
+  assert.equal(lines.at(-1), 'Total,,,1,,,35.00,5.25,40.25')
+  for (const line of lines.slice(1)) assert.ok(!/^[=+\-@]/.test(line), `unguarded: ${line}`)
+  const json = await billing(token, JAN)
+  assert.equal(lines.length, json.rows.length + 2)
+
+  await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: YARD } })
+  const plain = await api('GET', `/api/owner/billing.csv?month=${JAN}`, { token })
+  assert.equal(plain.headers.get('content-disposition'), 'attachment; filename="snow-route-2026-01.csv"')
+})
+
+test('billing: bad month 400 on JSON and CSV, owner only', async () => {
+  await reset()
+  const token = await signin()
+  for (const month of ['2026-13', '2026-1', 'January', '2026-01-05']) {
+    expectError(await api('GET', `/api/owner/billing?month=${month}`, { token }), 400, 'bad_request', 'month')
+    expectError(await api('GET', `/api/owner/billing.csv?month=${month}`, { token }), 400, 'bad_request', 'month')
+  }
+  expectError(await api('GET', '/api/owner/billing'), 401, 'unauthorized')
+  expectError(await api('GET', '/api/owner/billing.csv'), 401, 'unauthorized')
+  expectError(await api('GET', '/api/owner/billing/months'), 401, 'unauthorized')
+})
+
+// ---------------------------------------------------------------- rate guards
+
+test('rate guard: 5 wrong PINs from one IP, then 429 even for the right PIN; other IPs fine; clears after 15 min', async () => {
+  await reset()
+  const signinFrom = (ip, pin, now = at(1)) => api('POST', '/api/owner/signin', { body: { pin }, ip, now })
+  for (let i = 0; i < 5; i++) expectError(await signinFrom('10.1.1.1', '0000'), 401, 'unauthorized', 'pin')
+  const limited = await signinFrom('10.1.1.1', '0000')
+  expectError(limited, 429, 'rate_limited')
+  assert.equal(limited.body.error, 'Too many tries. Wait 15 minutes and try again.')
+  expectError(await signinFrom('10.1.1.1', '2468'), 429, 'rate_limited')
+  assert.equal((await signinFrom('10.9.9.9', '2468')).status, 200)
+  assert.equal((await signinFrom('10.1.1.1', '2468', at(15))).status, 429, 'still inside 15 minutes')
+  assert.equal((await signinFrom('10.1.1.1', '2468', at(16) + '')).status, 200)
+  // A right PIN doesn't use up a try.
+  for (let i = 0; i < 4; i++) expectError(await signinFrom('10.2.2.2', '0000'), 401, 'unauthorized')
+  for (let i = 0; i < 3; i++) assert.equal((await signinFrom('10.2.2.2', '2468')).status, 200)
+  expectError(await signinFrom('10.2.2.2', '0000'), 401, 'unauthorized')
+  expectError(await signinFrom('10.2.2.2', '2468'), 429, 'rate_limited')
+})
+
+test('rate guard: 30 unknown status keys from one IP, then 429 for any key from it; other IPs fine; clears after 10 min', async () => {
+  const seed = await reset()
+  const good = seed.clients[0].status_key
+  const lookup = (ip, key, now = at(1)) => api('GET', `/api/status/${key}`, { ip, now })
+  for (let i = 0; i < 30; i++) expectError(await lookup('10.3.3.3', `unknown-${i}`), 404, 'not_found')
+  expectError(await lookup('10.3.3.3', 'unknown-30'), 429, 'rate_limited')
+  expectError(await lookup('10.3.3.3', good), 429, 'rate_limited')
+  assert.equal((await lookup('10.4.4.4', good)).status, 200)
+  expectError(await lookup('10.4.4.4', 'unknown-x'), 404, 'not_found')
+  expectError(await lookup('10.3.3.3', good, at(10)), 429, 'rate_limited')
+  assert.equal((await lookup('10.3.3.3', good, at(11) + '')).status, 200)
+  // Good keys never count.
+  for (let i = 0; i < 40; i++) assert.equal((await lookup('10.5.5.5', good)).status, 200)
+})
+
+// ---------------------------------------------------------------- demo seed
+
+test('demo seed: two ended storms, an active one with 10 plowed and 2 skipped, placeholder photos, billing this month', async () => {
+  const NOW = '2026-01-20T15:00:00.000Z'
+  expectError(await api('POST', '/api/test/seed', { body: { scenario: 'other' }, now: NOW }), 400, 'bad_request', 'scenario')
+  const r = await api('POST', '/api/test/seed', { body: { scenario: 'demo' }, now: NOW })
+  assert.equal(r.status, 200, r.text)
+  assert.equal(r.body.pin, '2468')
+  assert.equal(r.body.trucks.length, 2)
+  assert.equal(r.body.clients.length, 25)
+  const token = await signin()
+  const current = (await api('GET', '/api/owner/storms/current', { token, now: NOW })).body.storm
+  assert.equal(current.id, r.body.storm_id)
+  assert.equal(current.started_at, plus(NOW, -120))
+  assert.deepEqual(current.counts, { stops: 25, plowed: 10, skipped: 2, pending: 13 })
+  let waiting = 0
+  for (const t of current.trucks) {
+    assert.deepEqual(t.stops.slice(0, 5).map(s => s.status), ['plowed', 'plowed', 'plowed', 'plowed', 'plowed'])
+    assert.equal(t.stops[5].status, 'skipped')
+    assert.equal(t.stops[5].checkin.reason_text, 'Gate locked')
+    assert.ok(t.stops.slice(6).every(s => s.status === 'pending'))
+    for (const s of t.stops.slice(0, 5)) {
+      assert.ok(s.checkin.at < NOW)
+      if (s.checkin.photo === 'waiting') waiting++
+      else assert.equal(s.checkin.photo, 'stored')
+    }
+  }
+  assert.equal(waiting, 1)
+  const photoUrl = current.trucks[1].stops[0].checkin.photo_url
+  const photo = await api('GET', new URL(photoUrl).pathname)
+  assert.equal(photo.status, 200)
+  assert.equal(photo.headers.get('content-type'), 'image/svg+xml')
+  assert.equal(photo.headers.get('content-security-policy'), "default-src 'none'; style-src 'unsafe-inline'")
+  assert.match(photo.text, /^<svg[\s\S]*SAMPLE placeholder photo/)
+
+  const storms = (await api('GET', '/api/owner/storms', { token })).body.storms
+  assert.deepEqual(storms.map(s => s.status), ['active', 'ended', 'ended'])
+  assert.deepEqual(storms.slice(1).map(s => s.started_at), [plus(NOW, -6 * 24 * 60), plus(NOW, -13 * 24 * 60)])
+  for (const s of storms.slice(1)) {
+    const summary = (await api('GET', `/api/owner/storms/${s.id}/summary`, { token })).body
+    assert.equal(summary.plowed, 24)
+    assert.deepEqual(summary.skipped.map(x => x.reason_text), ['Car in the way'])
+    assert.deepEqual(summary.not_reached, [])
+  }
+  const bill = await billing(token, null, NOW)
+  assert.equal(bill.month, JAN)
+  assert.ok(bill.rows.some(x => x.pushes > 0))
+  assert.equal(bill.totals.pushes, 58)
+  assert.ok(bill.totals.total_cents > 0)
+  assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [JAN] })
+})

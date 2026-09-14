@@ -1,7 +1,8 @@
 // Seeding the SAMPLE company, trucks and clients (POST /api/test/reset). Data comes from the generated sample-data.js.
 import { SAMPLE } from './sample-data.js'
 import { hashPin, randomKey } from './auth.js'
-import { TIMEZONE } from './time.js'
+import { TIMEZONE, dateLabel, fullLabel } from './time.js'
+import { buildRoute } from './route.js'
 
 export const SAMPLE_PIN = '2468'
 
@@ -47,4 +48,83 @@ export async function seedSample (env, origin) {
       id: inserted[i].results[0].id, ref: c.ref, name: c.name, status_key: clientKeys[i], status_url: `${origin}/s/?k=${clientKeys[i]}`
     }))
   }
+}
+
+// ---- the demo scenario (POST /api/test/seed { scenario: "demo" }) ----
+
+const MIN = 60000
+const DAY = 86400000
+const iso = ms => new Date(ms).toISOString()
+const escapeXml = s => String(s).replace(/[&<>"']/g, ch => `&#${ch.charCodeAt(0)};`)
+
+/** A generated placeholder photo: no real picture of anyone's home. */
+export function placeholderSvg (title, subtitle) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">` +
+    `<rect width="800" height="600" fill="#1a2540"/><rect y="430" width="800" height="170" fill="#eef3fb"/>` +
+    `<text x="40" y="90" font-family="Arial, sans-serif" font-size="40" fill="#fbbf24">SAMPLE placeholder photo</text>` +
+    `<text x="40" y="170" font-family="Arial, sans-serif" font-size="36" fill="#eef3fb">${escapeXml(title)}</text>` +
+    `<text x="40" y="225" font-family="Arial, sans-serif" font-size="28" fill="#a3b3cc">${escapeXml(subtitle)}</text></svg>`
+}
+
+/**
+ * Reset, then (relative to now) two ended storms 13 and 6 days ago with every stop plowed except one "Car in the way" skip
+ * each, and an active storm started 2 hours ago where each truck's first 5 stops are plowed (placeholder photos; one still
+ * waiting for its photo) and its 6th is skipped "Gate locked".
+ */
+export async function seedDemo (env, origin, nowMs) {
+  const answer = await seedSample(env, origin)
+  const db = env.DB
+  const truckIds = answer.trucks.map(t => t.id)
+  const clients = SAMPLE.clients.map((c, i) => ({
+    client_id: answer.clients[i].id, name: c.name, lat: c.lat, lng: c.lng, priority: c.priority, truck_id: c.truck ? truckIds[c.truck - 1] : null
+  }))
+  const route = buildRoute(SAMPLE.company.yard, clients, truckIds)
+  const plan = [
+    { startsAgo: 13 * DAY, skip: [0, 2], active: false },
+    { startsAgo: 6 * DAY, skip: [1, 3], active: false },
+    { startsAgo: 120 * MIN, active: true }
+  ]
+  let activeId = null
+  for (const p of plan) {
+    const started = nowMs - p.startsAgo
+    const checkins = []
+    route.forEach((t, ti) => t.stops.forEach((s, i) => {
+      if (p.active) {
+        if (i > 5) return
+        const at = started + 15 * MIN + i * 12 * MIN
+        if (i === 5) checkins.push({ t, s, at, kind: 'skipped', reason: 'gate', photo: null })
+        else checkins.push({ t, s, at, kind: 'plowed', reason: null, photo: ti === 0 && i === 4 ? 'waiting' : 'stored' })
+      } else {
+        const at = started + 15 * MIN + i * 10 * MIN
+        const skip = p.skip[0] === ti && p.skip[1] === i
+        checkins.push({ t, s, at, kind: skip ? 'skipped' : 'plowed', reason: skip ? 'car' : null, photo: skip ? null : 'stored' })
+      }
+    }))
+    const last = Math.max(started, ...checkins.map(k => k.at))
+    const storm = await db.prepare('INSERT INTO storms (name, started_at, ended_at) VALUES (?1, ?2, ?3) RETURNING id')
+      .bind(`Storm of ${dateLabel(started)}`, iso(started), p.active ? null : iso(last + 20 * MIN)).first()
+    const stmts = []
+    for (const t of route) {
+      stmts.push(db.prepare('INSERT INTO storm_trucks (storm_id, truck_id) VALUES (?1, ?2)').bind(storm.id, t.truck_id))
+      t.stops.forEach((s, i) => stmts.push(db.prepare('INSERT INTO storm_stops (storm_id, client_id, truck_id, position) VALUES (?1, ?2, ?3, ?4)')
+        .bind(storm.id, s.client_id, t.truck_id, i + 1)))
+    }
+    const puts = []
+    for (const k of checkins) {
+      const id = crypto.randomUUID()
+      stmts.push(db.prepare(`INSERT INTO checkins (id, storm_id, client_id, truck_id, kind, reason, note, at, at_adjusted, received_at, has_photo)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, 0, ?8, ?9)`)
+        .bind(id, storm.id, k.s.client_id, k.t.truck_id, k.kind, k.reason, iso(k.at), iso(k.at + MIN), k.photo ? 1 : 0))
+      if (k.photo === 'stored') {
+        const svg = new TextEncoder().encode(placeholderSvg(k.s.name, `Plowed ${fullLabel(k.at)}`))
+        puts.push(env.PHOTOS.put(`checkins/${id}`, svg, { httpMetadata: { contentType: 'image/svg+xml' } }))
+        stmts.push(db.prepare("INSERT INTO photos (checkin_id, token, content_type, size, stored_at) VALUES (?1, ?2, 'image/svg+xml', ?3, ?4)")
+          .bind(id, randomKey(16), svg.byteLength, iso(k.at + 2 * MIN)))
+      }
+    }
+    await Promise.all(puts)
+    await db.batch(stmts)
+    if (p.active) activeId = storm.id
+  }
+  return { ...answer, storm_id: activeId }
 }
