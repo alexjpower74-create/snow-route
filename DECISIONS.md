@@ -78,3 +78,12 @@ Alexander was asleep for this build; every real call is written here with its re
     and lock the owner out. Both are one guarded statement each, so sr1 closes them in M3 rather than leaving a known gap.
 26. **Billing rules live in one pure file** (`worker/src/billing.js`, sr1's design): the SQL only fetches a padded window and the pure
     code decides what is a push. Every billing negative control breaks one line there, so the tests prove the one place that decides.
+
+## 2026-09-14, lead (after sr1 M3, QA at `6df5a27`)
+
+27. **Only the check-in side of the stop race gets a negative control.** sr1 offered a second control for the other ordering (the
+    removal reads "no check-ins", a check-in commits, the removal writes). The removal's guard and its DELETE run in one `DB.batch()`,
+    which D1 runs as one transaction, so that ordering is covered by the database's own guarantee; a stand-in wait inside a single
+    transaction would test SQLite, not this code. The check-in side needed proof because its guard was once a separate read.
+28. **Stop numbers are rebuilt from a snapshot when stops are removed.** The race test showed that renumbering from the position read
+    earlier left gaps when several stops went at once, which would have shown a client "stop 7" on a six-stop route.

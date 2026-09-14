@@ -12,6 +12,7 @@ reasoning and every attempt.
 | sr1 M1 | `8863e14` | 18 / 0 / 0 | 34 / 0 / 0 | twoopt, tiers, idempotent, time: all red | n/a |
 | sr2 M1 | `110f190` | 18 / 0 / 0 | 34 / 0 / 0 | a-d re-run after the merge: all red. sr2's queue control ran against its mock (M2 moves it to the real Worker) | integration smoke, below |
 | sr1 M2 | `9de4176` | 23 / 0 / 0 | 53 / 0 / 0 | a-h: all eight red | n/a |
+| sr1 M3 | `6df5a27` | 23 / 0 / 0 | 56 / 0 / 0 | a-h, stoprace, pinguard: all ten red | n/a |
 
 Counts are passed / failed / skipped.
 
@@ -35,6 +36,8 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | Pushes fall in the NL month | month bounds from UTC midnight | a Jan 31 11:30 PM NST push vanishes from January |
 | The CSV never hands a spreadsheet a formula | the formula guard line removed | `=SUM(A1)` written as is |
 | An undone check-in never bills | billing stops checking `voided_at` | Chris (SAMPLE), undone, billed 1 push |
+| A check-in never lands on a stop being removed | the stop guard dropped from the check-in batch (both runs get the same 25 ms stand-in gap) | guarded: 0 of 10 check-ins on removed stops; broken: 10 of 10, each answering 500 |
+| Wrong current PINs on PIN change count toward the lockout | the PIN change's attempt slot removed | the 6th try answers 204 instead of 429 |
 
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
