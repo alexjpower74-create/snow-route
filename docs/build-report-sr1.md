@@ -560,3 +560,106 @@ second. The strip counts it once. Cosmetic, but it makes the two lists harder to
   start of the test, and a wrongly queued undo would be sent within the 500 ms wait because undo calls `flush()`.
 - **The `@phone` tag** replaces `test.skip` for phone-width checks with a project filter (`playwright.config.mjs`), in line with clarification
   25; the removed self-skip in `driver.spec.mjs` closes my M2-2.
+
+## Cross-review of sr2 M3b (in progress, 7a9876c)
+
+Read only through git (`git diff 5f162b2 7a9876c -- app/`, `git show 7a9876c:<path>`), never sr2's worktree. Checked against docs/API.md
+(clarifications 1–31) and `worker/src/index.js` (main after M5). No code changed, nothing run. Files: `app/public/owner/owner.js`,
+`app/public/api.js`, `app/public/style.css`, `app/playwright.config.mjs`, `app/tests/{route-edit,storm-end,billing,settings,copy}.spec.mjs`,
+`app/tests/negative-billing.mjs`.
+
+### Findings (most harmful first)
+
+**M3b-1. A route edited from a stale list gets the wrong refusal, and the spec accepts it (medium; the root cause is in sr1's Worker, and
+the fix needs the lead's call).** A stop added (or removed) on another screen changes the storm's stop set. The page's next Move up / Move
+down / Move to / drag sends the old lists (`app/public/owner/owner.js:437-445`). My Worker checks the body against the stored stop set
+**before** its race guard, so it answers **400 `bad_request` field `trucks` "List every truck in this storm once and every stop once."**
+(`worker/src/index.js:749`, `:763`). The 409 "The route changed while you were editing it. Reload and try again." (`:768`, `:779`) only fires
+in a true race between that read and the write. The page handles both the same way (`owner.js:451-453`: reload and show the API's message),
+so the owner, after a stop was added from their phone, reads "List every truck in this storm once and every stop once." That's a message
+about a malformed request, with nothing telling them the route changed elsewhere. `app/tests/route-edit.spec.mjs:98` accepts `[400, 409]`
+and checks only that the notice equals whatever the API said, so it can't tell the right answer from the wrong one. For whom: the owner
+on two screens, on a storm night.
+**Proposal (sr1, if the lead agrees):** when the body is well formed (each listed truck belongs to the storm, no truck or stop twice, only
+integers) but its stop set differs from the stored one, the Worker answers **409 `bad_state` "The route changed while you were editing it.
+Reload and try again."**, and keeps 400 for malformed bodies (duplicates, foreign trucks, non-arrays). Then the spec should require 409 and
+that exact text. This is a contract change (API.md says 400 field `trucks` when a stop is missing), so I haven't touched it.
+
+**M3b-2. The billing spec can't catch a page that recomputes money, because no HST in its data needs rounding (medium-low, test honesty).**
+`app/tests/billing.spec.mjs` bills Pat (4500) and SAMPLE Clinic walkway (5000). Their HST is 675 and 750, exact. A page that computed amounts
+itself in floating point would show the same numbers and pass. For example `Math.round(amount * 0.15)` gives 532 for 3550 (3550 × 0.15 is
+532.4999…) where the API's half-up integer rule gives **533**. `negative-billing.mjs` breaks only the pushes cell, and its red comes from the
+seasonal client's stop count. The page today does read every money cell from the API row (`owner.js:969-979`), but the check doesn't
+measure "never recomputed" for amounts, HST or totals. For whom: the lead's QA and, through it, the accountant. Suggest giving one plowed
+per-push client the price 3550 before the storm (one `PUT /api/owner/clients/:id` in arrangement, which is data, not UI state) and
+asserting its HST cell reads `$5.33`, plus a control whose break recomputes HST with `Math.round(amount * 0.15)`.
+
+**M3b-3. The CSV check would pass for a page that builds the CSV itself (low-medium, test honesty).** `billing.spec.mjs:111-132` compares the
+downloaded file's parsed cells with the table and checks header, CRLF, filename and total row, all things a page could produce from its
+own table. It never compares the **bytes** with what `GET /api/owner/billing.csv` returns, so "the bytes are the Worker's, unchanged" isn't
+measured. The page today passes them through untouched (`app/public/api.js` `ownerCsv`: `res.blob()`, filename from
+`Content-Disposition`; `owner.js:996-1002`). For whom: the accountant, if a later change rebuilds the CSV page-side and loses the formula
+guard or the quoting. Suggest `expect(downloadedBytes).toEqual(await (await request.get('/api/owner/billing.csv?month=…', { headers:
+{ Authorization } })).body())`.
+
+**M3b-4. Two screens editing the route: the last save silently wins (low-medium, a contract gap for the lead).** When screen A moves a stop
+and screen B then drags a different stop, B's PUT carries B's older order of every truck. With the same stop set the Worker accepts it
+(API.md: statuses and check-ins unchanged, positions rewritten), so A's move is undone with no message on either screen. The 30 s refresh
+(`owner.js:424-435`) is skipped while saving or dragging, so B rarely has A's order. For whom: an owner and a helper both editing on a storm
+night. Neither the contract nor my Worker has a version on the route. A cheap option, if wanted: the Storm answer carries a
+`route_version` (bumped by every route PUT, stop add and stop remove), and the route PUT takes it and answers 409 route-changed when it's
+stale. That would also give M3b-1 a precise trigger.
+
+**M3b-5. End storm or Add a stop refused because the storm ended elsewhere leaves the owner on a dead storm (low).** `owner.js:553-556`
+shows the 409 "This storm has already ended." inside the still-open confirm, and `owner.js:539-542` shows the 409 "This storm has ended, so
+it can't be changed." under the Add form. The page keeps painting the stale storm, and only the 30 s refresh (skipped while a confirm or
+the Add form is open, `owner.js:425`) or a tab change would move on. Same shape as M2-3 (clarification 22). For whom: the owner with two
+screens. Fix: on 409 `bad_state` from these calls, clear `confirm`/`adding` and call `renderTonight()` with the message as `stormNotice`
+(for End storm, going straight to the summary is friendlier still).
+
+**M3b-6. Past storms can't be opened while a storm is on (low).** The past-storms list is painted only on the no-storm view
+(`owner.js:199-220`). During a storm there's no route to last week's summary, for example to copy a "skipped" text for a client who
+calls. `#storm/<id>` works if typed. For whom: the owner. Suggest a "Past storms" link under the running storm too.
+
+**M3b-7. Note: no way to take a stop off tonight's route.** `DELETE /api/owner/storms/:id/stops/:client_id` exists (API.md, clarification 15),
+but `api.js` has no call for it and the page offers no Remove. PLAN.md M3 lists only "Add a stop", so this is a gap to decide on, not a
+missed requirement.
+
+**M3b-8. Nit: the yard's map error shows under "Yard name".** The Worker uses field `yard` for both the label and the coordinates (my M2
+choice, adopted in clarification 14), and `owner.js:1025`, `:1072` put `err-yard` under the name input. So "Put a pin on the map for the
+yard." appears under a text box, away from the map. Either the page shows `field: yard` errors by the map as well, or the Worker could
+split the field (`yard.label` / `yard.lat`). Lead's choice; a field name change would be a clarification.
+
+### Checked and consistent (no action)
+- **Route PUT body** (`owner.js:437`, `:460-475`, `:519-526`): every truck of the storm listed once, including a truck with no stops, and
+  every stop once, built from the last Storm the API returned; Move up/down swap within a list; Move to removes the stop everywhere and
+  appends it to the chosen truck; a drag computes the same lists and doesn't PUT when nothing changed. Buttons and handles are disabled
+  while saving. The handle is a real `<button>` at least 56 px tall with `touch-action: none` (`style.css:263-266`), so a finger drags instead of
+  scrolling. The page repaints from the Storm the PUT returns, so positions and the "on the route" copy texts follow the new order.
+- **Add a stop** (`owner.js:531-538`): body `{ client_id, truck_id }` as numbers, offering only active clients not already on the route; the
+  Worker's 200 Storm is painted; field errors land on `err-client_id` / `err-truck_id`.
+- **End storm and summary** (`owner.js:546-605`): inline confirm, `POST …/end`, then `#storm/<id>` loads the Storm and `GET …/summary`. Every
+  field read (`storm_id, name, started_label, ended_label, duration_label, stops, plowed, billable_pushes, skipped[].{client_id, name,
+  reason_text, at_label}, not_reached[].{client_id, name}, trucks[].{id, name, plowed, skipped, pending, first_label, last_label}`) exists
+  with that name. The "skipped" copy text comes from that stop's own `messages`. **Past storms** read `storms[].{id, name, started_label,
+  ended_label, counts}`.
+- **Billing** (`owner.js:941-1011`): months from `/billing/months` plus the company-zone current month; the default is `months[0]`, the newest month
+  with pushes, else the current month. Every cell and the totals come from the API row (`pushesOf` returns `row.pushes`); money is
+  `toLocaleString('en-US')` with two decimals. The CSV is a real fetch with `Authorization: Bearer`, the filename parsed from the Worker's
+  `Content-Disposition`, and the body passed on as a blob, so the bytes are unchanged. A 400 month or a 401 is handled.
+  `negative-billing.mjs` is honest: the unbroken copy must pass first, and the break turns the skipped seasonal client's pushes from 0 into 1.
+- **Trucks** (`owner.js:845-933`, `:1107-1112`, `:1216-1226`): POST `{ name }`; rename and deactivate PUT `{ name, active }` (both fields, as the
+  Worker requires); New link behind an inline confirm whose words match clarification 17 (queued check-ins still send under the new link).
+  **Clients** (`owner.js:768-837`): deactivate sends the full stored client with `active` flipped (a PUT needs every field); New status link behind
+  a confirm, then the client and its messages are fetched again so the copy text carries the new link.
+- **Settings** (`owner.js:1014-1095`): company PUT `{ name, yard: { label, lat, lng } }` with the pin from a map tap or drag (rounded to 5
+  places), and the bar repainted from the Company answer (so the SAMPLE badge follows the name). **Change PIN** follows clarification 21: a
+  401 with `field: current` lands on `err-current` and the session stays (`api.js` `owner()` only signs out on a field-less 401); a 400 on
+  `err-next`; a 429 (clarification 16) on `pin-form-error`. `settings.spec.mjs` drives five wrong tries to a real 429 and proves the session still
+  works afterwards.
+- **Copy buttons** (`owner.js:64-94`): the text is put in `data-copy` with HTML escaping and read back through `dataset`, which unescapes it,
+  so the clipboard gets the API's `text` byte for byte. `copy.spec.mjs` reads the clipboard back in chromium and compares it to the API
+  message; webkit's skipped read carries the written reason allowed by clarification 25.
+- **Specs and arrangement:** route-edit, storm-end, settings and copy arrange storms and check-ins through the API and then do the thing
+  under test through the page; billing.spec plows and skips through the driver page and ends the storm through the owner page. The
+  `@desktop` tag filters the mouse drag off the 390 projects rather than skipping it (clarification 25).
