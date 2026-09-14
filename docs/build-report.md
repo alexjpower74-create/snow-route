@@ -54,6 +54,17 @@ matched by name and type. It found five defects that no test on either side woul
 | R4 | Undo on a refused check-in threw away the refusal and queued a DELETE that could only fail | driver, owner | API.md 19: remove locally only |
 | R5 | A queued check-in for a stop moved to another truck vanished from the screen | driver | API.md 20: "Saved for stops on another route" row |
 
+**sr1 read sr2's M2 while it was still in progress** (`4a8c8ba`, through git only). Bodies, field names and error placement matched; six more:
+
+| # | Defect | Who it hurts | Adopted as |
+|---|---|---|---|
+| M2-1 | Every owner 401 signed the owner out, so a typo in "current PIN" would end a working session | owner | API.md 21 |
+| M2-2 | The Undo spec skipped itself when the undo route looked missing: a lost route would read as skipped, not red | the lead's QA | API.md 25 |
+| M2-3 | A storm started on another screen left the owner on a dead picker after the 409 | owner | API.md 22 |
+| M2-4 | `.50` and `45.` refused as prices | owner | API.md 23 |
+| M2-5 | Re-keying photos and undos to a different truck's link would get 404 | driver sharing a phone | API.md 24 |
+| M2-6 | The offline spec's faked 500 still carried the old error text | test fidelity | fix in sr2 M3 |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.

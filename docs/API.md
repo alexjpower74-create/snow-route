@@ -355,3 +355,16 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     queued and the refusal text is not replaced by a second error.
 20. **(sr2 M3, review R5) A queued check-in for a stop that is no longer on this truck stays visible** in a "Saved for stops on another
     route" row with its stop name, time and Undo, until it is sent.
+21. **(sr2 M3, review M2-1) An owner 401 with a `field` is a form error, not a sign-out.** Only a 401 **without** `field` means the session
+    ended (clear the token, show sign-in). `PUT /api/owner/pin` with a wrong `current` answers 401 `field: "current"`: show "That PIN is not
+    right." by that field and keep the session. A 429 on that form is a message on the form.
+22. **(sr2 M3, review M2-3) Start storm answering 409 `bad_state`** (a storm was started on another screen) closes the picker and shows the
+    running storm, with the API's message above it.
+23. **(sr2 M3, review M2-4) Price input** accepts `45`, `45.5`, `45.50`, `.50`, `45.` and `$1,200.00`; anything else is refused on the form
+    with the API's wording before sending.
+24. **(sr2 M3, review M2-5, sharpens 17) Re-keying never crosses trucks for photos and undos.** Check-in items under a dead key are
+    re-keyed to the page's key whatever truck it is. Photo and undo items are re-keyed only when the dead key's truck id (kept with the saved
+    route) equals the page's truck id; otherwise they stay listed under "Saved under an old driver link" with a Remove button, never sent to
+    a truck that would answer 404, never silently dropped.
+25. **(sr2 M3, review M2-2) No spec skips itself because a route might be missing.** Every route in this contract exists on main, so a
+    missing route must fail. The only allowed skips are named WebKit limits with a written reason (for example reading the clipboard).

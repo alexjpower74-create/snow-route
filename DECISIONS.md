@@ -98,3 +98,13 @@ Alexander was asleep for this build; every real call is written here with its re
     app shows its own bad-link text. Messaging apps glue punctuation onto links; the client must always see "ask for a new one".
 31. **The per-IP status guard stays** (DECISIONS 24) with a DEPLOY.md note about carrier-shared IPs, because the app no longer retries a
     bad link and one contractor's clients are a small crowd. Loosening it is a known dial, not a hidden risk.
+
+## 2026-09-14, lead (after sr1's early review of sr2's M2 in progress, `4a8c8ba`)
+
+32. **The early review was worth its time**: six findings on a commit that was still being written, including a sign-out on a typo in the
+    PIN form and a test that would have reported "skipped" instead of red for a lost route. All six are app-side and go to sr2 in M3
+    (API.md 21-25) together with R1-R5 (API.md 17-20).
+33. **A skip can pass for green, so the final QA gates on skips too.** The only skips allowed in the pinned run are named WebKit limits with a
+    written reason; any other skip counts as a failure (API.md 25), the same call Book a Bay made (its DECISIONS 19).
+34. **Photos and undos stay with the truck that made the check-in** (API.md 24). The Worker accepts them only from that truck, which keeps a
+    borrowed phone from editing another truck's work; the phone keeps such items visible instead of sending them to a certain 404.
