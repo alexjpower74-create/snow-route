@@ -717,3 +717,90 @@ All **thirteen** controls (a–i, pinguard, statusroute, plowednote, routeversio
 Send `route_version` from the last Storm the page painted on every route PUT. A 409 from it (stale, or lost a race) means reload and show the
 text; a 400 `route_version` means the page sent none. Show `yard.label` by the yard name and `yard.pin` by the map. Adds and removes don't take a
 version, but they bump it, so repaint from the Storm they return.
+
+## Cross-review of sr2 M3c steps 1-2 (0994459)
+
+Read only through git (`git diff 8e407e2 0994459 -- app/`, `git show 0994459:<path>`), never sr2's worktree. Checked against docs/API.md
+(clarifications 26–32) and `worker/src/index.js` (main after M6). No code changed, nothing run: each finding follows a code path end to end
+and names it, so sr2 can confirm it with a spec. Files: `app/public/d/queue.js`, `app/public/d/driver.js`, `app/public/owner/owner.js`,
+`app/public/api.js`, `app/tests/queue.spec.mjs`, `app/tests/route-edit.spec.mjs`, `app/tests/negative-twotabs.mjs`.
+
+### Findings (most harmful first)
+
+**M3c-1. An Undo can be lost while the push stays billed, whenever the check-in reached the Worker but the phone didn't hear back (medium).**
+Clarification 26's rule is that the sender "sends a DELETE only for an item that was on its way when it was marked". But "on its way" is
+known only to the sender that is waiting on the POST, in memory. It isn't written to the item. Any other sender that finds an `undone`
+item deletes it without a DELETE (`app/public/d/queue.js:194`). That's wrong whenever the POST did reach the Worker. Three paths:
+- **The answer is lost** (the most likely in a truck): the POST is stored (`worker/src/index.js:512`), the signal drops before the response,
+  and `fetch` rejects → `failed('network')` (`queue.js:134-135`), so the item stays `send`. The driver taps Undo. `unsent()` is true
+  (`driver.js:476`, `:481`), so the page asks "This check-in has not reached the office yet. Delete it from this phone?" (`driver.js:376`),
+  which isn't so. "Delete it" marks it `undone` (`driver.js:464`), the next send pass removes it with no DELETE (`queue.js:194`), and the
+  push stays stored, plowed and billed.
+- **The page goes away mid-send:** Undo is tapped while the POST is on its way, then the tab reloads, is closed, or is discarded by the phone
+  before the answer. The waiting sender is gone; the next sender (a reload, or another tab) deletes the `undone` item (`queue.js:194`)
+  and sends no DELETE.
+- **No Web Locks** (`queue.js:80` falls back to sending without a lock; `navigator.locks` is missing on older iPhones and on any
+  non-https origin): tab B's send pass removes the item tab A marked `undone` while tab A's POST is still out. Tab A's 200 then finds it
+  missing → `gone` (`queue.js:170`) → no DELETE.
+
+For whom: the owner (bills a push the driver took back), the client (status says plowed), the driver (the stop comes back plowed on the
+next route load, after they undid it). It's not silent forever (the route shows it plowed), but nothing tells the driver the undo didn't
+happen.
+Suggested fix (sr2): write `attempted: true` to the item **before** its POST is sent. A sender that finds an `undone` item with `attempted`
+queues the DELETE instead of deleting it; one without `attempted` is deleted, as now. The Worker makes that safe: a DELETE for a check-in it
+never stored answers **404** "We couldn't find that check-in." (`worker/src/index.js:953`), which the sender should then treat as "nothing to
+undo" (remove the void quietly) rather than put it in "Not accepted". The confirm text should also stop saying "has not reached the office
+yet" for an attempted item ("It may already be at the office. Undo it?"). A spec that aborts the page's POST response after the Worker
+stored it (`route.fetch()` then `route.abort()`), taps Undo and confirms, then expects a voided check-in in the database, would catch it.
+
+**M3c-2. A tab whose send stalls holds the Web Lock, and every other tab of the link waits behind it (medium-low).** The lock wraps the
+whole send loop, including every network call (`queue.js:191-213`), and the driver page's `fetch` has no timeout (`app/public/api.js:48`).
+On a phone, a request on a dead cellular connection often doesn't reject for minutes. Until it does, tab A keeps the lock and tab B's
+`navigator.locks.request` waits with no limit, while B's own flushes only set `again` (`queue.js:186`). If A is a hidden tab the driver
+forgot, the tab they're looking at shows "Sending…" and can't send anything, including new check-ins. Not forever (the stalled request
+settles eventually, and a discarded page releases its locks), but long enough to matter at 5 AM. For whom: the driver. Fix: an
+`AbortSignal.timeout(…)` (say 30 s) on the driver calls in `api.js`, and consider `navigator.locks.request(name, { ifAvailable: true }, …)`
+in the non-visible tab so a background tab never takes the lock ahead of the one on screen.
+
+**M3c-3. The owner's 30 s refresh can overwrite a just-saved route with an older Storm, and the next correct edit is refused as stale
+(medium-low).** `app/public/owner/owner.js:424-429`: `refreshStorm` checks `busy` (`state.saving`, a drag, …) **before** its GET and never
+after. If the 30 s timer (`owner.js:421`) fires just before the owner taps Move, the GET is already out. The Move's PUT is answered first
+and paints version n+1 (`owner.js:446`). Then the GET, answered with the Storm as it was when the Worker served it (version n), arrives:
+`JSON.stringify(next) !== JSON.stringify(state.storm)` (`owner.js:429`), so `state.storm` goes back to version n with the old order. The screen
+visually undoes the move for up to 30 s, and the owner's next Move sends `route_version` n and gets **409 "The route changed while you were
+editing it"** although nobody else changed anything. The page reloads and shows that notice. For whom: the owner, who sees a move vanish,
+then a false "changed on another screen". Fix: after the GET, drop the answer if `state.saving` or a drag is on, or if
+`next.route_version < state.storm.route_version`.
+
+**M3c-4. The two-tab control breaks two defences at once, so a return of the missing-means-undone rule alone would pass (low-medium, test
+honesty).** `queue.spec.mjs` "two open tabs…" holds tab 1's POST, reloads tab 2, releases, and asserts one stored push, not voided, no DELETE,
+and exactly one POST. With the Web Lock working, tab 2 never sends, so the `gone` → no-undo rule (`queue.js:170`) is never exercised.
+`negative-twotabs.mjs` removes **both** the lock and that rule, so its red proves only that "no lock and the old rule" is caught. A copy that
+restores only `if (!still) return { result: 'undone' }` passes the suite in chromium and webkit, and would void pushes on every phone
+without Web Locks (M3c-1, third path). The `posts.length === 1` check does measure the lock alone. Suggest a second run of the test with
+Web Locks removed (`context.addInitScript(() => { Object.defineProperty(navigator, 'locks', { value: undefined }) })`), expecting one stored,
+non-voided push and no DELETE (two POSTs are fine there), and a control that restores only the old rule. The response-lost path in M3c-1
+has no test at all.
+
+**M3c-5. Nit: the Undo confirm is usually wrong about where the check-in is.** When the driver taps Undo online, the check-in is normally
+in flight: still `send` (`driver.js:476`), so the page asks "This check-in has not reached the office yet. Delete it from this phone?"
+(`driver.js:376`). "Delete it" then correctly ends in a DELETE (`queue.js:171`, `:175-177`), so the result is right and the words aren't. It
+goes away with the `attempted` flag from M3c-1.
+
+### Answers to the lead's questions
+1. **A DELETE the driver didn't tap:** none found. A 200 duplicate or a missing item after 200/201 now queues nothing (`queue.js:169-174`); a
+   void is queued only from `undone` (`queue.js:171`) or from the driver's own Undo on a sent or photo-waiting check-in (`driver.js:469`).
+   Two tabs with the lock never send one item twice; without the lock they can, and the result is still one stored push with no DELETE.
+   The opposite failure does exist: **an undo the driver did tap can be dropped** (M3c-1).
+2. **The lock:** it wraps read–send–remove for the whole loop (`queue.js:191-213`), so two tabs can't send the same item at once. It doesn't
+   wrap the driver's `takeBack` (`driver.js:461`), which is fine because `update()` decides in one IndexedDB transaction and the sender
+   re-reads the item after the answer. If `navigator.locks` is missing, sending goes on without it (`queue.js:80`); if `request` itself
+   rejected, `flush` would count a failure and retry with backoff (`queue.js:214-215`), so no send is lost, only delayed. Starvation: not
+   forever, but for as long as a stalled `fetch` takes (M3c-2).
+3. **route_version on the owner page:** the PUT sends the version of the Storm on screen (`owner.js:446`); the PUT answer, an Add a stop answer
+   and a 409 reload (`renderTonight`) each replace `state.storm` with a Storm carrying the new version, and `state.saving` stops a second edit
+   before the first is answered (`owner.js:442`). So consecutive edits on one screen are never stale, except through M3c-3's refresh race.
+   There's no Remove a stop on the page yet, so that path can't be checked.
+4. **The two-tab test and its control:** they measure the lock and the combined regression, but not the missing-item rule alone (M3c-4).
+   The route-edit spec now requires exactly 409 with the exact text (`route-edit.spec.mjs`), which closes M3b-1's loose check, and the moved-
+   stop spec sends `route_version` from the Storm it read.
