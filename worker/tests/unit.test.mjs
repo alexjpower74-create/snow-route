@@ -81,3 +81,33 @@ test('UUID v4 check', () => {
   assert.ok(!isUuidV4('6f1c2a3e-1b2c-1d3e-8f40-123456789abc'))
   assert.ok(!isUuidV4('not-a-uuid'))
 })
+
+test('an unexpected failure answers 500 server_error with the contract text (clarification 6)', async () => {
+  const failing = { prepare () { throw new Error('database unavailable (test)') } }
+  const quiet = console.error
+  console.error = () => {}
+  try {
+    const res = await worker.fetch(new Request('http://127.0.0.1/api/company'), { DB: failing })
+    assert.equal(res.status, 500)
+    assert.deepEqual(await res.json(), { error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' })
+    assert.equal(res.headers.get('cache-control'), 'no-store')
+  } finally {
+    console.error = quiet
+  }
+})
+
+test('an unreadable request body answers 400 before the database is touched', async () => {
+  const db = new Proxy({}, { get: () => { throw new Error('database touched') } })
+  const res = await worker.fetch(new Request('http://127.0.0.1/api/owner/signin', { method: 'POST', body: '{not json' }), { DB: db })
+  assert.equal(res.status, 400)
+  assert.deepEqual(await res.json(), { error: 'That request could not be read.', code: 'bad_request' })
+})
+
+test('no Worker text says "Please try again" (the scan is shown to catch a known-bad line)', async () => {
+  const { readdirSync } = await import('node:fs')
+  const scan = text => text.split('\n').filter(line => /Please try again/.test(line))
+  assert.equal(scan("  throw badRequest(null, 'That request could not be read. Please try again.')").length, 1, 'the scan can fail')
+  const dir = new URL('../src/', import.meta.url)
+  const hits = readdirSync(dir).filter(f => f.endsWith('.js')).flatMap(f => scan(readFileSync(new URL(f, dir), 'utf8')).map(l => `${f}: ${l.trim()}`))
+  assert.deepEqual(hits, [])
+})

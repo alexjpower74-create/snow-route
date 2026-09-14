@@ -1575,3 +1575,37 @@ test at tests/api.test.mjs:1206:1
     diff: 'simple'
   }
 verdict: RED as expected. "status link: a mangled key" fail when the router only sends key-shaped paths to the status handler.
+
+=== 69076b5 +uncommitted worker changes negative:plowednote 2026-09-14T09:13:12.957Z ===
+control (unbroken copy): "check-ins: a plowed check-in stores no note and no reason" pass
+break: src/index.js: "const note = plowed || body.note === undefined"  ->  "const note = body.note === undefined"
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (126.147259ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 198.015243
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1228:1
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (126.147259ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'Left a note' !== ''
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-plowednote/tests/api.test.mjs:1236:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Left a note',
+    expected: '',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: a plowed check-in stores no note and no reason" fail when a plowed check-in keeps the body's note.
