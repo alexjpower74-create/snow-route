@@ -153,6 +153,16 @@ written before the POST can leave, the timeout never removes an item, a lone hid
 | M3d-7 | OTHER | The no-locks two-tab run could pass without its race | API.md 51 (fixed anyway) |
 | M3d-8 | OTHER | Clarification 40's lower-version rule has no standalone control | README known gaps |
 
+**sr1 read sr2's M3e billing fixes** (`0590380`, clarifications 49-50). No DATA LOSS or SECURITY; every undone-to-void conversion is one transaction,
+`rekey()` can no longer overwrite a tap, the re-send cannot loop or go to the wrong truck, and control (k) is honest. Four findings:
+
+| # | Tag | Defect | Adopted as |
+|---|---|---|---|
+| M3e-1 | BILLING | The undo's re-send could itself create a live push that a >15-minute signal drop then made impossible to undo | API.md 52 (`undo: true`, sr1 M8 + sr2 M3f) |
+| M3e-2 | OTHER | A second Undo tap on a stale row could replace a re-send void with a plain one | API.md 53 (fixed anyway) |
+| M3e-3 | OTHER | The keys-store spec passed with the store broken | API.md 53 (fixed anyway) |
+| M3e-4 | OTHER | Clarification 50's single transactions have no negative control | README known gaps |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.

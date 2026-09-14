@@ -201,3 +201,12 @@ Alexander was asleep for this build; every real call is written here with its re
     reach the office when signal comes back, and costs one ordering rule. Requiring exactly 2 POSTs (M3d-7) keeps a billing test from passing
     without its race. `navigator.onLine` as a hint (M3d-6) and the version rule's missing standalone control (M3d-8) are written into the README's
     known gaps; neither can lose a check-in or bill wrongly on its own.
+
+## 2026-09-14, lead (after sr1's review of sr2 M3e steps 1-2, `0590380`)
+
+57. **The undo re-send says it is an undo** (API.md 52, sr1's contract option). M3e's re-send-then-DELETE closed the lost-undo paths but opened a
+    narrow one of its own: when the check-in never reached the office, the re-send created a live push, and a signal drop of more than 15
+    minutes before the DELETE left it billed ("too late to undo"). An app-side retry cannot fix that because the Worker's 15-minute rule is
+    right for real pushes. One optional flag lets the office store a never-arrived check-in already voided in the same statement: no window,
+    no looser rule, and a real push that arrived earlier is still undone the normal way. It is BILLING, so it is fixed (DECISIONS 52): sr1 M8
+    (additive, merged when QA'd) and sr2 M3f (the app sends it), with two cheap OTHER fixes in the same app files.

@@ -74,6 +74,8 @@ Optional custom domain.
   - **`navigator.onLine` is trusted as a hint.** A check-in sent while the phone claims to be offline is not marked "may have reached the
     office"; if such a request does get through and the driver then undoes it, the undo stays on the phone (DECISIONS.md 56). Rare.
   - **The owner refresh's lower-version rule has no negative control of its own** (the edit-in-flight rule covers the same test).
+  - **"Undo decisions are one transaction" has no negative control.** No test can close a page between two IndexedDB commits; the rule is
+    verified by review (docs/build-report.md, M3e).
   - **The driver's Undo lasts 15 minutes.** After that only a future owner-side edit could fix a wrong check-in.
   - **One deployment per contractor.** Hosting many contractors from one Worker is a later change.
   - **Map tiles** are OpenStreetMap's standard tiles, fine for one contractor's owner screens; many contractors need a tile provider.

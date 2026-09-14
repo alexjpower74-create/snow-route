@@ -448,3 +448,14 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 51. **(sr2 M3e, review M3d-5/M3d-7) Check-ins go before photos, and the no-locks two-tab run proves its race.** The sender sends every pending
     check-in and undo before any photo upload, so a slow photo never holds the night's check-ins back. The no-locks two-tab run holds both
     tabs at the gate and requires exactly 2 POSTs, so a run that did not set up the race fails instead of passing.
+52. **(sr1 M8 + sr2 M3f, review M3e-1, BILLING) The re-send made for an undo never stores a live push.** `POST /api/driver/checkins` accepts an
+    optional `"undo": true` (a boolean when present, else 400 field `undo`). If the id is **not** stored yet, the Worker stores the check-in
+    **already voided** (`voided_at` = `received_at`) in the same statement and answers 201 with `voided: true`: it never bills, never decides
+    the stop's status, and bypasses the skip-after-plowed guard (a voided row can never decide a stop); the stop guard still applies, and the
+    stop reads `removable: false` because a check-in row exists. If the id **is** already stored, it answers 200 `duplicate` as now, whatever
+    `undo` says, and nothing changes. The app sends `undo: true` on every re-send made for an undo (clarification 49): on a 201 with
+    `voided: true` it removes the void with no DELETE; on a 200 duplicate it sends the DELETE as now (the 15-minute rule is unchanged, and a
+    409 "too late" there is a real late undo of a real push, shown in "Not accepted").
+53. **(sr2 M3f, review M3e-2/M3e-3)** The driver's Undo adds its void through `update()` and leaves an existing void (a re-send void) untouched.
+    The keys-store spec gets a second case that fails with the store broken: reset truck 1's link, open truck 1's **new** link, and expect the
+    old item re-keyed and sent under the new key (no stuck row, `photo: "stored"`).
