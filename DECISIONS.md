@@ -152,3 +152,6 @@ Alexander was asleep for this build; every real call is written here with its re
 45. **Test honesty over test count.** Two of sr1's findings (M3b-2, M3b-3) were specs that passed for the right code but would also pass for
     a page that recomputes money or rebuilds the CSV. Both get a data change that forces the difference to show, and the HST one gets a
     negative control.
+46. **sr1's M6 (the required `route_version`) is QA'd on its own branch but merged into main only when sr2 starts M3c.** Merging it earlier
+    would make main's route-editing specs red, because sr2's M3b page does not send the version yet. Main stays green at every merge; the
+    two halves of one contract change land back to back.
