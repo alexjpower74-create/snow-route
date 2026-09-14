@@ -1575,3 +1575,512 @@ test at tests/api.test.mjs:1206:1
     diff: 'simple'
   }
 verdict: RED as expected. "status link: a mangled key" fail when the router only sends key-shaped paths to the status handler.
+
+=== 69076b5 +uncommitted worker changes negative:plowednote 2026-09-14T09:13:12.957Z ===
+control (unbroken copy): "check-ins: a plowed check-in stores no note and no reason" pass
+break: src/index.js: "const note = plowed || body.note === undefined"  ->  "const note = body.note === undefined"
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (126.147259ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 198.015243
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1228:1
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (126.147259ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'Left a note' !== ''
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-plowednote/tests/api.test.mjs:1236:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Left a note',
+    expected: '',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: a plowed check-in stores no note and no reason" fail when a plowed check-in keeps the body's note.
+
+=== 035401f negative:twoopt 2026-09-14T09:13:36.956Z ===
+control (unbroken copy): "2-opt local optimum", "crossing" pass
+break: src/route.js: "return twoOpt(start, nearestNeighbour(start, stops))"  ->  "return nearestNeighbour(start, stops)"
+✖ 2-opt local optimum: no single reversal of a returned tier path saves more than 0.5 m (50 seeded instances) (1.682026ms)
+✖ crossing: nearest neighbour crosses itself, the built route does not, and the order is exactly 2, 3, 5, 4, 1 (1.149523ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.534582
+
+✖ failing tests:
+
+test at tests/route.test.mjs:66:1
+✖ 2-opt local optimum: no single reversal of a returned tier path saves more than 0.5 m (50 seeded instances) (1.682026ms)
+  AssertionError [ERR_ASSERTION]: instance 5 tier 2: reversing 0..1 saves 372.16 m
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-twoopt/tests/route.test.mjs:75:18)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/route.test.mjs:110:1
+✖ crossing: nearest neighbour crosses itself, the built route does not, and the order is exactly 2, 3, 5, 4, 1 (1.149523ms)
+  AssertionError [ERR_ASSERTION]: built route crosses: 2,4,1,3,5
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-twoopt/tests/route.test.mjs:115:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+verdict: RED as expected. "2-opt local optimum" and "crossing" fail when a tier is ordered by nearest neighbour alone.
+
+=== 035401f negative:tiers 2026-09-14T09:13:37.222Z ===
+control (unbroken copy): "tiers" pass
+break: src/route.js: "for (const s of stops) tiers[tierOf(s.priority)].push(s)"  ->  "for (const s of stops) tiers[2].push(s)"
+✖ tiers: every medical stop before every commuter/business stop before every other stop (50 seeded instances) (1.419959ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59.416762
+
+✖ failing tests:
+
+test at tests/route.test.mjs:58:1
+✖ tiers: every medical stop before every commuter/business stop before every other stop (50 seeded instances) (1.419959ms)
+  AssertionError [ERR_ASSERTION]: instance 1: tiers 2,1,1
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-tiers/tests/route.test.mjs:61:51)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+verdict: RED as expected. "tiers" fail when priority is ignored when ordering.
+
+=== 035401f negative:idempotent 2026-09-14T09:13:37.473Z ===
+control (unbroken copy): "check-ins: the same id again" pass
+break: migrations/0001_init.sql: "  id TEXT PRIMARY KEY,\n  storm_id INTEGER NOT NULL,"  ->  "  id TEXT NOT NULL,\n  storm_id INTEGER NOT NULL,"
+break: src/index.js: " ON CONFLICT(id) DO NOTHING"  ->  ""
+✖ check-ins: the same id again answers 200 duplicate and still exactly one check-in (168.001303ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 232.278835
+
+✖ failing tests:
+
+test at tests/api.test.mjs:334:1
+✖ check-ins: the same id again answers 200 duplicate and still exactly one check-in (168.001303ms)
+  AssertionError [ERR_ASSERTION]: skipped resend: {"checkin":{"id":"e4cb7110-cced-4e36-9a75-79c533aa1ff3","storm_id":1,"client_id":16,"truck_id":1,"kind":"skipped","reason":"car","reason_text":"Car in the way","note":"","at":"2026-01-12T08:35:00.000Z","at_label":"5:05 AM","at_adjusted":false,"received_at":"2026-01-12T08:36:00.000Z","photo":"none","photo_url":null,"voided":false},"stop":{"client_id":16,"truck_id":1,"position":2,"name":"SAMPLE Clinic walkway","address":"Church Road, Grand Falls-Windsor, NL","lat":48.92816,"lng":-55.65983,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Front walkway and the ramp. Salt the ramp.","status":"skipped","checkin":{"id":"e4cb7110-cced-4e36-9a75-79c533aa1ff3","storm_id":1,"client_id":16,"truck_id":1,"kind":"skipped","reason":"car","reason_text":"Car in the way","note":"","at":"2026-01-12T08:35:00.000Z","at_label":"5:05 AM","at_adjusted":false,"received_at":"2026-01-12T08:55:00.000Z","photo":"none","photo_url":null,"voided":false}}}
+  
+  201 !== 200
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-idempotent/tests/api.test.mjs:342:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 201,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: the same id again" fail when check-ins.id is not a primary key and the insert is a plain INSERT.
+
+=== 035401f negative:time 2026-09-14T09:13:43.432Z ===
+control (unbroken copy): "check-ins: original time kept" pass
+break: src/index.js: "const at = inWindow ? iso(input.at) : iso(ctx.now)"  ->  "const at = iso(ctx.now)"
+✖ check-ins: original time kept (T synced 45 min later), outside the window adjusted (128.833631ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 195.138945
+
+✖ failing tests:
+
+test at tests/api.test.mjs:416:1
+✖ check-ins: original time kept (T synced 45 min later), outside the window adjusted (128.833631ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '2026-01-12T09:50:00.000Z'
+  - '2026-01-12T09:05:00.000Z'
+                   ^
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-time/tests/api.test.mjs:424:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '2026-01-12T09:50:00.000Z',
+    expected: '2026-01-12T09:05:00.000Z',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: original time kept" fail when a check-in is stamped with the time it synced.
+
+=== 035401f negative:skipbill 2026-09-14T09:13:49.508Z ===
+control (unbroken copy): "billing: a skipped stop never bills" pass
+break: src/billing.js: "  if (checkin.kind !== 'plowed') return false\n"  ->  ""
+✖ billing: a skipped stop never bills (156.830942ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 222.396316
+
+✖ failing tests:
+
+test at tests/api.test.mjs:957:1
+✖ billing: a skipped stop never bills (156.830942ms)
+  AssertionError [ERR_ASSERTION]: the skipped client billed: {"client_id":5,"name":"Jordan (SAMPLE)","address":"Beaumont Avenue, Grand Falls-Windsor, NL","billing":"per_push","billing_label":"Per push","price_cents":4000,"pushes":1,"dates":["2026-01-05"],"amount_cents":4000,"hst_cents":600,"total_cents":4600}
+  + actual - expected
+  
+  + {
+  +   address: 'Beaumont Avenue, Grand Falls-Windsor, NL',
+  +   amount_cents: 4000,
+  +   billing: 'per_push',
+  +   billing_label: 'Per push',
+  +   client_id: 5,
+  +   dates: [
+  +     '2026-01-05'
+  +   ],
+  +   hst_cents: 600,
+  +   name: 'Jordan (SAMPLE)',
+  +   price_cents: 4000,
+  +   pushes: 1,
+  +   total_cents: 4600
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-skipbill/tests/api.test.mjs:967:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { client_id: 5, name: 'Jordan (SAMPLE)', address: 'Beaumont Avenue, Grand Falls-Windsor, NL', billing: 'per_push', billing_label: 'Per push', price_cents: 4000, pushes: 1, dates: [ '2026-01-05' ], amount_cents: 4000, hst_cents: 600, total_cents: 4600 },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing: a skipped stop never bills" fail when billing counts skipped check-ins as pushes.
+
+=== 035401f negative:month 2026-09-14T09:13:55.770Z ===
+control (unbroken copy): "billing: NL month boundary" pass
+break: src/billing.js: "  const bounds = monthBounds(month)\n"  ->  "  const bounds = { start: `${month}-01T00:00:00.000Z`, end: new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 1)).toISOString() }\n"
+✖ billing: NL month boundary (2026-02-01T03:00:00Z is Jan 31 11:30 PM NST and bills in January) (128.060352ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 200.604786
+
+✖ failing tests:
+
+test at tests/api.test.mjs:988:1
+✖ billing: NL month boundary (2026-02-01T03:00:00Z is Jan 31 11:30 PM NST and bills in January) (128.060352ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   undefined,
+  +   undefined
+  -   1,
+  -   [
+  -     '2026-01-31'
+  -   ]
+    ]
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-month/tests/api.test.mjs:996:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ undefined, undefined ],
+    expected: [ 1, [ '2026-01-31' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing: NL month boundary" fail when a month runs from UTC midnight to UTC midnight.
+
+=== 035401f negative:csvguard 2026-09-14T09:14:01.853Z ===
+control (unbroken copy): "billing CSV" pass
+break: src/billing.js: "  if (/^[=+\\-@\\t\\r]/.test(s)) s = `'${s}`\n"  ->  ""
+✖ billing CSV: header, CRLF, quoting, formula guard, filename (162.094367ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 226.064943
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1005:1
+✖ billing CSV: header, CRLF, quoting, formula guard, filename (162.094367ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00'
+  - `'=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00`
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-csvguard/tests/api.test.mjs:1022:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00',
+    expected: `'=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00`,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing CSV" fail when a cell starting with = is written as is.
+
+=== 035401f negative:voidbill 2026-09-14T09:14:08.110Z ===
+control (unbroken copy): "billing: a voided check-in never bills" pass
+break: src/billing.js: "  if (checkin.voided_at) return false\n"  ->  ""
+✖ billing: a voided check-in never bills (134.50109ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 197.148706
+
+✖ failing tests:
+
+test at tests/api.test.mjs:974:1
+✖ billing: a voided check-in never bills (134.50109ms)
+  AssertionError [ERR_ASSERTION]: the voided check-in billed: {"client_id":4,"name":"Chris (SAMPLE)","address":"Scott Avenue, Grand Falls-Windsor, NL","billing":"per_push","billing_label":"Per push","price_cents":3500,"pushes":1,"dates":["2026-01-05"],"amount_cents":3500,"hst_cents":525,"total_cents":4025}
+  + actual - expected
+  
+  + {
+  +   address: 'Scott Avenue, Grand Falls-Windsor, NL',
+  +   amount_cents: 3500,
+  +   billing: 'per_push',
+  +   billing_label: 'Per push',
+  +   client_id: 4,
+  +   dates: [
+  +     '2026-01-05'
+  +   ],
+  +   hst_cents: 525,
+  +   name: 'Chris (SAMPLE)',
+  +   price_cents: 3500,
+  +   pushes: 1,
+  +   total_cents: 4025
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-voidbill/tests/api.test.mjs:983:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { client_id: 4, name: 'Chris (SAMPLE)', address: 'Scott Avenue, Grand Falls-Windsor, NL', billing: 'per_push', billing_label: 'Per push', price_cents: 3500, pushes: 1, dates: [ '2026-01-05' ], amount_cents: 3500, hst_cents: 525, total_cents: 4025 },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing: a voided check-in never bills" fail when billing counts an undone check-in.
+
+=== 035401f negative:stoprace 2026-09-14T09:14:14.212Z ===
+setup (both runs): src/index.js: "  // TIME-RULE:"  ->  "  await scheduler.wait(25) // NEGATIVE CONTROL ONLY: widen the gap between the check-in's read and its write\n  // TIME-RULE:"
+control (unbroken copy): "stop race" pass
+break: src/index.js: "  stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))\n"  ->  ""
+STOPRACE orphans=10 outcomes=500/200,500/200,500/200,500/200,500/200,500/200,500/200,500/200,500/200,500/200
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (348.477486ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 419.64337
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1155:1
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (348.477486ms)
+  AssertionError [ERR_ASSERTION]: 10 check-ins landed on removed stops
+  
+  10 !== 0
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-stoprace/tests/api.test.mjs:1174:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 10,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+check: check-ins on removed stops, same 25 ms gap: with the guard 0, without it 10 (of 10 pairs)
+verdict: RED as expected. "stop race" fail when the check-in batch no longer re-checks that the stop is still on the route.
+
+=== 035401f negative:pinguard 2026-09-14T09:14:20.847Z ===
+control (unbroken copy): "PIN change: wrong current PINs count toward the sign-in guard" pass
+break: src/index.js: "  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)\n  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')\n  if (!(await verifyPin(typeof body.current"  ->  "  const attempt = 0\n  if (!(await verifyPin(typeof body.current"
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (207.903282ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 274.464782
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1182:1
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (207.903282ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  204 !== 429
+  
+      at expectError (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:39:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:1190:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 204,
+    expected: 429,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "PIN change: wrong current PINs count toward the sign-in guard" fail when a wrong current PIN on PUT /api/owner/pin is not counted.
+
+=== 035401f negative:statusroute 2026-09-14T09:14:27.225Z ===
+control (unbroken copy): "status link: a mangled key" pass
+break: src/index.js: "  ['GET', /^\\/api\\/status\\/(.*)$/, 'public', clientStatus],"  ->  "  ['GET', /^\\/api\\/status\\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus],"
+✖ status link: a mangled key answers the status 404 text and counts toward the unknown-key guard (73.974775ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 161.447616
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1206:1
+✖ status link: a mangled key answers the status 404 text and counts toward the unknown-key guard (73.974775ms)
+  AssertionError [ERR_ASSERTION]: key "mCspKjnBZHeCof6x9SCIoAYs."
+  + actual - expected
+  
+  + "There's nothing here."
+  - "This status link doesn't work. Ask your snow clearing company for a new one."
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-statusroute/tests/api.test.mjs:1216:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "There's nothing here.",
+    expected: "This status link doesn't work. Ask your snow clearing company for a new one.",
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "status link: a mangled key" fail when the router only sends key-shaped paths to the status handler.
+
+=== 035401f negative:plowednote 2026-09-14T09:14:33.369Z ===
+control (unbroken copy): "check-ins: a plowed check-in stores no note and no reason" pass
+break: src/index.js: "const note = plowed || body.note === undefined"  ->  "const note = body.note === undefined"
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (118.488489ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 183.418532
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1228:1
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (118.488489ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'Left a note' !== ''
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-plowednote/tests/api.test.mjs:1236:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Left a note',
+    expected: '',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: a plowed check-in stores no note and no reason" fail when a plowed check-in keeps the body's note.

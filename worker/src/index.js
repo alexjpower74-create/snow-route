@@ -47,7 +47,7 @@ async function readJson (request) {
     const body = JSON.parse(text)
     if (body && typeof body === 'object' && !Array.isArray(body)) return body
   } catch {}
-  throw badRequest(null, 'That request could not be read. Please try again.')
+  throw badRequest(null, 'That request could not be read.')
 }
 
 const iso = ms => new Date(ms).toISOString()
@@ -445,7 +445,9 @@ const SKIP_GUARD_SQL = `SELECT json(CASE WHEN EXISTS (SELECT 1 FROM checkins WHE
 function checkinInput (body) {
   if (body.kind !== 'plowed' && body.kind !== 'skipped') throw badRequest('kind', 'A check-in is either plowed or skipped.')
   if (body.kind === 'skipped' && !REASON_LABELS[body.reason]) throw badRequest('reason', "Pick why you're skipping.")
-  const note = body.note === undefined || body.note === null ? '' : body.note
+  // A plowed check-in keeps no reason and no note, whatever the body sends (clarification 10), so its note is not checked either.
+  const plowed = body.kind === 'plowed'
+  const note = plowed || body.note === undefined || body.note === null ? '' : body.note
   if (typeof note !== 'string' || chars(note) > 120) throw badRequest('note', 'Keep the note under 120 characters.')
   const at = typeof body.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(body.at) ? Date.parse(body.at) : NaN
   if (!Number.isFinite(at)) throw badRequest('at', 'The check-in time could not be read.')

@@ -317,7 +317,7 @@ test('check-ins: plowed 201 and the stop is plowed', async () => {
   assert.equal(r.status, 201, r.text)
   assert.deepEqual(r.body.checkin, {
     id: body.id, storm_id: storm.id, client_id: stop.client_id, truck_id: truck.id, kind: 'plowed', reason: null, reason_text: null,
-    note: 'Done.', at: at(30), at_label: '5:05 AM', at_adjusted: false, received_at: at(33), photo: 'none', photo_url: null, voided: false
+    note: '', at: at(30), at_label: '5:05 AM', at_adjusted: false, received_at: at(33), photo: 'none', photo_url: null, voided: false
   })
   assert.equal(r.body.duplicate, undefined)
   assert.equal(r.body.stop.status, 'plowed')
@@ -380,7 +380,7 @@ test('check-ins: skip without a reason is 400, and the other refusals', async ()
   expectError(await post(key, checkin(storm, stop, { id: 'abc' })), 400, 'bad_request', 'id')
   expectError(await post(key, checkin(storm, stop, { kind: 'maybe' })), 400, 'bad_request', 'kind')
   expectError(await post(key, checkin(storm, stop, { at: 'yesterday' })), 400, 'bad_request', 'at')
-  expectError(await post(key, checkin(storm, stop, { note: 'x'.repeat(121) })), 400, 'bad_request', 'note')
+  expectError(await post(key, checkin(storm, stop, { kind: 'skipped', reason: 'car', note: 'x'.repeat(121) })), 400, 'bad_request', 'note')
   expectError(await post(key, checkin(storm, stop, { has_photo: 'yes' })), 400, 'bad_request', 'has_photo')
   expectError(await post(key, checkin(storm, stop, { storm_id: 999 })), 404, 'not_found')
   expectError(await post(key, checkin(storm, { client_id: 99999 })), 404, 'not_found')
@@ -1221,4 +1221,35 @@ test('status link: a mangled key answers the status 404 text and counts toward t
   expectError(await lookup(`${good}%20`), 429, 'rate_limited')
   expectError(await lookup(good), 429, 'rate_limited')
   assert.equal((await lookup(good, '10.9.2.2')).status, 200)
+})
+
+// ================================================================ M5
+
+test('check-ins: a plowed check-in stores no note and no reason, whatever the body sends', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const key = keyOf(truck.id)
+  const [a, b, c] = truck.stops
+
+  const r = await post(key, checkin(storm, a, { note: '  Left a note  ', reason: 'gate' }))
+  assert.equal(r.status, 201, r.text)
+  assert.equal(r.body.checkin.note, '')
+  assert.equal(r.body.checkin.reason, null)
+  assert.equal(r.body.checkin.reason_text, null)
+  const rows = await storedRows(storm.id, a.client_id)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].note, '', 'stored note on a plowed check-in')
+  assert.equal(rows[0].reason, null, 'stored reason on a plowed check-in')
+  assert.equal((await ownerStop(token, storm.id, a.client_id)).checkin.note, '')
+
+  // A note over 120 characters on a plowed check-in is ignored, not refused.
+  const long = await post(key, checkin(storm, b, { note: 'x'.repeat(500) }))
+  assert.equal(long.status, 201, long.text)
+  assert.equal(long.body.checkin.note, '')
+
+  // A skip keeps its note (trimmed).
+  const skip = await post(key, checkin(storm, c, { kind: 'skipped', reason: 'other', note: '  Truck blocking  ' }))
+  assert.equal(skip.status, 201, skip.text)
+  assert.equal(skip.body.checkin.note, 'Truck blocking')
+  assert.equal(skip.body.checkin.reason_text, 'Other: Truck blocking')
 })
