@@ -65,8 +65,13 @@ Optional custom domain.
 
 ## Where to pick this up
 
-- `PLAN.md` is the build contract, `docs/API.md` the API contract with numbered clarifications, `DECISIONS.md` every call made overnight.
-- `docs/build-report.md` has the QA history and every negative control; each slice's own report is beside it.
+- `PLAN.md` is the build contract, `docs/API.md` the API contract with 53 numbered clarifications (most came out of cross-review),
+  `DECISIONS.md` every call made overnight (58).
+- `docs/build-report.md` has the QA history, every negative control and every cross-review finding with where it was adopted; each
+  slice's own report is beside it (`docs/build-report-sr1.md` Worker, `docs/build-report-sr2.md` app).
+- Code map: `worker/src/index.js` (routes), `route.js` (route order), `billing.js` (what bills), `time.js` (NL time); `app/public/d/queue.js`
+  (the offline queue: the part with the most care in it), `d/driver.js`, `owner/owner.js`, `s/status.js`.
+- Next steps that are Alexander's call: deploy (docs/DEPLOY.md), a tile provider if it's sold widely, and address search.
 - Known gaps (settled so far; the final list is in `docs/build-report.md`):
   - **No address search.** The owner places each pin by tapping the map (no geocoding service tonight, DECISIONS.md 14).
   - **Route order is straight-line distance**, not road time; business opening times are shown, not used to reorder.

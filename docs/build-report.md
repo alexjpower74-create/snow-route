@@ -166,6 +166,21 @@ written before the POST can leave, the timeout never removes an item, a lone hid
 | M3e-3 | OTHER | The keys-store spec passed with the store broken | API.md 53 (fixed anyway) |
 | M3e-4 | OTHER | Clarification 50's single transactions have no negative control | README known gaps |
 
+## Known gaps
+
+Nothing below can lose a check-in or bill wrongly on its own; every such finding was fixed (DECISIONS 52).
+
+- **Product:** no address search (pins are placed by tapping the map); route order is straight-line distance, not road time; dragging a stop
+  does not scroll a long route (Move up/down covers it); the driver's Undo lasts 15 minutes, after which only a future owner-side edit
+  could fix a check-in; one deployment per contractor; OpenStreetMap's standard tiles suit one contractor's owner screens, not a fleet.
+- **Security dial:** the status-link guard is per IP, blunt behind a mobile carrier's shared IP (DEPLOY.md).
+- **Test limits:** Playwright's WebKit cannot read a chosen photo while set offline, so on WebKit the offline test fails `/api` requests
+  instead and skips the offline reload step (DECISIONS 35); a page closed between two IndexedDB commits cannot be simulated, so "undo
+  decisions are one transaction" is verified by review, not by a negative control (M3e-4); the owner refresh's lower-version rule has no
+  standalone control (M3d-8); `navigator.onLine` is trusted as a hint when marking a check-in "may have reached the office" (M3d-6).
+- **Stand-in latency:** the stop-removal race control widens the check-in's read-write gap with a 25 ms wait in both runs of its copy,
+  because local D1 answers too fast for the race to appear otherwise.
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.
