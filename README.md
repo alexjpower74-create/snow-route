@@ -56,6 +56,9 @@ cd app && npm run negative     # every app negative control, same rule (port 760
 
 ## Test numbers
 
+After the map tiles round (OpenFreeMap), pinned QA at `e86f0b1`: Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 200 / 0 / 0;
+the attribution control (the 14th app control) and the truck-pins control red after their unbroken passes.
+
 After the polish round (Onyx's review of the demo), pinned QA at `8aaf382`: Worker unit 27 / 0 / 0, API 68 / 0 / 0; Playwright 196 / 0 / 0;
 the new truck-pins control (the 13th app control) red after its unbroken pass.
 

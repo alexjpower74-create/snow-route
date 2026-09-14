@@ -259,3 +259,9 @@ Alexander was asleep for this build; every real call is written here with its re
     background layer, so MapLibre requests no tiles, glyphs or sprites); any other request to that host or any other host still fails the
     test. `blob:` and `data:` URLs are let through: they are objects inside the page (MapLibre starts its web worker from one), and WebKit
     routes them where Chromium does not.
+67. **Desktop screenshots are taken by growing the viewport, not with Playwright's full-page capture.** The first Chromium 1280 full-page
+    shots of the owner map showed the vector map on only its left strip. A probe on the running demo found the MapLibre canvas covering the
+    whole map in every state (635 px map inside a 760 px canvas, the binding's 10% padding, before and after a resize to page height), and
+    plain element screenshots at rest, right after the resize and after it settled all showed the full map. So it was Chromium's full-page
+    capture grabbing the WebGL canvas mid-resize, not something an owner would see. The docs screenshot script now sets the viewport to
+    the page height, waits for the map to redraw, then takes a normal screenshot.

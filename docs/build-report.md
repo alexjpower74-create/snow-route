@@ -26,6 +26,7 @@ reasoning and every attempt.
 | sr2 M3e (+ sr1 M8) | `50c7984` | (Worker as `3c306e7`) | (as `3c306e7`) | app controls (a–k) run in the final QA (sr2 needed 7606 for M3f) | **188 / 0 / 0** |
 | **FINAL** (sr1 M8 + sr2 M3f) | **`31630e6`** | **26 / 0 / 0** | **68 / 0 / 0** | **Worker 15 red + app 12 red, every one after its unbroken pass** | **192 / 0 / 0** |
 | Polish (Onyx's review, lead only) | `8aaf382` | 27 / 0 / 0 | 68 / 0 / 0 | app: truckpins (m) red after its unbroken pass; the old placeholder fails the new placeholder test | 196 / 0 / 0 |
+| Map tiles: OpenFreeMap (lead only) | `e86f0b1` | 28 / 0 / 0 | 68 / 0 / 0 | app: attribution (n) and truckpins (m) red after their unbroken passes | 200 / 0 / 0 |
 
 Counts are passed / failed / skipped.
 
@@ -74,6 +75,7 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | App: two open tabs of the driver link never void a push | the copy reads a missing item after 200/201 as "undone" and sends without the Web Lock | a stored push was voided by a DELETE nobody tapped |
 | App: photos and undos never go to another truck's link | the copy re-keys photos and undos across trucks | a photo PUT and an undo DELETE went out under truck 2's key |
 | App: the billing screen's HST is the API's, not the page's | the copy computes HST on the page with `Math.floor(amount * 0.15)` | $5.32 shown where the API row says $5.33 |
+| App: the map shows OpenFreeMap's required attribution | the copy draws the base map with an empty attribution | the attribution test found no "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" on the map |
 | App: each truck's route pins can be told apart and match the legend | the copy draws every truck's pins with truck 1's ring colour and shape | truck 2's pins no longer matched truck 2's legend entry |
 | Demo placeholder photo is an intentional card | the new unit test run against the old placeholder (`0113369`) | fails: no camera, no "Photo taken", a flat white block |
 | App: a reset driver link never blocks check-ins saved under it | the copy's queue stops everything on a 401, as in M1 | both check-ins stayed on the phone; nothing reached the server |
@@ -231,3 +233,19 @@ Pinned QA at `8aaf382` (`rig qa --ref`, HEAD checked): Worker unit 27 / 0 / 0, A
 projects); control (m) red after its unbroken pass. Onyx's running demo was stopped by pid and started again as one copy so the photos were
 re-seeded (DECISIONS 61); all 36 `docs/shots` were re-taken from it and the owner Tonight map, a 2x close-up of it, and the client status
 page were looked at. The other twelve app controls and fifteen Worker controls touch code this round did not change and were last run at `31630e6`.
+
+## Map tiles: OpenFreeMap (Alexander's ask via Onyx, lead only, `e86f0b1`)
+
+- The owner map draws OpenFreeMap's `positron` vector style with MapLibre GL 5.24.0 inside Leaflet (@maplibre/maplibre-gl-leaflet 0.1.4),
+  both vendored in `app/public/vendor/maplibre/` and pinned; pins, truck shapes and drag-to-reorder are unchanged. DECISIONS 62-63.
+- One config value: the Worker variable `MAP_STYLE_URL`, answered as `map_style_url` by `GET /api/company` (API.md 54, DECISIONS 64).
+- OpenFreeMap's required attribution, verbatim from its quick start, is on every owner map; a new spec checks the three links are there and
+  uncovered and that the page loaded the style the Worker named; control (n) empties it and goes red.
+- Tests never touch the internet: the shared fixture answers the style with a tiny local style; `blob:`/`data:` URLs (MapLibre's worker) are
+  not network and pass the guard. DECISIONS 66.
+- `positron` over `liberty` from real-tile screenshots of tonight's route (DECISIONS 65). Chromium's full-page capture showed the WebGL map on
+  only a strip; a probe proved the canvas covers the map in every state, so the docs screenshots now grow the viewport instead (DECISIONS 67).
+
+Pinned QA at `e86f0b1` (`rig qa --ref`, HEAD checked): Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 200 / 0 / 0 in all four projects;
+controls (n) attribution and (m) truck pins red after their unbroken passes. The other app and Worker controls cover code this round did not
+change and were last run at `31630e6`. Looked at: the owner Tonight and Clients maps at 1280 (chromium and webkit) and the driver page at 390.
