@@ -556,7 +556,11 @@ async function clientStatus (request, env, ctx) {
   const misses = await db.prepare("SELECT COUNT(*) AS c FROM signin_attempts WHERE kind = 'status' AND ip = ?1 AND at > ?2")
     .bind(ctx.ip, iso(ctx.now - STATUS_LIMIT.minutes * 60000)).first('c')
   if (misses >= STATUS_LIMIT.tries) throw rateLimited(TOO_MANY_LINKS)
-  const client = await db.prepare('SELECT * FROM clients WHERE status_key = ?1').bind(ctx.params[0]).first()
+  // A key that can't be one (trailing dot, bracket, %20, empty, over 128 characters) is unknown without asking the database.
+  const key = ctx.params[0]
+  const client = /^[A-Za-z0-9_-]{1,128}$/.test(key)
+    ? await db.prepare('SELECT * FROM clients WHERE status_key = ?1').bind(key).first()
+    : null
   if (!client) {
     if (!(await takeAttempt(db, 'status', ctx.ip, ctx.now, STATUS_LIMIT))) throw rateLimited(TOO_MANY_LINKS)
     throw notFound("This status link doesn't work. Ask your snow clearing company for a new one.")
@@ -984,7 +988,8 @@ const ROUTES = [
   ['POST', /^\/api\/driver\/checkins$/, 'public', postCheckin],
   ['PUT', /^\/api\/driver\/checkins\/([0-9A-Fa-f-]{36})\/photo$/, 'public', putPhoto],
   ['GET', /^\/api\/photos\/([A-Za-z0-9_-]{16,64})$/, 'public', getPhoto],
-  ['GET', /^\/api\/status\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus],
+  // Every /api/status/<anything> reaches the status handler (clarification 18): a mangled key reads as a bad status link.
+  ['GET', /^\/api\/status\/(.*)$/, 'public', clientStatus],
   ['PUT', /^\/api\/owner\/pin$/, 'owner', changePin],
   ['GET', /^\/api\/owner\/company$/, 'owner', async (req, env) => json(200, companyView(await loadCompany(env.DB)))],
   ['PUT', /^\/api\/owner\/company$/, 'owner', putCompany],

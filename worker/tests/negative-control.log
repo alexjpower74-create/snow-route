@@ -1098,3 +1098,39 @@ test at tests/api.test.mjs:1182:1
     diff: 'simple'
   }
 verdict: RED as expected. "PIN change: wrong current PINs count toward the sign-in guard" fail when a wrong current PIN on PUT /api/owner/pin is not counted.
+
+=== bc8e3c3 +uncommitted worker changes negative:statusroute 2026-09-14T09:01:00.445Z ===
+control (unbroken copy): "status link: a mangled key" pass
+break: src/index.js: "  ['GET', /^\\/api\\/status\\/(.*)$/, 'public', clientStatus],"  ->  "  ['GET', /^\\/api\\/status\\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus],"
+✖ status link: a mangled key answers the status 404 text and counts toward the unknown-key guard (96.33467ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 209.312543
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1206:1
+✖ status link: a mangled key answers the status 404 text and counts toward the unknown-key guard (96.33467ms)
+  AssertionError [ERR_ASSERTION]: key "s7U7JqupmxnRLMpXvLctI6jh."
+  + actual - expected
+  
+  + "There's nothing here."
+  - "This status link doesn't work. Ask your snow clearing company for a new one."
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-statusroute/tests/api.test.mjs:1216:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "There's nothing here.",
+    expected: "This status link doesn't work. Ask your snow clearing company for a new one.",
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "status link: a mangled key" fail when the router only sends key-shaped paths to the status handler.
