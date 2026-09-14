@@ -435,3 +435,16 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 48. **(sr2 M3e, lead's pre-push scan) No machine paths in committed logs.** `app/tests/negative-control.log` carries stack traces with the
     absolute path of the worktree. The negative-control lib replaces the repository root (and its `file://` URL form) with `<repo>` before
     appending, as sr1's Worker log already does, and the existing log is rewritten the same way once.
+49. **(sr2 M3e, review M3d-1/M3d-2, BILLING) An undo of an attempted check-in re-sends the check-in first.** For an `undone` item with
+    `attempted`, the sender POSTs the check-in again under its own key (idempotent: 201 if it never arrived, 200 duplicate if it did, and a
+    late original then also answers duplicate), takes `truck_id` from that answer (clarification 43), and **only then** sends the DELETE, so the
+    DELETE always finds the row. After that order a DELETE answering 404 means another truck's check-in: it goes to "Not accepted" with the
+    server's text, never dropped quietly. Clarification 38's "404 is nothing to undo" is withdrawn. The accepted cost: a check-in that never
+    reached the office is stored and immediately voided; it never bills and the summary never counts it, and its stop reads `removable: false`.
+50. **(sr2 M3e, review M3d-3/M3d-4, BILLING) Undo decisions are single transactions.** Turning an `undone` item into its void is one readwrite
+    transaction (the void is put and the item removed together), in every place it happens (after a 200/201, and the driver's Undo on a
+    photo-waiting check-in). `rekey()` changes items through the same read-in-the-writing-transaction `update()`, never a blind `put` of an
+    earlier snapshot, so a tap between the read and the write is never overwritten.
+51. **(sr2 M3e, review M3d-5/M3d-7) Check-ins go before photos, and the no-locks two-tab run proves its race.** The sender sends every pending
+    check-in and undo before any photo upload, so a slow photo never holds the night's check-ins back. The no-locks two-tab run holds both
+    tabs at the gate and requires exactly 2 POSTs, so a run that did not set up the race fails instead of passing.

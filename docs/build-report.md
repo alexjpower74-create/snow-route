@@ -138,6 +138,20 @@ and yard errors all checked out. Six findings:
 | M3c-10 | The billing totals would pass a page computing total HST from the subtotal | the lead's QA | API.md 46 |
 | M3c-11 | The keys store was never exercised by any spec | the lead's QA | API.md 47 |
 
+**sr1's last review, of sr2's M3d** (`aa04bba`), tagged by severity (DECISIONS 52, 54). Nothing was DATA LOSS or SECURITY. The `attempted` flag is
+written before the POST can leave, the timeout never removes an item, a lone hidden tab still sends, and the new specs are honest. Eight findings:
+
+| # | Tag | Defect | Adopted as |
+|---|---|---|---|
+| M3d-1 | BILLING | Without Web Locks or after a timeout, an undo's DELETE could beat its POST, get 404 and be dropped, and the push billed | API.md 49 |
+| M3d-2 | BILLING | A wrong-truck undo also answers 404 and was dropped silently | API.md 49 |
+| M3d-3 | BILLING | Undone item removed and its void added in two transactions: a page closed between them lost the undo | API.md 50 |
+| M3d-4 | BILLING | `rekey()` wrote back a stale snapshot over an Undo tapped a moment before | API.md 50 |
+| M3d-5 | OTHER | A slow photo upload timing out held every later check-in back | API.md 51 (fixed anyway) |
+| M3d-6 | OTHER | `attempted` skipped when `navigator.onLine` is false | README known gaps |
+| M3d-7 | OTHER | The no-locks two-tab run could pass without its race | API.md 51 (fixed anyway) |
+| M3d-8 | OTHER | Clarification 40's lower-version rule has no standalone control | README known gaps |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.

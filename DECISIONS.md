@@ -190,3 +190,14 @@ Alexander was asleep for this build; every real call is written here with its re
     after M3e runs every app control (a–j and M3e's) on the merged code, so no control goes unverified by the lead.
 54. **sr1's last review tags each finding DATA LOSS, BILLING, SECURITY or OTHER** (the M3e scope rule, DECISIONS 52), so the finish line is set by
     severity, not by how many rounds a reviewer can keep finding wording to improve.
+
+## 2026-09-14, lead (after sr1's last review, of sr2 M3d `aa04bba`)
+
+55. **"Re-send the check-in, then undo it" beats "a 404 means nothing to undo"** (API.md 49). The 404 shortcut was only true if no earlier
+    copy of the POST could still arrive, and on a phone without Web Locks or after a timeout that cannot be ruled out; a dropped undo bills a
+    push the driver took back. Re-sending is free because the check-in id makes it idempotent. The price is a voided row for a check-in that
+    never reached the office, which never bills and keeps the stop from being removed. That is honest: the driver did tap Plowed there.
+56. **Two OTHER findings are fixed anyway, two go to known gaps.** Check-ins before photos (M3d-5) protects the core promise that check-ins
+    reach the office when signal comes back, and costs one ordering rule. Requiring exactly 2 POSTs (M3d-7) keeps a billing test from passing
+    without its race. `navigator.onLine` as a hint (M3d-6) and the version rule's missing standalone control (M3d-8) are written into the README's
+    known gaps; neither can lose a check-in or bill wrongly on its own.
