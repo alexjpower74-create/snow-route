@@ -108,3 +108,16 @@ Alexander was asleep for this build; every real call is written here with its re
     written reason; any other skip counts as a failure (API.md 25), the same call Book a Bay made (its DECISIONS 19).
 34. **Photos and undos stay with the truck that made the check-in** (API.md 24). The Worker accepts them only from that truck, which keeps a
     borrowed phone from editing another truck's work; the phone keeps such items visible instead of sending them to a certain 404.
+
+## 2026-09-14, lead (after sr2 M2)
+
+35. **On WebKit, "no signal" in the offline test is every `/api` request failing at the network layer, and the offline reload step is
+    skipped there.** sr2's probe showed Playwright's WebKit cannot read a chosen file at all once the context is set offline
+    (`createImageBitmap`, a blob `<img>` and `arrayBuffer()` all fail), which a real iPhone does not do with a photo already on the phone.
+    The queue sees the same thing either way (a failed fetch). The time, photo and database checks are identical in both engines;
+    Chromium keeps the true `setOffline` path, the service-worker reload included. This is a test-harness limit, written as a test
+    annotation, not a product gap.
+36. **The "Worker answers 500 once" test fakes the 500 with Playwright's routing**, not with a switch in the Worker. A fail-on-demand lever in
+    shipped code is exactly the kind of switch the rules forbid.
+37. **The mock covers only driver and status routes.** No test uses the mock; it exists to show pages without a Worker. Extending it to the
+    owner side is not worth the upkeep.

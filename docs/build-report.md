@@ -43,6 +43,10 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 
 ## Cross-review
 
+**sr2 read sr1's M1 Worker** (read only, at `110f190`) before building M2. Every shape, status code, label and header the pages use matched.
+Two wording mismatches went to sr1 as M5: a plowed check-in still stored its `note` (API.md 10 says ignored), and the 500 text. The other
+notes were routes not yet built at that sha (all built in sr1 M2) and a test-only route accepting an early `at` (no action).
+
 **sr1 read sr2's M1 app code** (read only, on `6df5a27`) against docs/API.md and its own Worker. Everything the pages send and read
 matched by name and type. It found five defects that no test on either side would have caught, because each sits on the boundary:
 
