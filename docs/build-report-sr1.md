@@ -804,3 +804,105 @@ goes away with the `attempted` flag from M3c-1.
 4. **The two-tab test and its control:** they measure the lock and the combined regression, but not the missing-item rule alone (M3c-4).
    The route-edit spec now requires exactly 409 with the exact text (`route-edit.spec.mjs`), which closes M3b-1's loose check, and the moved-
    stop spec sends `route_version` from the Storm it read.
+
+## Cross-review of sr2 M3c steps 3-11 (f1d486d)
+
+Read only through git (`git diff 0994459 f1d486d -- app/`, `git show f1d486d:<path>`), never sr2's worktree. Checked against docs/API.md
+(clarifications 24–37) and `worker/src/index.js` (main after M6). No code changed, no server or browser run; one arithmetic check in plain
+Node (below). Files: `app/public/owner/owner.js`, `app/public/d/driver.js`, `app/public/d/queue.js`, `app/public/api.js`,
+`app/tests/{queue,billing,storm-end,route-edit,settings}.spec.mjs`, `app/tests/negative-{crosstruck,hst}.mjs`.
+
+### First, a correction of my own M3b-2
+My M3b-2 said `Math.round(3550 * 0.15)` gives 532 because "3550 × 0.15 is 532.4999…". **That was wrong.** In JavaScript `3550 * 0.15` is exactly
+`532.5` and `Math.round` gives **533**, the same as the half-up rule. A Node check over every amount from 0 to 2 000 000 cents, then every 50
+cents up to 100 000 000, found no amount where `Math.round(a * 0.15)` differs from `Math.floor((a * 15 + 50) / 100)`, confirming what sr2
+found. So clarification 34's control as written (`Math.round`) could never go red, and sr2 was right to truncate instead (see "Checked"
+below). Two leftovers from my mistake: **clarification 34 still names `Math.round(amount * 0.15)`** as the control (lead: please amend it to
+the truncation `negative-hst.mjs` uses), and **`app/tests/billing.spec.mjs:39`'s comment still says "Math.round(3550 * 0.15) is 532"** (sr2:
+the comment is wrong; the assertion it sits above is right).
+
+### Findings (most harmful first)
+
+**M3c-6. "Remove from tonight" is offered on a stop whose only check-in was undone, and my Worker always refuses it (medium-low; Worker or
+contract, lead's call).** The page shows Remove when the stop has no deciding check-in: `${st.checkin ? '' : …Remove from tonight…}`
+(`app/public/owner/owner.js:351`). The Stop's `checkin` only ever looks at **non-voided** check-ins (`worker/src/index.js:203`, `:190`). But my
+Worker's removal refuses a stop with **any** check-in, voided ones included (`index.js:827`, 409 "This stop has check-ins, so it stays on the
+route."). That's what API.md's "only a stop with no check-ins at all" says, and my M2 test asserts it (`worker/tests/api.test.mjs:810`, "Even a
+voided check-in keeps the stop."). So when a driver plows a stop and taps Undo, the owner sees Remove; tapping it and confirming gives the
+409 on that stop (`owner.js:614-633`), the reload still has `checkin: null`, and Remove comes back, forever. For whom: the owner, on exactly
+the stop a driver wasn't sure about. Two ways to fix, both in my slice and both a contract change:
+- (a) the owner Stop view carries **`removable: true|false`** (no check-ins at all, voided included), and the page shows Remove only when it's
+  true; **or**
+- (b) the Worker lets a stop go when **all** its check-ins are voided (the voided rows keep their `client_id`, so history stays), and my M2
+  assertion flips.
+
+I'd suggest (a): an undone check-in is still a record that the truck was there, and billing and the summary never see voided rows anyway.
+
+**M3c-7. A check-in whose POST reached truck 1's link but whose answer was lost can still send its photo and undo to a truck that answers
+404 (low-medium; the path clarification 24 promises can't happen).** `rekey()` moves every check-in that is still `send` to the page's key and
+**stamps the page's `truck_id`** (`app/public/d/queue.js:107-109`). If that check-in was already stored under truck 1 (the answer was lost, so
+the phone never learned it; M3c-1), the resend under truck 2's key is answered **200 duplicate with the stored check-in, `truck_id` 1**
+(`worker/src/index.js:512`). The sender ignores that and moves the item to `photo` under truck 2 (`queue.js:166`, `:172`). The photo PUT
+then gets 404 from `index.js:520` (only the truck that made the check-in may add its photo), so the photo is **dropped** (`queue.js:157`). An
+Undo becomes a DELETE under truck 2 that gets 404 from `index.js:953` and lands in "Not accepted". For whom: the driver who shares a phone
+across trucks on a bad-signal night; the owner gets a plowed stop with no photo. The cross-truck spec can't see this, because its photo and
+undo belong to check-ins whose answers arrived. Fix (sr2, fits with M3d's `attempted`): after a 200/201, set the item's `truck_id` from
+`data.checkin.truck_id`, and if that isn't the page's truck, mark the photo item `stuck` like any other cross-truck photo (and give a later
+void that `truck_id`). Alternatively, don't re-key an `attempted` check-in across trucks at all.
+
+**M3c-8. A removal refused with 404 (the stop was already removed on another screen) leaves the stale row on screen with an error (low).**
+`removeStop` (`owner.js:614-633`) reloads the Storm only on 409 (`:625`); any other refusal just sets `state.stopErrors[clientId] = e.message`
+(`:632`) and repaints the **old** Storm. After a removal from the owner's phone, the desktop's second "Yes, remove it" gets 404 "That client is
+not a stop in this storm." and keeps showing that stop, with a stale `route_version`, so the next Move gets a 409 reload. For whom: the
+owner on two screens. Fix: treat 404 like 409 (reload the current Storm, then show the message).
+
+**M3c-9. After a storm ends, every "Photo not sent" note is listed as a stop "moved off this route" (low).** `renderElsewhere` builds its
+note rows from all undismissed notes whose check-in isn't on the current route (`app/public/d/driver.js:353-354`). With no storm on,
+`state.route.stops` is empty, so every note from tonight lands under "Saved for stops on another route … The owner moved these stops off
+this route." (`driver.js:364`), which is the wording clarification 28 took out for check-ins. Notes also aren't filtered by storm or by
+driver link, and they stay in `localStorage` until dismissed. For whom: the driver the morning after, told stops were moved when the storm
+simply ended. Fix: put notes under a neutral "Photos not sent" heading (or under the ended-storm block when their storm isn't the current
+one), keyed by storm.
+
+**M3c-10. The billing totals would still pass a page that works out total HST from the subtotal (low, test honesty).** Clarification 34
+now pins a row HST that needs rounding ($5.33), and control (h) proves the row cell is read from the API. But the spec's totals are
+`hstOf(3550) + hstOf(5000) = 533 + 750 = 1283`, and 15 % of the subtotal 8550 rounded half up is also 1283. A page that showed
+`Math.round(subtotal × 0.15)` in the totals row, instead of the API's sum of rows, would pass. Clarification 11's rule (totals are the sums
+of the rows) is exactly where page arithmetic goes wrong. Suggest a second $35.50 per-push client: rows 533 + 533 = **1066**, while 15 % of
+7100 = **1065**.
+
+**M3c-11. Note: the keys store (clarification 27) is never exercised.** Every item the current code queues carries a `truck_id` (check-ins
+at record, the driver's undo in `takeBack`, the sender's own undo, and every re-key), so `truckOfKey`'s store is consulted only for items saved
+by older builds. No spec saves such an item, so a broken `rememberKey` would pass the suite. Low risk while no pre-M3c phones are in use; a
+one-item spec (seed IndexedDB with an item lacking `truck_id`, reset the link, open the other truck's link, expect `stuck`) would cover it.
+
+### Checked and consistent (no action)
+- **Cross-truck test and control (g)** (`queue.spec.mjs` "a photo and an undo saved under truck 1's link…"; `negative-crosstruck.mjs`): the
+  photo PUT and the undo DELETE are held by aborting `**/api/driver/checkins/**` (which doesn't match the POST, so the check-ins do reach the
+  Worker). After truck 1's link reset and truck 2's link opened, both items are sent under the dead key first (401), then re-keyed or marked
+  stuck. The spec records every PUT and DELETE with its `X-Driver-Key` and requires none under truck 2's key, the undo not applied, and the
+  photo still `waiting`. Control (g) removes the truck comparison (`queue.js:108` → `checkin || true`), so the photo and undo go out under
+  truck 2's key (the Worker answers 404 to both) and the `writes` assertion goes red. It measures the rule for items whose answers arrived;
+  M3c-7 is the one path it can't see.
+- **Control (h)** (`negative-hst.mjs`): its anchor matches exactly once, the **row** HST cell `owner.js:1052` (the totals cell on `:1058` is a
+  different string), and the break shows `Math.floor(amount_cents * 0.15)`: $5.32 on the $35.50 row where the spec asserts $5.33. The
+  unbroken copy must pass first (the lib's VOID rule). Honest.
+- **CSV bytes** (`billing.spec.mjs`): the downloaded file is compared with `Buffer.compare` against `GET /api/owner/billing.csv?month=…` fetched with
+  the owner's token. That's a byte check against my Worker's answer, so a page-built CSV can't pass (clarification 35).
+- **Ended-storm wording and the confirm** (clarification 28): check-ins from a storm that isn't the current one are listed under "Saved from the storm
+  that ended, still sending" (`driver.js:108`, `:357`), each once, with the "Moved from an old driver link" note when re-keyed (clarification 31).
+  Undo on an unsent one asks "…Delete it from this phone?", and "Keep it" leaves it sending. The spec proves the kept check-in is accepted by
+  my Worker after the storm ended, and not voided.
+- **409 flows against my Worker** (clarification 36): End storm's only 409 is "This storm has already ended." → the page opens that storm's
+  summary with the message (`owner.js:592` onwards). Add a stop's only 409 is the ended storm (`editableStorm`) → Tonight repaints with the
+  message. The route PUT 409 (stale version or ended) reloads Tonight. A removal 409 is either the ended storm (the page sees no current storm
+  and repaints Tonight) or "has check-ins" (the page reloads the Storm and shows the message on that stop). Each spec drives the real 409 by
+  changing state through the API in between.
+- **Past storms during a storm**: `#past` lists ended storms only (`pastList` filters `status === 'ended'`), each linking to its summary; the spec
+  opens one while a storm is on.
+- **Yard errors** (clarification 33): `err-yard.label` sits under the yard name (`owner.js:1104`) and `err-yard.pin` under the map (`:1123`);
+  moving the pin clears it (`:1130`). The spec gets a real 400 `yard.pin` by zooming out with Leaflet's own control and tapping far west.
+- **Storm notice and duplicate rows** (clarification 31): a "storm already on" notice is marked `needsStorm` and dropped when Tonight finds no
+  storm (`takeNotice`); a re-keyed check-in for a stop off this route is listed only in the off-route block (`renderOldLink` excludes those).
+- **Dropped photo for another route's stop** (clarification 30): the note keeps label and stop, is shown in the other-route block until
+  dismissed, and the spec serves the Worker's exact 413 text. See M3c-9 for the wording after a storm ends.
