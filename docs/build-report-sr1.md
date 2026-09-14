@@ -452,3 +452,111 @@ statusroute, plowednote) re-run on `035401f`: all RED, each log section starting
 ### For sr2 (nothing for sr1 to change)
 `app/tests/offline.spec.mjs:98` still fakes the 500 with the old text (my M2-6 note); with the Worker text confirmed above, the fake can
 copy it exactly.
+
+## Cross-review of sr2 M3a (38cc37e)
+
+Read only through git (`git diff 69076b5 38cc37e -- app/`, `git show 38cc37e:<path>`), never sr2's worktree. Checked against docs/API.md
+(clarifications 1–25) and `worker/src/index.js` (line numbers from main after M5). No code changed, no browser or server run: the
+findings come from reading the code paths end to end, and each names the path so sr2 can confirm or refute it with a spec.
+
+### Findings (most harmful first)
+
+**M3a-1. Two open tabs can void a real push that nobody undid (high; the race predates M3a, and M3a makes two tabs likelier).**
+`app/public/d/queue.js:138-144`: after a 200 or 201 the sender checks `await get(item.qid)`, and a **missing** item is read as "undone on the
+phone while this check-in was on its way", so it queues a `void` (a DELETE). But every tab of the driver page runs its own sender over the
+**same** IndexedDB store, and each sender removes an item once it's sent (`queue.js:146`). With two tabs sending at once, tab A's POST gets
+201 and removes the item; tab B's POST of the same id gets 200 `duplicate` (the Worker's idempotency, `worker/src/index.js:511`), finds the
+item gone, and queues a DELETE. The Worker accepts that undo within 15 minutes of `received_at` from the same truck (`index.js:932-941`),
+so the push is **voided**: the stop goes back to pending, it never bills, the status page loses it, and nobody tapped Undo.
+- **When two tabs happen:** a driver taps the link from a text again while an old tab is open (phone browsers keep tabs, and hidden tabs
+  still get `online` events), and **clarification 17's own flow**: the old-link tab is still open when the driver opens the new link from
+  the owner. After re-keying, both senders see items under the new key (the old tab's sender sends whatever key the item now carries,
+  `queue.js:103-105`).
+- **The Worker's side is harmless:** the same check-in under two keys, or twice under one, is one row (201 then 200). Only the app's
+  "missing means undone" inference turns the duplicate into an undo.
+- **For whom:** the owner (a push that happened doesn't bill), the client (status says not plowed), the driver (sees the stop pending again
+  after reload).
+- **Suggested fix (sr2):** make an undo explicit instead of inferring it. When Undo takes back an item that may be in flight, mark it
+  (`state: 'undone'`) rather than deleting it, and queue the DELETE only for that mark. Or run one sender per origin (`navigator.locks`
+  / BroadcastChannel). A spec with two pages of the same link sending one check-in would catch it.
+
+**M3a-2. An undo the sender made itself gets stuck on the right truck after a link reset, and is never sent (medium).** `queue.js:143`
+creates the in-flight undo `add({ qid: 'void:…', op: 'void', key: item.key, … })` **without `truck_id`**, so `rekey()` falls back to
+`truckOf(item.key)` (`queue.js:80`). That lookup reads the saved route whose `key` matches (`driver.js:50`), but the route is saved under the
+**truck id** (`driver.js:46`), so opening the new link overwrites the old key's entry for the same truck. The old key then maps to `null`,
+`null === page.truckId` is false, and the undo is marked `stuck`. It's listed as "This undo belongs to another truck's link, so this link
+cannot send it." (`driver.js:312`), which isn't true, with only "Remove from this phone". The check-in the driver undid stays plowed and
+billed. Items saved before M3a (no `truck_id`) hit the same path for photos. For whom: the driver (misleading words, an undo that can't
+happen) and the owner (a push billed that the driver took back). Fix: give that `add` the `truck_id` of the item it undoes. Also consider
+keeping a key → truck map that the route cache doesn't overwrite.
+
+**M3a-3. After End storm, queued check-ins are listed as "The owner moved these stops off this route", with an Undo that throws away real
+work (medium-low).** `driver.js:87` (`elsewhere()`) includes every queued check-in when `route.storm` is null or a different storm, and
+`driver.js:327` explains all of them as moved stops. The Worker accepts check-ins after the storm ends (API.md; clarification 9 in
+DECISIONS), so a truck that syncs after the owner taps End storm sees real, still-sending plowed stops labelled "moved off this route",
+each with **Undo** (`driver.js:430-431`: an unsent item is simply deleted from the phone). For whom: the driver, who may tidy away
+"moved" entries and lose pushes before they reach the server, and the owner who then doesn't bill them. Fix: separate wording for "the
+storm has ended" / "an earlier storm" ("Saved from the storm that ended, still sending"), and ask before an Undo that deletes an unsent
+check-in.
+
+**M3a-4. Clarification 24's cross-truck rule has no test and no negative control (medium-low, test honesty).** `app/tests/queue.spec.mjs`
+covers a same-truck link reset (check-ins only), a moved stop, and Undo on a refused check-in. No spec saves a **photo** or an **undo**
+under one truck's key and opens **another** truck's working link. `negative-relink.mjs` breaks only the 401 handling (M1 behaviour), so
+a copy whose `rekey()` ignored the truck check (`queue.js:80`) would pass the whole suite while sending photos and undos to a truck that
+answers 404 (`worker/src/index.js:939` for undo; the photo route checks the same). Clarifications 19 and 20 are tested but have no negative
+control either. For whom: the lead's QA, which can't tell the rule from its absence. Suggest a spec (truck 1 link: plowed with a photo, the
+photo PUT held; truck 1's link reset; open truck 2's link → the photo row shows "belongs to another truck's link", no PUT reaches the
+Worker under truck 2's key) plus a control removing the truck comparison.
+
+**M3a-5. A photo dropped for a stop that moved to another route leaves no visible trace (low).** `queue.js:129-131` removes the item and
+calls `onPhotoDropped`; `driver.js:593` stores the note and `driver.js:267` shows "Photo not sent: …" **only on a stop row of this route**.
+For a check-in listed under "Saved for stops on another route" the item disappears with its row, and the note has nowhere to show.
+Clarification 11 asks for the message on that stop's row. For whom: the driver (and the owner, who sees a plowed stop without a photo
+and no reason). Fix: keep a short "Photo not sent" row in the other-route section.
+
+**M3a-6. The storm-start 409 notice can surface much later, on the wrong storm (low).** `owner/owner.js:204-207` puts the API message in
+`state.stormNotice` and calls `renderTonight()` (`owner.js:125`). If that storm ended in the meantime, `renderTonight` shows "No storm on
+right now." (`owner.js:133`) and never paints the notice, which is only consumed by `paintStorm` (`owner.js:223`). The next storm started
+on that screen then opens with "A storm is already on. End it before starting another." above it. For whom: the owner, confused on the
+next storm night. Fix: clear `stormNotice` when `renderTonight` finds no storm (or show it there).
+
+**M3a-7. Nit: a re-keyed check-in whose stop isn't on this route appears twice** — once under "Saved under an old driver link"
+(`driver.js:301`, because `rekeyed_from` is set) and once under "Saved for stops on another route" (`driver.js:87`), with Undo only in the
+second. The strip counts it once. Cosmetic, but it makes the two lists harder to read.
+
+### Answers to the lead's questions
+- **How a dead key is detected:** only by a **401** on an item sent under that key (`queue.js:111-115`), kept in an in-memory set that a
+  reload empties. After a reload, items under the old key are sent once more, get 401 again, and are re-learned; that costs one refused
+  request per dead key per page load and is harmless to the Worker. A page learns its **own** key works only when its route loads
+  (`driver.js:612`), and only then re-keys (`queue.js:76`). The Worker gives 401 only for an unknown or reset key (`index.js:250`), so there are
+  no false positives.
+- **Sent to a truck that answers 404?** Check-ins: no, the Worker accepts a check-in from any truck. Photos and undos: not while `truck_id`
+  is right (`queue.js:80`); see M3a-2 for undos made without it (they're stuck rather than sent, so still no 404) and M3a-4 for the missing
+  test.
+- **Dropped without a visible row?** M3a-5 (a dropped photo for a moved stop), and M3a-3's Undo deletes unsent work from a row whose words are
+  wrong. Stuck items stay listed with Remove (`driver.js:312`), so they aren't silent.
+- **The same check-in under two keys at once?** Within one tab, no: one sender, `busy` guards it, and re-keying happens between steps. Across
+  tabs, yes (M3a-1). The Worker makes the duplicate POST harmless (one row, 201 then 200 `duplicate`), and a repeated photo PUT only rotates
+  the photo token (clarification 8). The harm is the app's undo inference, not the Worker.
+
+### Checked and consistent (no action)
+- **Owner 401 rule** (`app/public/api.js:70`): a 401 with `field` stays a form error, one without signs out. The Worker's session refusal
+  carries no `field` (`worker/src/index.js:244`), and the only owner-side 401s with a field are a wrong current PIN (field `current`) and
+  sign-in (field `pin`, which goes through `call()` anyway). `owner.js` form handlers now only bail out on a field-less 401.
+- **Storm-start 409:** the picker closes and the running storm is painted with the API's message (`owner.js:204-207`), tested in
+  `owner.spec.mjs` with the real 409 from a storm started through the API (M3a-6 is only about a storm that ended in between).
+- **Price parsing** (`owner.js:31-32`): `45`, `45.5`, `45.50`, `.50`, `45.`, `$1,200.00`, `1,200,000` accepted; `4.5.0`, `12,50` (a
+  European decimal comma is not silently read as 1250), `-5` refused on the form with the API's wording before sending (`owner.js:434`).
+  `Math.round(Number(t) * 100)` avoids float error, and the Worker still enforces 0–10 000 000. The spec checks `.50` → 50 and `45.` → 4500
+  through a real edit, and that no PUT is sent for `4.5.0`. Nit: `$ 45` (a space after the dollar sign) is refused.
+- **Status page (clarification 18):** any 404 shows the page's own text and sets `stopped`, which both the interval and the
+  `visibilitychange` listener honour (`status.js:69`, `:79-82`, `:91`). The interval is now created before the first check, which fixes an M2
+  ordering where an immediate 404 cleared a timer not yet set. A 429 isn't a 404: the page keeps its 60 s poll, and the Worker doesn't count
+  a blocked lookup toward the guard, so it recovers after 10 minutes. The spec proves the listener fires on a good link before relying on
+  "no lookup after the 404".
+- **queue.spec "a truck link reset"** measures what it claims: the owner resets the key first, so the page's first POST (old key) must get
+  401 before anything can reach the database; both rows are then asserted with `at = T`, `received_at = T + 40 min` and the truck. The relink
+  control restores M1's stop-on-401, which leaves both items unsent. "Undo on a check-in the server refused" watches for any DELETE from the
+  start of the test, and a wrongly queued undo would be sent within the 500 ms wait because undo calls `flush()`.
+- **The `@phone` tag** replaces `test.skip` for phone-width checks with a project filter (`playwright.config.mjs`), in line with clarification
+  25; the removed self-skip in `driver.spec.mjs` closes my M2-2.
