@@ -10,7 +10,8 @@ reasoning and every attempt.
 | Merge | sha | Worker unit | Worker API (`wrangler dev --local`) | Negative controls run by the lead | Playwright |
 |---|---|---|---|---|---|
 | sr1 M1 | `8863e14` | 18 / 0 / 0 | 34 / 0 / 0 | twoopt, tiers, idempotent, time: all red | n/a |
-| sr2 M1 | `110f190` | (unchanged) | (unchanged) | sr2's own queue control against its mock (not re-run by the lead: M2 moves it to the real Worker) | integration smoke, below |
+| sr2 M1 | `110f190` | 18 / 0 / 0 | 34 / 0 / 0 | a-d re-run after the merge: all red. sr2's queue control ran against its mock (M2 moves it to the real Worker) | integration smoke, below |
+| sr1 M2 | `9de4176` | 23 / 0 / 0 | 53 / 0 / 0 | a-h: all eight red | n/a |
 
 Counts are passed / failed / skipped.
 
@@ -30,3 +31,11 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | Medical, then commuter/business, then the rest | every stop put in the last tier | "tiers" fails |
 | Resending a check-in is harmless | `checkins.id` not a primary key and a plain `INSERT` | the resent skip answers 201 and is stored twice |
 | A check-in keeps the time the driver tapped | the insert stamps the sync time | stored `09:50Z` instead of the tapped `09:05Z` |
+| A skipped stop never bills | billing stops checking `kind` | Jordan (SAMPLE), skipped only, billed 1 push, $46.00 |
+| Pushes fall in the NL month | month bounds from UTC midnight | a Jan 31 11:30 PM NST push vanishes from January |
+| The CSV never hands a spreadsheet a formula | the formula guard line removed | `=SUM(A1)` written as is |
+| An undone check-in never bills | billing stops checking `voided_at` | Chris (SAMPLE), undone, billed 1 push |
+
+QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
+and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
+The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.

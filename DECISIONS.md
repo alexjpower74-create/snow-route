@@ -68,3 +68,13 @@ Alexander was asleep for this build; every real call is written here with its re
     real Worker, so nothing is graded on the mock. Removing it from a production build is a one-line deploy choice (DEPLOY.md).
 23. **A 429 is a failure, not a refusal, and a refused photo drops only the photo** (API.md clarification 11). sr2's M1 queue put
     a 429 in "Not accepted", where the driver would have to clear a check-in that would have gone through a minute later.
+
+## 2026-09-14, lead (after sr1 M2, QA at `9de4176`)
+
+24. **A blocked IP gets 429 for every status link, known ones included** (API.md 12). Answering known keys normally would tell a
+    guesser exactly when a guess hit. A client on the same Wi-Fi as a guesser waits ten minutes; that is the cheaper failure.
+25. **The rare races get closed, not documented** (API.md 15-16). A check-in landing on a stop the owner is removing at that instant
+    would bill a client who is not on the route; wrong current PINs on the PIN-change form would let a stolen session try every PIN
+    and lock the owner out. Both are one guarded statement each, so sr1 closes them in M3 rather than leaving a known gap.
+26. **Billing rules live in one pure file** (`worker/src/billing.js`, sr1's design): the SQL only fetches a padded window and the pure
+    code decides what is a push. Every billing negative control breaks one line there, so the tests prove the one place that decides.
