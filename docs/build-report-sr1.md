@@ -315,3 +315,28 @@ items in the stop list or a small "saved for other stops" row.
   `at_label` ("Mon Jan 12, 6:42 AM" → "Mon Jan 12"), which matches the Worker's full label.
 - **Headers:** `X-Driver-Key` on every driver call (`api.js:58`); JSON calls send `content-type: application/json`; the Worker needs no
   other header. The photo `<img>` carries `referrerpolicy="no-referrer"` (`status.js:210`).
+
+## M4: DONE
+
+Merged main first (`git merge --ff-only main` → bc8e3c3: API.md clarifications 17–20, DECISIONS 29–31). Code commit `3e425fb`.
+
+### What changed (Worker half of clarification 18)
+- The status route is now `^/api/status/(.*)$`, so **every** `GET /api/status/<anything>` reaches the status handler, the empty key
+  included. The old pattern `([A-Za-z0-9_-]{1,128})` sent anything else to the router's generic 404 "There's nothing here.", which never
+  counted toward the guard.
+- In the handler, a key that can't be a key (not 1–128 of `A-Z a-z 0-9 _ -`) is treated as unknown without a database lookup. It
+  goes through the same path as any unknown key: the guard check first (429 once the IP has 30 inside 10 minutes), then a guard slot,
+  then 404 "This status link doesn't work. Ask your snow clearing company for a new one."
+- `/api/status` with no slash still gets the router 404. It isn't a status link the app ever builds.
+
+### Verified
+`npm test`: **23 unit tests pass, 57 API tests pass (56 + 1 new), 0 fail, 0 skipped.** New test "status link: a mangled key answers the
+status 404 text and counts toward the unknown-key guard": a valid key with `.`, `)` or `%20` glued on, the empty key, 129 characters,
+and a valid key with 200 characters added each answer 404 with the exact status text (and `Cache-Control: no-store`). Those 6 plus 24
+more mangled lookups from one IP reach 30; the 31st (`%20`) answers 429, a **known** key from that IP answers 429, and the same known key
+from another IP answers 200.
+
+### Negative control `negative:statusroute`: RED
+Break: in the copy, the status route pattern goes back to `^/api/status/([A-Za-z0-9_-]{1,128})$`. Red output: `actual: "There's nothing
+here.", expected: "This status link doesn't work. Ask your snow clearing company for a new one."`. All **eleven** controls (a–i,
+pinguard, statusroute) were re-run on `3e425fb`: all RED, each log section starting with `=== 3e425fb …`, no machine paths in the log.
