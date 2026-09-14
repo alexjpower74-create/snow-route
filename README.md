@@ -25,8 +25,9 @@ Tests:
 
 ```sh
 cd worker && npm test          # unit + API tests against wrangler dev --local (port 7602)
-cd worker && npm run negative  # every Worker negative control; each must go red
+cd worker && npm run negative  # every Worker negative control; each must pass unbroken, then go red on its break (port 7605)
 cd app && npx playwright test  # chromium + webkit at 390 and 1280 against the real Worker (port 7603)
+cd app && npm run negative     # every app negative control, same rule (port 7606)
 ```
 
 ## What it does
