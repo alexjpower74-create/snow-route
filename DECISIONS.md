@@ -210,3 +210,6 @@ Alexander was asleep for this build; every real call is written here with its re
     right for real pushes. One optional flag lets the office store a never-arrived check-in already voided in the same statement: no window,
     no looser rule, and a real push that arrived earlier is still undone the normal way. It is BILLING, so it is fixed (DECISIONS 52): sr1 M8
     (additive, merged when QA'd) and sr2 M3f (the app sends it), with two cheap OTHER fixes in the same app files.
+58. **M3f gets no separate review round.** It sends one flag whose Worker side sr1 designed and QA'd (M8), changes one `add` to `update()`,
+    and adds a spec and negative control (l). The lead's final pinned QA runs every Worker control and every app control (a-l) on the merged
+    code, so (l) is verified by the lead, not just by its author. sr1 stays open until that QA passes, in case the Worker needs a fix.
