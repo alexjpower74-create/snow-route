@@ -307,4 +307,21 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 
 ## Clarifications
 
-(none yet)
+1. **Labels use a plain space before AM/PM.** ICU writes U+202F (narrow no-break space) before `AM`/`PM`; the Worker replaces it
+   (and U+2009) with a plain space, so labels read exactly `"6:42 AM"`. The app does the same when it formats a queued check-in.
+2. **Examples fixed.** `10:42Z` in January is 7:12 AM NST (UTC−3:30). The examples above that pair an instant with "6:42 AM" mean
+   `2026-01-12T10:12:00.000Z`. Follow the rule, never an example.
+3. **Two more test routes** (TEST_MODE only, 404 otherwise; sr1 M1): `POST /api/test/storms/:id/end` `{ "at"?: ISO }` ends a storm
+   directly in D1, and `GET /api/test/checkins?storm_id=` → `{ "checkins": [raw rows, voided included] }` so a test can count what the
+   database holds. Tests may use both; the app never does.
+4. **Deactivating a truck or client does not kill its link.** Only "New link" (`reset-link`) does. Deactivating hides it from lists
+   and from new storms; a driver with check-ins still queued on the phone must never be locked out by a tidy-up.
+5. **What the phone's queue does with each answer** (sr2): 200/201 → remove the item (then send its photo). 409 `already_plowed`,
+   400 and 404 → move it to the visible "Not accepted" list with the server's `error` text (never retried, never silently dropped).
+   401 → keep everything queued and show "This driver link doesn't work any more. Ask the owner for a new one." 5xx, 429 and network
+   errors → keep and retry with backoff. A photo PUT: 200 → remove; 413/415/404 → drop the photo only, and say so in the list; else retry.
+6. **Error texts.** sr1's wording for the cases the table does not give is adopted (docs/build-report-sr1.md, M1 choice 4), plus
+   `500 server_error` "Something went wrong on our side. Try again in a minute." for an unexpected failure.
+7. **Check-in ids** are stored lower-cased; the app sends `crypto.randomUUID()` (already lower case).
+8. **A repeat photo upload gets a new photo token**: the old `photo_url` answers 404 from then on.
+9. **Every `/api/*` JSON answer** carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`.
