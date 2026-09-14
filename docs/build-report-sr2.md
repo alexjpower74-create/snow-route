@@ -615,3 +615,18 @@ All eleven pass on the unbroken copy, then go red on the break (`app/tests/negat
 (a) queue, (b) time, (c) overlay, (d) relink, (e) billing, (f) twotabs, (g) crosstruck, (h) hst, (i) attempted, (j) missingundo: red as
 in M3d. **(k) resend** (`tests/negative-resend.mjs`: the DELETE goes without re-sending the check-in, and a 404 undo is dropped): red,
 tab B's DELETE answered **404** where the spec requires **200** (the row was not there yet), so the tapped Undo would have been lost.
+
+## M3f — 2026-09-14 (last app change, very short)
+
+Merged main (sr1 M8: `undo: true` on the check-in POST; clarifications 52–53).
+- **52 (BILLING, M3e-1):** every re-send made for an undo carries `undo: true`. A 201 with `checkin.voided: true` removes the undo with
+  no DELETE; a 200 duplicate sends the DELETE as before. Specs: the never-stored test asserts the row ends voided and **no DELETE** was
+  sent; the two-tab re-send test now expects tab B's re-send to store the check-in already voided (no DELETE) before tab A's late POST.
+  New control **(l)** `tests/negative-undoflag.mjs` drops `undo: true`.
+- **53 (M3e-2, M3e-3):** the driver's Undo adds its undo through `update()` and leaves an undo already queued for that check-in untouched.
+  The keys-store spec has a second case: a real check-in with its photo waiting under truck 1's old link, the link reset, truck 1's **new**
+  link opened (which overwrites truck 1's saved route, so only `snow-route:keys` knows the old key's truck): the photo is re-keyed, sent
+  under the new key and stored, with no stuck row.
+- **Verified:** full suite, four projects, final code (`bb90628`): **192 passed, 0 failed, 0 skipped (9.8 min).** Controls a–l, run last on 7606:
+  all twelve pass on the unbroken copy and go red on the break; (l) went red on "no DELETE" (without `undo: true` the re-send stored a live
+  check-in and a DELETE followed). The control log has 0 machine paths.
