@@ -39,6 +39,19 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | A check-in never lands on a stop being removed | the stop guard dropped from the check-in batch (both runs get the same 25 ms stand-in gap) | guarded: 0 of 10 check-ins on removed stops; broken: 10 of 10, each answering 500 |
 | Wrong current PINs on PIN change count toward the lockout | the PIN change's attempt slot removed | the 6th try answers 204 instead of 429 |
 
+## Cross-review
+
+**sr1 read sr2's M1 app code** (read only, on `6df5a27`) against docs/API.md and its own Worker. Everything the pages send and read
+matched by name and type. It found five defects that no test on either side would have caught, because each sits on the boundary:
+
+| # | Defect | Who it hurts | Adopted as |
+|---|---|---|---|
+| R1 | After "New link", a 401 on the oldest queued item stopped the whole queue, so nothing from that phone ever synced again | driver, owner, clients | API.md 17: skip the dead key, re-key to the page's working link |
+| R2 | A status link with punctuation glued on hit the router's "There's nothing here." | client | API.md 18: Worker routes every status path to its handler; app shows its own bad-link text |
+| R3 | A status page on a 404 kept re-checking on every tab switch, feeding the per-IP guard | everyone behind that IP | API.md 18: stop checking after a 404; DEPLOY.md note |
+| R4 | Undo on a refused check-in threw away the refusal and queued a DELETE that could only fail | driver, owner | API.md 19: remove locally only |
+| R5 | A queued check-in for a stop moved to another truck vanished from the screen | driver | API.md 20: "Saved for stops on another route" row |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.
