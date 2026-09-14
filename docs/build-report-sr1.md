@@ -340,3 +340,79 @@ from another IP answers 200.
 Break: in the copy, the status route pattern goes back to `^/api/status/([A-Za-z0-9_-]{1,128})$`. Red output: `actual: "There's nothing
 here.", expected: "This status link doesn't work. Ask your snow clearing company for a new one."`. All **eleven** controls (a–i,
 pinguard, statusroute) were re-run on `3e425fb`: all RED, each log section starting with `=== 3e425fb …`, no machine paths in the log.
+
+## Cross-review of sr2 M2 (in progress, 4a8c8ba)
+
+Read only through git (`git diff 110f190 4a8c8ba -- app/`, `git show 4a8c8ba:<path>`), never sr2's worktree. Checked against docs/API.md
+(clarifications 1–20) and `worker/src/index.js` as merged (line numbers from 7ca9f24). No code changed, no server run. Files:
+`app/public/owner/owner.js`, `app/public/owner/index.html`, the `api.js` / `d/queue.js` / `d/driver.js` changes since M1, and
+`app/tests/{helpers,start-worker,owner.spec,driver.spec,offline.spec,status.spec,targets.spec}.mjs`. Clarifications 17–20 are sr2 M3 work, so
+their absence here isn't a finding; only what this commit changes is measured against them.
+
+### Findings (most harmful first)
+
+**M2-1. The owner 401 handler will sign the owner out on a mistyped current PIN (medium, lands with Change PIN in sr2 M3).**
+`app/public/api.js:65-71` (`owner()`) treats **every** 401 on an owner route as a dead session: it clears the token (`:70`) and fires
+`SIGNED_OUT` (`:71`), which replaces the page with the sign-in form. But the Worker answers `PUT /api/owner/pin` with a wrong `current` as
+**401 `unauthorized` with `field: "current"`** (API.md, `worker/src/index.js:632`) while the session stays valid on the server. Today no page
+calls that route, so nothing breaks yet. Once Settings → Change PIN is built on `owner()`, one typo in "current PIN" throws the owner out
+of a working session, loses what they typed, and hides "That PIN is not right." behind "Please sign in again". For whom: the owner.
+Suggested rule for sr2: a 401 **with a `field`** is a form error shown by that field; only a 401 **without** `field` means the session
+ended. (Wrong current PINs also count toward the sign-in guard, clarification 16, so the page should show a 429 there as a message, not a
+sign-out.)
+
+**M2-2. The Undo spec can skip itself on the exact failure it should catch (medium, test honesty).** `app/tests/driver.spec.mjs:59-61`
+probes `DELETE /api/driver/checkins/<zero uuid>` and calls `test.skip` when the answer is 404 with the router's text "There's nothing here.".
+That made sense before sr1 M2 was merged. Now it means a Worker that **lost** the undo route (a bad merge, a router typo) would show as
+*skipped*, not red, and "Undo puts the stop back to pending" would silently stop being measured. With the route present the probe answers
+404 "We couldn't find that check-in." (`worker/src/index.js:937`), so the skip never fires today. For whom: the lead's pinned QA, where a
+skip can pass for green. Fix: remove the probe and the skip, since sr1 M2 is on main.
+
+**M2-3. A storm started elsewhere leaves the owner on a dead picker (low-medium).** `app/public/owner/owner.js:201-204`: a failed
+`POST /api/owner/storms` shows the error by the field or in `#form-error` and re-enables "Build tonight's route". A **409 `bad_state`**
+"A storm is already on. End it before starting another." (`worker/src/index.js:376`) happens when the storm was started from another
+device (the owner's phone and a desktop), or in another tab. The owner then sees the refusal but stays on the picker with no way to the
+running storm except switching tabs, and pressing Build again only repeats the 409. For whom: the owner with two screens, on a storm night.
+Fix: on 409 `bad_state`, clear `state.picking` and call `renderTonight()` (which loads the current storm).
+
+**M2-4. Some ordinary price entries are refused (low).** `app/public/owner/owner.js:30-32` (`dollarsToCents`) accepts `45`, `45.5`, `45.50`
+and `$1,200.00`, but `/^\d+(\.\d{1,2})?$/` refuses `.50` and `45.`, sending `price_cents: null`, so the owner gets "Type a price in dollars and
+cents." for a price they typed in dollars and cents. For whom: the owner typing on a phone keypad. Fix: allow `\d*\.\d{1,2}` and a
+trailing dot. Conversion is otherwise right: `Math.round(Number(t) * 100)` fixes float error (`0.29` → 29), and the Worker still enforces
+0–10 000 000.
+
+**M2-5. Note for clarification 17 (sr2 M3): re-keying must stay on the same truck for photos and undos (low, forward-looking).** The
+Worker only accepts a photo PUT and an undo DELETE from the truck that made the check-in (`worker/src/index.js:517` photo, `:937` undo; both
+404 otherwise). A pending `photo` or `void` item re-keyed to a *different* truck's key (one phone used by two trucks' drivers) will get 404.
+With `app/public/d/queue.js:102` a photo 404 drops the photo (clarification 11), and a void 404 goes to "Not accepted". New check-in POSTs
+re-keyed to another truck are fine: the Worker records the sending truck. For whom: the driver who shares a phone. Suggest sr2 re-key only
+check-in items, or only items under a dead key of the **same** truck (the old key's route answer carried `truck.id`).
+
+**M2-6. Nit: the faked 500 in the offline spec still carries the old 500 text.** `app/tests/offline.spec.mjs:98` fulfills
+`{ error: 'Something went wrong on our side. Please try again.' }`; clarification 6 made it "Something went wrong on our side. Try again in
+a minute.". The spec asserts the strip, not this text, so nothing fails. Worth matching so the fake stays a faithful copy of the Worker.
+
+### Checked and consistent (no action)
+- **Sign-in:** uses `call()`, not `owner()` (`api.js:84`), so a wrong PIN (401 `field: pin`) and a 429 stay on the form with the API's text
+  (`owner.js:87-88`); the token goes in `localStorage` `snow-route:owner-token`; sign-out answers 204 with an empty body, which `send()`
+  handles (`data` null). An expired token on page load → the first owner call answers 401 → the sign-in form with "Please sign in again."
+- **Client POST/PUT bodies** (`owner.js:417-423`): every field in the API table, `active` always sent (PUT needs it), `opens_at` `null` when
+  the time input is empty, `truck_id` as a number or `null`, `lat`/`lng` `null` without a pin (→ 400 field `lat`, shown at `#err-lat`, also
+  exercised by `owner.spec.mjs:38-42`). Field errors land on `#err-<field>` for name, address, type, priority, opens_at, notes, billing,
+  price_cents, truck_id; `active` falls back to `#form-error`. The pin is rounded to 5 decimals (`owner.js:25`, `:363`, `:387`); the Worker's
+  NL box check refuses a pin dropped outside Newfoundland and Labrador.
+- **Lists:** clients with `?include_inactive=1` (active first, as the Worker sorts), trucks (active first), the picker ticks active ones only.
+- **Storm start body** (`owner.js:195-198`): `client_ids` and `truck_ids` as number arrays in list order; `err-client_ids` / `err-truck_ids`
+  match the API's field names. **Storm reading** (`owner.js:214-262`): `name, started_label, counts.{plowed, skipped, pending}, order_note,
+  trucks[].{id, name, stops[]}` and Stop `client_id, position, name, address, lat, lng, priority, priority_label, status, checkin.{at_label,
+  photo, reason_text}`, all present with those names in the owner view. `messages` isn't read yet (sr2 M3).
+- **Clarification 11:** a 429 is now a failure that keeps the item (`queue.js:88`); a photo refused 404/413/415 removes the item and shows
+  "Photo not sent: <server message>" on the stop row (`queue.js:102`, `driver.js` `statusLine`); other photo answers retry (`queue.js:106`).
+  Resetting backoff on `online` (`queue.js:171`) is harmless to the Worker.
+- **Specs and the API:** state set through the API (storm start, sign-in token, raw `/api/test/checkins` counts) is arranging and reading
+  data, and each such step also has a UI test that does it through the page (`owner.spec.mjs` starts a storm and adds a client by tapping the
+  map). Every test resets first, which also clears the rate-guard table, so the e2e suite's shared 127.0.0.1 never trips the sign-in or status
+  guards. `offline.spec.mjs` pins the server clock with `X-Test-Now` on the page's own requests and checks `at` / `received_at` / `at_adjusted` on
+  the raw rows, which matches the Worker's time rule. `status.spec.mjs:46` uses a key-shaped unknown key; since sr1 M4, a mangled key gets the
+  same text too.
+- **Headers:** `Authorization: Bearer` only on owner routes, `X-Driver-Key` only on driver routes, JSON content type on bodies.
