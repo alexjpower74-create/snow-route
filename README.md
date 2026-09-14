@@ -69,6 +69,8 @@ Optional custom domain.
 - Known gaps (settled so far; the final list is in `docs/build-report.md`):
   - **No address search.** The owner places each pin by tapping the map (no geocoding service tonight, DECISIONS.md 14).
   - **Route order is straight-line distance**, not road time; business opening times are shown, not used to reorder.
+  - **Dragging a stop does not scroll the page.** On a long route, a stop far down the list is moved with Move up / Move down (or Move
+    to Truck N) instead.
   - **The driver's Undo lasts 15 minutes.** After that only a future owner-side edit could fix a wrong check-in.
   - **One deployment per contractor.** Hosting many contractors from one Worker is a later change.
   - **Map tiles** are OpenStreetMap's standard tiles, fine for one contractor's owner screens; many contractors need a tile provider.
