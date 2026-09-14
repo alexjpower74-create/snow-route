@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <title>Snow Route</title>
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="landing">
+  <main class="landing-wrap">
+    <article class="landing-card">
+      <header class="status-head" id="brand"><div class="brand"><span class="company" data-company-name>Snow Route</span></div></header>
+      <h1 class="landing-title">Snow Route</h1>
+      <p class="lead">Tonight's route, a Plowed button with a photo at each stop, a status link for every client, and a month-end count for billing.</p>
+      <a class="btn btn-nav" id="owner-signin" href="/owner/">Owner sign-in</a>
+      <p class="muted">Drivers and clients use the links the owner sends them.</p>
+    </article>
+  </main>
+  <script type="module">
+    import { api } from '/api.js'
+    import { brandBar } from '/ui.js'
+    try {
+      const company = await api.company()
+      document.getElementById('brand').innerHTML = brandBar(company)
+      document.title = `Snow Route · ${company.name}`
+    } catch {}
+  </script>
+</body>
+</html>

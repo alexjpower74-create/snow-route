@@ -1,0 +1,39 @@
+== 2026-09-14T08:30:09Z M1 negative control: queue removes an item before the server answers (copy in app/.negative/m1-queue, served on 7606), shots-m1.mjs --only offline --engine chromium. Expect RED.
+mock chromium-390 offline
+  FAIL offline: page.waitForFunction: Timeout 8000ms exceeded.
+mock chromium-1280 offline
+  FAIL offline: locator.scrollIntoViewIfNeeded: Element is not attached to the DOM
+node:internal/process/promises:324
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.waitForEvent: Target page, context or browser has been closed
+=========================== logs ===========================
+waiting for event "filechooser"
+============================================================
+    at offline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/shots-m1.mjs:215:26)
+    at async file:///home/alexander/Projects/Snow%20Route/.worktrees/sr2/app/tests/shots-m1.mjs:317:9 {
+  log: []
+}
+
+Node.js v26.8.2
+exit 1 -> RED as expected: control is wired
+
+== 2026-09-14T08:31:52Z M1 negative control (run 2, after the paint fix): the copy's queue removes an item before the server answers (app/.negative/m1-queue on 7606); shots-m1.mjs --only offline --engine chromium. Expect RED.
+mock chromium-390 offline
+  FAIL offline: page.waitForFunction: Timeout 8000ms exceeded.
+mock chromium-1280 offline
+  FAIL offline: page.waitForFunction: Timeout 8000ms exceeded.
+
+0 passed, 2 failed
+exit 1 -> RED as expected: the check is wired
+
+== 2026-09-14T08:32:45Z M1 negative control (run 3, named check): the copy's queue removes an item before the server answers (app/.negative/m1-queue on 7606); shots-m1.mjs --only offline --engine chromium. Expect RED.
+mock chromium-390 offline
+  FAIL offline Plowed is kept on the phone and the next stop shows (counter still says Stop 3 of 12)
+mock chromium-1280 offline
+  FAIL offline Plowed is kept on the phone and the next stop shows (counter still says Stop 3 of 12)
+
+0 passed, 2 failed
+exit 1 -> RED as expected: the check is wired
+

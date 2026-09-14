@@ -1,0 +1,67 @@
+/* Snow Route design tokens (PLAN.md, Design). Night-shift truck cab first: dark, calm, very high contrast.
+   System fonts only, so the driver page works with no signal. */
+:root {
+  color-scheme: dark;
+  --ground: #0b1220;
+  --surface: #131c2e;
+  --raised: #1a2540;
+  --line: rgba(255, 255, 255, 0.10);
+  --text: #eef3fb;
+  --muted: #a3b3cc;
+  --accent: #7cc4ff;
+
+  --plowed-bg: #15803d;
+  --plowed-ink: #ffffff;
+  --skip-bg: #f59e0b;
+  --skip-ink: #1a1200;
+  --nav-bg: #1d4ed8;
+  --nav-ink: #ffffff;
+
+  --st-pending: #a3b3cc;
+  --st-plowed: #4ade80;
+  --st-skipped: #fbbf24;
+  --sample: #fbbf24;
+  --danger: #fca5a5;
+
+  --radius: 14px;
+  --gap: 16px;
+  --tap: 56px;        /* the floor for anything a driver taps */
+  --action: 76px;     /* driver action buttons */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
