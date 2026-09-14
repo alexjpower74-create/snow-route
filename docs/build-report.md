@@ -14,6 +14,7 @@ reasoning and every attempt.
 | sr1 M2 | `9de4176` | 23 / 0 / 0 | 53 / 0 / 0 | a-h: all eight red | n/a |
 | sr1 M3 | `6df5a27` | 23 / 0 / 0 | 56 / 0 / 0 | a-h, stoprace, pinguard: all ten red | n/a |
 | sr1 M4 | `7ca9f24` | 23 / 0 / 0 | 57 / 0 / 0 | the ten above plus statusroute: all eleven red | n/a |
+| sr1 M5 | `a3c0a1b` | 26 / 0 / 0 | 58 / 0 / 0 | the eleven above plus plowednote: all twelve red | n/a |
 | sr2 M2 | `69076b5` | (Worker as `7ca9f24`) | (as `7ca9f24`) | app: queue, time, overlay: all red | 56 / 0 / 4 (the 4 skips: two phone-width checks on each 1280 project, replaced by project filters in sr2 M3a) |
 
 Counts are passed / failed / skipped.
