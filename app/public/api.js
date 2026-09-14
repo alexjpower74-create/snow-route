@@ -75,6 +75,29 @@ async function owner(method, path, json) {
 }
 
 const q = encodeURIComponent
+
+// The accountant's CSV: a real fetch with the token (not JSON), answered as { blob, filename } for a download link.
+async function ownerCsv(path) {
+  const token = session.get()
+  let res
+  try {
+    res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' })
+  } catch {
+    throw new ApiError(0, NO_SIGNAL)
+  }
+  if (!res.ok) {
+    let data = null
+    try { data = await res.json() } catch {}
+    if (res.status === 401 && !data?.field) {
+      session.clear()
+      window.dispatchEvent(new CustomEvent(SIGNED_OUT, { detail: data?.error || '' }))
+    }
+    throw new ApiError(res.status, data)
+  }
+  const disposition = res.headers.get('content-disposition') || ''
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] || 'snow-route.csv'
+  return { blob: await res.blob(), filename }
+}
 const driverHeaders = (key) => ({ 'X-Driver-Key': key })
 
 export const api = {
@@ -91,6 +114,22 @@ export const api = {
     currentStorm: () => owner('GET', '/api/owner/storms/current'),
     startStorm: (body) => owner('POST', '/api/owner/storms', body),
     storm: (id) => owner('GET', `/api/owner/storms/${q(id)}`),
+    storms: () => owner('GET', '/api/owner/storms'),
+    saveRoute: (id, trucks) => owner('PUT', `/api/owner/storms/${q(id)}/route`, { trucks }),
+    addStop: (id, body) => owner('POST', `/api/owner/storms/${q(id)}/stops`, body),
+    endStorm: (id) => owner('POST', `/api/owner/storms/${q(id)}/end`),
+    summary: (id) => owner('GET', `/api/owner/storms/${q(id)}/summary`),
+    clientMessages: (id) => owner('GET', `/api/owner/clients/${q(id)}/messages`),
+    resetClientLink: (id) => owner('POST', `/api/owner/clients/${q(id)}/reset-link`),
+    createTruck: (body) => owner('POST', '/api/owner/trucks', body),
+    updateTruck: (id, body) => owner('PUT', `/api/owner/trucks/${q(id)}`, body),
+    resetTruckLink: (id) => owner('POST', `/api/owner/trucks/${q(id)}/reset-link`),
+    billingMonths: () => owner('GET', '/api/owner/billing/months'),
+    billing: (month) => owner('GET', `/api/owner/billing?month=${q(month)}`),
+    billingCsv: (month) => ownerCsv(`/api/owner/billing.csv?month=${q(month)}`),
+    company: () => owner('GET', '/api/owner/company'),
+    saveCompany: (body) => owner('PUT', '/api/owner/company', body),
+    changePin: (body) => owner('PUT', '/api/owner/pin', body),
   },
   driver: {
     route: (key) => call('GET', '/api/driver/route', { headers: driverHeaders(key) }),

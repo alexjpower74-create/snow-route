@@ -335,3 +335,90 @@ Each passes on its unbroken copy first, then goes red on the break (`app/tests/n
   test a wrong current PIN staying on the form.
 - The in-test proof that `visibilitychange` reaches the status page uses a dispatched event, because headless Playwright cannot
   produce a real one. A real phone switching tabs fires the same event.
+
+## M3b — 2026-09-14
+
+Merged main first (sr1 M5). In-progress commit `7a9876c` (route editing and End storm, for sr1's early review); code `7774fa4`;
+the phone tab fix and this report in the final commit.
+
+### Built (DONE)
+- **Tonight.** Each stop has a drag handle (pointer events with pointer capture, `touch-action: none`, a drop line showing where it
+  lands, across trucks too), **Move up / Move down** (disabled at the ends), and **Move to <other truck>**. Every change goes through
+  `PUT /route`; a 409 (or a 400 on `trucks`, the stop set changed) reloads the storm and shows the API's message above it.
+  **Add a stop** (client and truck selects, appended by the Worker). **Texts to copy** per stop from its `messages` (clipboard, then
+  "Copied"; if the browser refuses, the text is shown to select). **End storm** with an inline confirm ("Keep it going" / "Yes, end
+  the storm"), then the **summary** at `#storm/<id>`: tiles (stops, plowed, skipped, not reached, pushes to bill), a per-truck
+  table (plowed, skipped, not reached, first and last check-in), skipped stops with reason, time and a copy button for the
+  "skipped" text, and the not-reached list. **Past storms** under Tonight open their summaries. The storm view refreshes every 30 s,
+  except while a confirm, a form, a drag, a save or an open text list is on screen.
+- **Trucks.** Add, Rename (inline form), Deactivate / Make active again, driver link with Copy link, **New link** with an inline
+  confirm that says the old link stops working at once (and that check-ins saved under it send when the new link is opened).
+- **Clients.** In the edit form: the status link, its "status link" text with **Copy status text**, **New status link** with an
+  inline confirm, and **Deactivate client** / Make active again (the active checkbox is gone; one clear button instead).
+- **Billing.** Month select from `/billing/months` plus the current NL month (months without pushes say so), opening on the newest
+  month with pushes; table of client, billing, pushes, push dates, price, amount, HST, total with a totals row; the seasonal note;
+  **Download CSV for the accountant** (fetch with the token, then a blob download named from `Content-Disposition`). The pushes cell
+  is `pushesOf(row)`, which returns the API row's count and nothing else.
+- **Settings.** Company name, yard name, the yard pin (tap the map or drag), Save; **Change PIN** (current, new). A 401 with
+  `field: current` is shown by that field and the owner stays signed in; a 429 is a message on the form (clarification 21).
+- **Design fixes from the lead's screenshots.** (1) At ≥ 900 px the map column is `align-self: start; position: sticky; top: 16px`
+  with a viewport-based height, so it stays on screen while the list scrolls. (2) Medical client pins were red (`#f87171`, not a
+  token): they are now white (`--text`) with an ice-blue ring, other clients ice blue (`--accent`), and the Clients map has a legend
+  (Client, Medical client (goes first), Yard). Truck lines now use tokens too (ice blue, white, grey) and the Tonight legend names them.
+- **Layout bugs the final screenshots showed (fixed):** table number cells used the class `.num`, which is also the round stop-number
+  badge, so billing and summary numbers drew as overlapping circles; they are `.cell-num` now. At 390 the five owner tabs did not fit
+  and scrolled "Tonight" out of sight; below 520 px they wrap onto two rows.
+
+### Specs (all against the real Worker)
+- `route-edit.spec.mjs`: **@desktop** a real `page.mouse` drag of stop 3's handle (hit-tested first) above stop 1 → the PUT answers
+  200, the list and the Worker have `[3, 1, 2, …]`, a reload keeps it, and the driver page shows that stop as Stop 1. **@phone** Move up
+  and Move down (each checked through the API), then Move to Truck 2 → last on truck 2, and both drivers' pages agree. A stop added
+  through the API from "another screen" → a Move up built from the old list is refused, the page shows the Worker's message and the
+  reloaded route has the added stop. Add a stop through the page → last on the chosen truck.
+- `storm-end.spec.mjs`: one plowed and one "Gate locked" skip arranged through the driver API; End storm → Keep it going (still on)
+  → End storm → Yes → the summary: the skip with "Gate locked at <the API's at_label>" and its copy button, not reached = stops − 2
+  (count and list), plowed 1, the truck row 1 / 1 / 11; the driver page says "No storm on right now"; Back to Tonight → Past storms
+  lists it and reopens the summary.
+- `billing.spec.mjs`: a storm with Pat ($45 per push), SAMPLE Clinic walkway ($50 per push) and Taylor (seasonal) on truck 1; the
+  driver page plows the first two and skips Taylor; the owner page ends the storm and opens Billing. Checked: the select opens on
+  the newest month with pushes; the API's rows against the rule written out in the test (amount = pushes × price, HST
+  `floor((amount × 15 + 50) / 100)`, seasonal 0, totals); **every** API row against its table row, cell by cell; Taylor's pushes
+  **0** and no dates; the totals row; the seasonal note; the CSV download's filename, CRLF, header, and every CSV row against the
+  table row, plus the total row.
+- `copy.spec.mjs`: a stop's "on the route" text and a client's status text → "Copied" and, in Chromium (clipboard permissions
+  granted), the clipboard holds the exact API text. **WebKit:** "Copied" is checked and only the clipboard read is skipped, as a
+  test annotation: Playwright cannot grant clipboard-read in WebKit.
+- `settings.spec.mjs`: wrong current PIN → the PUT answers 401, "That PIN is not right." by the field, no form-wide error, still
+  signed in (token kept, Clients loads 25); right PIN → 204 and the message; sign out; the old PIN is refused and the new PIN signs in.
+  Five wrong tries → the sixth answers 429 → "Too many tries. Wait 15 minutes and try again." on the form, still signed in. Company
+  name, yard name and a yard pin tapped on the map save, the bar shows the new name (still SAMPLE), and the API has the new yard.
+- `owner.spec.mjs` adds **@desktop** "the map stays on screen": after real wheel scrolling past 1500 px, the map's box is inside the
+  viewport, hit-tests to itself, and its attribution is in view; the Clients legend has its three entries, the medical pin is
+  `rgb(238, 243, 251)`, the other pins `rgb(124, 196, 255)`, and the legend dot matches the pin.
+- `shots.spec.mjs`: every screen for each project on the Worker's demo seed, each checked for its key element before the picture
+  (landing, sign-in, Tonight, Tonight with a stop's texts open and Add a stop, End storm confirm, Clients, client edit with the status
+  link, Trucks with the New link confirm, Billing, Settings, a past storm's summary, Tonight with no storm and past storms, Start a
+  storm, driver, driver skip sheet, client status). 96 files in `app/tests/shots/`.
+- Project filtering: `@phone` tests are not run by the 1280 projects and `@desktop` tests are not run by the 390 projects
+  (`grepInvert`), so nothing is reported as skipped.
+
+### Verified
+Full suite, four projects, on the final code: **122 passed, 0 failed, 0 skipped (4.9 min).**
+
+### Negative controls, run last (7606 free), on the final code
+Each passes on its unbroken copy first, then goes red on the break (`app/tests/negative-control.log`):
+
+| control | break (copy only) | red |
+|---|---|---|
+| (a) queue | removes the item before sending | expected "SAMPLE Pharmacy lot", received "Pat (SAMPLE)" |
+| (b) time | sends `at` = phone clock at send time | expected `…09:00:00.000Z`, received `…09:40:00.000Z` |
+| (c) overlay | transparent element over Plowed | "Plowed: hit-tests to itself", received the overlay `<div>` |
+| (d) relink | stops the whole queue on a 401 | expected "All sent", received "This driver link doesn't work any more. … 2 items still saved on this phone." |
+| **(e) billing** (`tests/negative-billing.mjs`) | the billing screen shows pushes as the client's storm-stop count, not the API row | "Taylor (SAMPLE): pushes", expected "0", received "1" |
+
+### Left undone / for the lead
+- Removing a stop from a storm (`DELETE …/stops/:client_id`) has no button: PLAN lists "Add a stop" only.
+- Drag to reorder does not scroll the page while dragging; a stop far down a long list is moved with Move up / Move down, or by
+  dragging in steps. Both are real input and both are tested.
+- The summary's copy buttons come from the storm view's `messages` (the summary JSON has no messages), so a past storm's summary makes
+  two requests.

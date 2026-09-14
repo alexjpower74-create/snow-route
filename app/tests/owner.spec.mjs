@@ -158,3 +158,37 @@ test('price input: .50 and 45. are prices; 4.5.0 is refused on the form without 
   expect(await priceOf('Alex (SAMPLE)')).toBe(4500)
   expect(puts).toHaveLength(2)
 })
+
+test('at 1280 the map stays on screen while the long route list scrolls, and the Clients map explains its pin colours @desktop', async ({ page, request }) => {
+  await startStorm(request, await ownerToken(request))
+  await signIn(page)
+  await expect(page.locator('.route-pin')).toHaveCount(25)
+  const map = page.locator('#map')
+  const vh = page.viewportSize().height
+  // Real wheel input, well past the top of the map's column.
+  await page.mouse.move(300, 400)
+  for (let i = 0; i < 8; i++) {
+    await page.mouse.wheel(0, 500)
+    await page.waitForTimeout(80)
+  }
+  expect(await page.evaluate(() => window.scrollY), 'the page scrolled').toBeGreaterThan(1500)
+  const box = await map.boundingBox()
+  expect(box.y, 'map top is on screen').toBeGreaterThanOrEqual(0)
+  expect(box.y + box.height, 'map bottom is on screen').toBeLessThanOrEqual(vh)
+  expect((await hitTest(map)).hit, 'nothing covers the map').toBe('')
+  const attribution = map.locator('.leaflet-control-attribution')
+  await expect(attribution).toBeInViewport()
+
+  await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
+  await expect(page.locator('.leaflet-marker-icon.pin-client')).toHaveCount(25)
+  const legend = page.locator('#clients-legend')
+  await expect(legend).toContainText('Client')
+  await expect(legend).toContainText('Medical client (goes first)')
+  await expect(legend).toContainText('Yard')
+  const medical = await page.locator('.leaflet-marker-icon.pin-client.is-medical').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  const plainPin = await page.locator('.leaflet-marker-icon.pin-client:not(.is-medical)').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(medical, 'medical pins use the text token').toBe('rgb(238, 243, 251)')
+  expect(plainPin, 'client pins use the accent token').toBe('rgb(124, 196, 255)')
+  const legendMedical = await legend.locator('.legend-dot.is-medical').evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(legendMedical, 'the legend dot matches the pin').toBe(medical)
+})
