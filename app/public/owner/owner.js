@@ -23,7 +23,7 @@ const GRIP = '<svg aria-hidden="true" width="18" height="24" viewBox="0 0 18 24"
 const app = document.getElementById('app')
 const state = {
   company: null, clients: [], trucks: [], storm: null, editing: null, pin: null, picking: null, notice: '', stormNotice: '',
-  confirm: null, adding: false, saving: false, renaming: null, addingTruck: false, billingMonth: null, yardPin: null,
+  confirm: null, adding: false, saving: false, renaming: null, addingTruck: false, billingMonth: null, yardPin: null, stopErrors: {},
 }
 let map = null
 let pinMarker = null
@@ -57,8 +57,19 @@ function where() {
   const h = location.hash.slice(1)
   const m = /^storm\/(\d+)$/.exec(h)
   if (m) return { view: 'tonight', summary: Number(m[1]) }
+  if (h === 'past') return { view: 'tonight', summary: null, past: true }
   return { view: VIEWS.some(([id]) => id === h) ? h : 'tonight', summary: null }
 }
+
+// The notice above Tonight, used once. A needsStorm notice ("a storm is already on") is dropped when no storm is found (clarification 31).
+function takeNotice(hasStorm) {
+  const n = state.stormNotice
+  state.stormNotice = ''
+  if (!n) return ''
+  if (typeof n === 'string') return n
+  return !n.needsStorm || hasStorm ? n.text : ''
+}
+const noticeHtml = (text) => (text ? `<p class="notice" id="storm-notice" role="alert">${esc(text)}</p>` : '')
 
 /* ---- copy buttons ------------------------------------------------------------ */
 function copyButton(text, label, extra = '') {
@@ -178,6 +189,7 @@ async function render() {
   clearInterval(stormTimer)
   try {
     if (w.summary) await renderSummary(w.summary)
+    else if (w.past) await renderPast()
     else if (w.view === 'clients') await renderClients()
     else if (w.view === 'trucks') await renderTrucks()
     else if (w.view === 'billing') await renderBilling()
@@ -197,27 +209,44 @@ async function renderTonight() {
   if (state.picking) return paintPicker()
   stopMap()
   const { storms } = await api.owner.storms()
-  const notice = state.stormNotice
-  state.stormNotice = ''
+  const notice = takeNotice(false)
   $('view').innerHTML = `
     <section class="panel narrow">
-      ${notice ? `<p class="notice" id="storm-notice" role="alert">${esc(notice)}</p>` : ''}
+      ${noticeHtml(notice)}
       <h1 class="view-title">Tonight</h1>
       <p class="lead">No storm on right now.</p>
       <button class="btn btn-nav btn-inline" id="start-storm" type="button" data-action="start-picking">Start a storm</button>
       <h2 class="section-title">Past storms</h2>
-      ${storms.length ? `
-        <ul class="past-list" id="past-storms">
-          ${storms.map((s) => `
-            <li class="past-row" data-storm-id="${s.id}">
-              <div class="row-main">
-                <span class="row-name">${esc(s.name)}</span>
-                <span class="row-addr">${esc(s.started_label)}${s.ended_label ? ` to ${esc(s.ended_label)}` : ''}</span>
-                <span class="row-meta muted">${s.counts.plowed} of ${plural(s.counts.stops, 'stop')} plowed · ${s.counts.skipped} skipped</span>
-              </div>
-              <a class="btn-small" href="#storm/${s.id}" aria-label="Open the summary of ${esc(s.name)}">Open summary</a>
-            </li>`).join('')}
-        </ul>` : '<p class="muted" id="past-storms">No storms yet.</p>'}
+      ${pastList(storms)}
+    </section>`
+}
+
+function pastList(storms) {
+  const ended = storms.filter((s) => s.status === 'ended')
+  if (!ended.length) return '<p class="muted" id="past-storms">No storms yet.</p>'
+  return `
+    <ul class="past-list" id="past-storms">
+      ${ended.map((s) => `
+        <li class="past-row" data-storm-id="${s.id}">
+          <div class="row-main">
+            <span class="row-name">${esc(s.name)}</span>
+            <span class="row-addr">${esc(s.started_label)}${s.ended_label ? ` to ${esc(s.ended_label)}` : ''}</span>
+            <span class="row-meta muted">${s.counts.plowed} of ${plural(s.counts.stops, 'stop')} plowed · ${s.counts.skipped} skipped</span>
+          </div>
+          <a class="btn-small" href="#storm/${s.id}" aria-label="Open the summary of ${esc(s.name)}">Open summary</a>
+        </li>`).join('')}
+    </ul>`
+}
+
+// Past storms while a storm is on (clarification 36).
+async function renderPast() {
+  stopMap()
+  const { storms } = await api.owner.storms()
+  $('view').innerHTML = `
+    <section class="panel narrow">
+      <a class="btn-small" href="#tonight">Back to Tonight</a>
+      <h1 class="view-title">Past storms</h1>
+      ${pastList(storms)}
     </section>`
 }
 
@@ -290,7 +319,7 @@ async function buildRoute() {
     if (e.status === 409 && e.code === 'bad_state') {
       // A storm was started on another screen: close the picker and show it, with the API's message (clarification 22).
       state.picking = null
-      state.stormNotice = e.message
+      state.stormNotice = { text: e.message, needsStorm: true }
       return renderTonight()
     }
     ;($(`err-${e.field}`) || $('form-error')).textContent = e.message
@@ -319,7 +348,17 @@ function stopItem(st, truck, index, trucks) {
           <button class="btn-small" type="button" data-action="move-up" data-client="${st.client_id}"${index === 0 ? ' disabled' : ''}>Move up</button>
           <button class="btn-small" type="button" data-action="move-down" data-client="${st.client_id}"${index === truck.stops.length - 1 ? ' disabled' : ''}>Move down</button>
           ${others.map((o) => `<button class="btn-small" type="button" data-action="move-truck" data-client="${st.client_id}" data-to="${o.id}">Move to ${esc(o.name)}</button>`).join('')}
+          ${st.checkin ? '' : `<button class="btn-small" type="button" data-action="remove-stop" data-client="${st.client_id}">Remove from tonight</button>`}
         </div>
+        ${state.confirm === `remove-${st.client_id}` ? `
+          <div class="confirm remove-confirm" role="group" aria-labelledby="remove-text-${st.client_id}">
+            <p id="remove-text-${st.client_id}"><strong>Take ${esc(st.name)} off tonight's route?</strong> The driver stops seeing this stop, and nothing is billed for it.</p>
+            <div class="form-actions">
+              <button class="btn-small btn-warn" type="button" data-action="remove-yes" data-client="${st.client_id}">Yes, remove it</button>
+              <button class="btn-small" type="button" data-action="remove-no">Keep it</button>
+            </div>
+          </div>` : ''}
+        ${state.stopErrors[st.client_id] ? `<p class="field-error stop-error" role="alert">${esc(state.stopErrors[st.client_id])}</p>` : ''}
         ${messagesBlock(st.messages)}
       </div>
     </li>`
@@ -354,10 +393,9 @@ function addStopForm() {
 
 function paintStorm() {
   const s = state.storm
-  const notice = state.stormNotice
-  state.stormNotice = ''
+  const notice = takeNotice(true)
   $('view').innerHTML = `
-    ${notice ? `<p class="notice" id="storm-notice" role="alert">${esc(notice)}</p>` : ''}
+    ${noticeHtml(notice)}
     <div class="storm-head">
       <h1 class="view-title">${esc(s.name)}</h1>
       <p class="muted">Started ${esc(s.started_label)} · ${s.counts.plowed} plowed · ${s.counts.skipped} skipped · ${s.counts.pending} to go</p>
@@ -365,6 +403,7 @@ function paintStorm() {
       <div class="storm-actions">
         <button class="btn-small" id="add-stop" type="button" data-action="add-stop">Add a stop</button>
         <button class="btn-small btn-warn" id="end-storm" type="button" data-action="end-storm">End storm</button>
+        <a class="btn-small" id="past-storms-link" href="#past">Past storms</a>
       </div>
       ${state.confirm === 'end' ? `
         <div class="confirm" id="end-confirm" role="group" aria-labelledby="end-confirm-text">
@@ -436,20 +475,21 @@ async function refreshStorm() {
 
 const routeLists = () => state.storm.trucks.map((t) => ({ truck_id: t.id, client_ids: t.stops.map((s) => s.client_id) }))
 
-// Every route change goes through the route PUT. A 409 (the route changed underneath) reloads and says so.
+// Every route change goes through the route PUT with the route_version of the Storm on screen. A 409 (the route changed on another
+// screen) reloads and says so (clarification 32).
 async function saveRoute(lists) {
   if (state.saving) return
   state.saving = true
   document.querySelectorAll('.stop-tools button, .drag-handle').forEach((b) => { b.disabled = true })
   try {
-    state.storm = await api.owner.saveRoute(state.storm.id, lists)
+    state.storm = await api.owner.saveRoute(state.storm.id, lists, state.storm.route_version)
     state.saving = false
     paintStorm()
   } catch (e) {
     state.saving = false
     if (e.status === 401 && !e.field) return
-    if (e.status === 409 || (e.status === 400 && e.field === 'trucks')) {
-      state.stormNotice = e.message
+    if (e.status === 409) {
+      state.stormNotice = { text: e.message, needsStorm: false } // the route changed, or the storm ended on another screen
       return renderTonight()
     }
     paintStorm()
@@ -538,6 +578,12 @@ async function addStop() {
     paintStorm()
   } catch (e) {
     if (e.status === 401 && !e.field) return
+    if (e.status === 409) {
+      // The storm ended (or changed) on another screen: close the form and repaint Tonight with the message (clarification 36).
+      state.adding = false
+      state.stormNotice = { text: e.message, needsStorm: false }
+      return renderTonight()
+    }
     ;($(`err-${e.field}`) || $('add-stop-error')).textContent = e.message
     btn.disabled = false
   }
@@ -552,8 +598,39 @@ async function endStorm() {
     location.hash = `#storm/${r.storm.id}`
   } catch (e) {
     if (e.status === 401 && !e.field) return
+    if (e.status === 409) {
+      // Ended on another screen: close the confirm and show that storm's summary with the message (clarification 36).
+      state.confirm = null
+      state.stormNotice = { text: e.message, needsStorm: false }
+      location.hash = `#storm/${state.storm.id}`
+      return
+    }
     $('end-error').textContent = e.message
     btn.disabled = false
+  }
+}
+
+// "Remove from tonight" (clarification 37). A 409 shows the API's message on that stop, or repaints Tonight if the storm ended.
+async function removeStop(clientId) {
+  const storm = state.storm
+  try {
+    state.storm = await api.owner.removeStop(storm.id, clientId)
+    state.confirm = null
+    delete state.stopErrors[clientId]
+    paintStorm()
+  } catch (e) {
+    if (e.status === 401 && !e.field) return
+    state.confirm = null
+    if (e.status === 409) {
+      const now = (await api.owner.currentStorm()).storm
+      if (!now || now.id !== storm.id) {
+        state.stormNotice = { text: e.message, needsStorm: false }
+        return renderTonight()
+      }
+      state.storm = now
+    }
+    state.stopErrors[clientId] = e.message
+    paintStorm()
   }
 }
 
@@ -565,6 +642,7 @@ async function renderSummary(id) {
   $('view').innerHTML = `
     <section class="panel narrow summary" id="summary" data-storm-id="${summary.storm_id}">
       <a class="btn-small" href="#tonight">Back to Tonight</a>
+      ${noticeHtml(takeNotice(true))}
       <h1 class="view-title">${esc(summary.name)}</h1>
       <p class="muted">Started ${esc(summary.started_label)}${summary.ended_label ? ` · ended ${esc(summary.ended_label)} · ${esc(summary.duration_label)}` : ' · still on'}</p>
       <dl class="tiles">
@@ -1023,7 +1101,7 @@ async function renderSettings() {
         <form id="company-form" class="settings-form" novalidate>
           <h2 class="section-title">Company</h2>
           ${field('name', 'f-company', 'Company name', `<input class="field" id="f-company" type="text" maxlength="80" autocomplete="organization" value="${esc(c.name)}">`)}
-          ${field('yard', 'f-yard-label', 'Yard name', `<input class="field" id="f-yard-label" type="text" maxlength="80" autocomplete="off" value="${esc(c.yard.label)}">`)}
+          ${field('yard.label', 'f-yard-label', 'Yard name', `<input class="field" id="f-yard-label" type="text" maxlength="80" autocomplete="off" value="${esc(c.yard.label)}">`)}
           <p class="pin-state" id="yard-state"></p>
           <p class="field-error" id="company-error" role="alert"></p>
           <p class="ok-text" id="company-saved" role="status"></p>
@@ -1042,13 +1120,14 @@ async function renderSettings() {
       <section class="panel map-panel">
         <p class="map-hint">Every route starts at the yard. Tap the map or drag the pin to move it, then save.</p>
         <div class="map" id="map" role="region" aria-label="Map: the yard pin"></div>
+        <p class="field-error" id="err-yard.pin" role="alert"></p>
         <p class="map-legend"><span class="legend-item"><span class="legend-dot pin-yard">Y</span>Yard</span></p>
       </section>
     </div>`
   makeMap('map')
   map.setView([c.yard.lat, c.yard.lng], 15)
   pinMarker = L.marker([c.yard.lat, c.yard.lng], { icon: dot('pin-yard', 'Y', 30), title: 'Yard pin', draggable: true }).addTo(map)
-  const moved = (p) => { state.yardPin = p; pinMarker.setLatLng([p.lat, p.lng]); yardState() }
+  const moved = (p) => { state.yardPin = p; pinMarker.setLatLng([p.lat, p.lng]); yardState(); $('err-yard.pin').textContent = '' }
   pinMarker.on('dragend', () => { const ll = pinMarker.getLatLng(); moved({ lat: round5(ll.lat), lng: round5(ll.lng) }) })
   map.on('click', (e) => moved({ lat: round5(e.latlng.lat), lng: round5(e.latlng.lng) }))
   yardState()
@@ -1060,7 +1139,8 @@ function yardState() {
 }
 
 async function saveCompany() {
-  for (const id of ['err-name', 'err-yard', 'company-error']) $(id).textContent = ''
+  // yard.label shows by the yard name, yard.pin by the map (clarification 33).
+  for (const id of ['err-name', 'err-yard.label', 'err-yard.pin', 'company-error']) $(id).textContent = ''
   $('company-saved').textContent = ''
   const btn = $('save-company')
   btn.disabled = true
@@ -1180,6 +1260,15 @@ document.addEventListener('click', async (e) => {
         return paintStorm()
       case 'end-yes':
         return await endStorm()
+      case 'remove-stop':
+        state.confirm = `remove-${clientId}`
+        state.adding = false
+        return paintStorm()
+      case 'remove-no':
+        state.confirm = null
+        return paintStorm()
+      case 'remove-yes':
+        return await removeStop(clientId)
       case 'add-client':
         return await startEdit(null)
       case 'edit-client':
@@ -1237,7 +1326,7 @@ document.addEventListener('click', async (e) => {
 
 window.addEventListener('hashchange', () => {
   if (!session.get()) return
-  Object.assign(state, { editing: null, picking: null, pin: null, notice: '', confirm: null, adding: false, renaming: null, addingTruck: false })
+  Object.assign(state, { editing: null, picking: null, pin: null, notice: '', confirm: null, adding: false, renaming: null, addingTruck: false, stopErrors: {} })
   render()
 })
 window.addEventListener(SIGNED_OUT, (e) => showSignin(e.detail || 'Please sign in again.'))

@@ -77,3 +77,33 @@ test('company name and yard pin save through Settings', async ({ page, request }
   expect(after.yard.lat !== before.yard.lat || after.yard.lng !== before.yard.lng, 'the yard moved').toBe(true)
   expect(`Yard pin at ${after.yard.lat}, ${after.yard.lng}.`).toBe(await page.locator('#yard-state').textContent())
 })
+
+test('yard errors show by their own place: the yard name by its field, the pin by the map', async ({ page }) => {
+  await signIn(page)
+  await tap(page, page.getByRole('link', { name: 'Settings' }), 'Settings tab')
+  const labelField = page.locator('#company-form .form-field', { has: page.locator('#f-yard-label') })
+  await tap(page, page.locator('#f-yard-label'), 'Yard name')
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.press('Backspace')
+  let answer = page.waitForResponse((r) => r.url().endsWith('/api/owner/company') && r.request().method() === 'PUT')
+  await tap(page, page.locator('#save-company'), 'Save company')
+  expect((await answer).status()).toBe(400)
+  await expect(labelField.locator('.field-error')).toHaveText('Give the yard a name (up to 80 characters).')
+  await expect(page.locator('.map-panel .field-error')).toBeHidden()
+  await replaceText(page, page.locator('#f-yard-label'), 'SAMPLE yard, Mill Road', 'Yard name')
+
+  // Zoom right out with the map's own control, then put the pin far outside Newfoundland and Labrador.
+  const zoomOut = page.locator('.leaflet-control-zoom-out')
+  for (let i = 0; i < 20 && !(await zoomOut.getAttribute('class')).includes('leaflet-disabled'); i++) {
+    await tap(page, zoomOut, 'Zoom out')
+    await page.waitForTimeout(300)
+  }
+  await tapAt(page, page.locator('#map'), 0.04, 0.5, 'far west on the map')
+  answer = page.waitForResponse((r) => r.url().endsWith('/api/owner/company') && r.request().method() === 'PUT')
+  await tap(page, page.locator('#save-company'), 'Save company')
+  const refused = await answer
+  expect(refused.status()).toBe(400)
+  expect((await refused.json()).field).toBe('yard.pin')
+  await expect(page.locator('.map-panel .field-error')).toHaveText('Put a pin on the map for the yard.')
+  await expect(labelField.locator('.field-error')).toBeHidden()
+})

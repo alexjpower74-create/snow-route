@@ -95,8 +95,11 @@ test('a route changed on another screen: the move is refused, the page reloads t
   const answer = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${storm.id}/route`) && r.request().method() === 'PUT')
   await tap(page, rowsOf(page, truck.id).nth(1).getByRole('button', { name: 'Move up' }), 'Move up (stale route)')
   const refused = await answer
-  expect([400, 409], 'the Worker refuses a route built from the old stop list').toContain(refused.status())
-  await expect(page.locator('#storm-notice')).toHaveText((await refused.json()).error)
+  expect(refused.status(), 'a route edited from a stale screen is 409, not a malformed request').toBe(409)
+  const body = await refused.json()
+  expect(body.code).toBe('bad_state')
+  expect(body.error).toBe('The route changed while you were editing it. Reload and try again.')
+  await expect(page.locator('#storm-notice')).toHaveText('The route changed while you were editing it. Reload and try again.')
   await expect(rowsOf(page, truck.id), 'reloaded: the added stop is there').toHaveCount(truck.stops.length + 1)
   await expect(rowsOf(page, truck.id).last().locator('.row-name')).toHaveText(left.name)
 })
@@ -113,4 +116,43 @@ test('Add a stop puts the client at the end of the chosen truck', async ({ page,
   await expect(rowsOf(page, t2.id)).toHaveCount(t2.stops.length + 1)
   await expect(rowsOf(page, t2.id).last().locator('.row-name')).toHaveText(left.name)
   expect((await orderOf(request, token, storm.id, t2.id)).at(-1)).toBe(left.name)
+})
+
+test('Remove from tonight: only on stops with no check-ins, behind a confirm; a check-in that lands first keeps the stop, with the message on it', async ({ page, context, request, seed }) => {
+  const token = await ownerToken(request)
+  const storm = await startStorm(request, token)
+  const truck = storm.trucks[0]
+  const key = seed.trucks.find((t) => t.id === truck.id).driver_key
+  const [s1, s2, s3] = truck.stops
+  const checkin = (id, client, kind, extra = {}) => api(request, 'POST', '/api/driver/checkins', { headers: { 'X-Driver-Key': key },
+    data: { id, storm_id: storm.id, client_id: client, kind, note: '', at: new Date().toISOString(), has_photo: false, ...extra } })
+  expect((await checkin('44444444-4444-4444-8444-444444444444', s1.client_id, 'plowed')).status).toBe(201)
+
+  await signIn(page)
+  const row = (c) => page.locator(`.owner-stops li[data-client-id="${c}"]`)
+  await expect(row(s1.client_id).getByRole('button', { name: 'Remove from tonight' }), 'a stop with a check-in has no Remove').toHaveCount(0)
+
+  await tap(page, row(s2.client_id).getByRole('button', { name: 'Remove from tonight' }), 'Remove from tonight (stop 2)')
+  await expect(row(s2.client_id)).toContainText(`Take ${s2.name} off tonight's route?`)
+  await tap(page, row(s2.client_id).getByRole('button', { name: 'Keep it' }), 'Keep it')
+  await expect(row(s2.client_id)).toHaveCount(1)
+  await tap(page, row(s2.client_id).getByRole('button', { name: 'Remove from tonight' }), 'Remove from tonight (stop 2)')
+  const removed = page.waitForResponse((r) => r.url().endsWith(`/stops/${s2.client_id}`) && r.request().method() === 'DELETE')
+  await tap(page, row(s2.client_id).getByRole('button', { name: 'Yes, remove it' }), 'Yes, remove it')
+  expect((await removed).status()).toBe(200)
+  await expect(row(s2.client_id)).toHaveCount(0)
+  expect(await orderOf(request, token, storm.id, truck.id)).not.toContain(s2.name)
+  const driver = await context.newPage()
+  await driver.goto(`/d/?k=${key}`)
+  await expect(driver.locator('.stop-row', { hasText: s2.name })).toHaveCount(0)
+
+  // Stop 3 gets a check-in after the page showed its Remove button.
+  await tap(page, row(s3.client_id).getByRole('button', { name: 'Remove from tonight' }), 'Remove from tonight (stop 3)')
+  expect((await checkin('55555555-5555-4555-8555-555555555555', s3.client_id, 'skipped', { reason: 'gate' })).status).toBe(201)
+  const refusedAnswer = page.waitForResponse((r) => r.url().endsWith(`/stops/${s3.client_id}`) && r.request().method() === 'DELETE')
+  await tap(page, row(s3.client_id).getByRole('button', { name: 'Yes, remove it' }), 'Yes, remove it (stop 3)')
+  const refused = await refusedAnswer
+  expect(refused.status()).toBe(409)
+  await expect(row(s3.client_id).locator('.stop-error')).toHaveText((await refused.json()).error)
+  await expect(row(s3.client_id).getByRole('button', { name: 'Remove from tonight' }), 'reloaded: it has a check-in now').toHaveCount(0)
 })

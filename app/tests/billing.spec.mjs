@@ -36,6 +36,13 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
   const clinic = byName('SAMPLE Clinic walkway')
   const taylor = byName('Taylor (SAMPLE)')
   expect([pat.billing, clinic.billing, taylor.billing], 'two per-push clients and one seasonal').toEqual(['per_push', 'per_push', 'seasonal'])
+  // A price whose HST needs rounding (clarification 34): 3550 × 15 / 100 = 532.5 → 533 by the half-up rule; Math.round(3550 * 0.15) is 532.
+  const repriced = await api(request, 'PUT', `/api/owner/clients/${pat.id}`, { token, data: {
+    name: pat.name, address: pat.address, lat: pat.lat, lng: pat.lng, type: pat.type, priority: pat.priority, opens_at: pat.opens_at,
+    notes: pat.notes, billing: pat.billing, price_cents: 3550, truck_id: pat.truck_id, active: true } })
+  expect(repriced.status).toBe(200)
+  pat.price_cents = 3550
+  expect(hstOf(3550), 'the rule written out').toBe(533)
   const truck = seed.trucks[0]
   const started = await api(request, 'POST', '/api/owner/storms', { token, data: { client_ids: [pat.id, clinic.id, taylor.id], truck_ids: [truck.id] } })
   expect(started.status).toBe(201)
@@ -100,6 +107,7 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
     await expect(tr.locator('[data-col="total"]')).toHaveText(money(r.total_cents))
   }
   await expect(owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`), 'the skipped seasonal client: no push').toHaveText('0')
+  await expect(owner.locator(`#billing-table tbody tr[data-client-id="${pat.id}"] [data-col="hst"]`), 'HST on $35.50, rounded half up').toHaveText('$5.33')
   const totals = owner.locator('#billing-totals')
   await expect(totals.locator('[data-col="pushes"]')).toHaveText('2')
   await expect(totals.locator('[data-col="amount"]')).toHaveText(money(bill.totals.subtotal_cents))
@@ -112,7 +120,11 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
   await tap(owner, owner.locator('#download-csv'), 'Download CSV for the accountant')
   const download = await downloading
   expect(download.suggestedFilename()).toBe(`snow-route-SAMPLE-${months[0]}.csv`)
-  const text = await readFile(await download.path(), 'utf8')
+  const bytes = await readFile(await download.path())
+  const fromWorker = await request.get(`/api/owner/billing.csv?month=${months[0]}`, { headers: { Authorization: `Bearer ${token}` } })
+  expect(fromWorker.status()).toBe(200)
+  expect(Buffer.compare(bytes, await fromWorker.body()), 'the download is byte for byte the CSV from the Worker (clarification 35)').toBe(0)
+  const text = bytes.toString('utf8')
   expect(text.includes('\r\n'), 'CRLF lines').toBe(true)
   const csv = parseCsv(text)
   expect(csv[0]).toEqual(['Client', 'Address', 'Billing', 'Pushes', 'Push dates', 'Price', 'Amount', 'HST 15%', 'Total'])

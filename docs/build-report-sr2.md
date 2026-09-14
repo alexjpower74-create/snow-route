@@ -422,3 +422,103 @@ Each passes on its unbroken copy first, then goes red on the break (`app/tests/n
   dragging in steps. Both are real input and both are tested.
 - The summary's copy buttons come from the storm view's `messages` (the summary JSON has no messages), so a past storm's summary makes
   two requests.
+
+## M3c — 2026-09-14 (review fixes only)
+
+Merged main first (sr1 M6: `route_version`, `yard.label` / `yard.pin`; API.md clarifications 26–37). Commits: `0994459` (steps 1–2,
+committed as soon as they were green), `5fb04e6` (steps 3–11), and the final commit with this report and control (h).
+
+### Fixed (DONE), most harmful first
+1. **Clarification 26 / M3a-1: two tabs can no longer void a push.** Undo is an explicit mark: the driver's Undo sets an unsent item
+   to `undone` inside one IndexedDB readwrite transaction (`queue.update`). After a 200/201 the sender decides from the item as it is
+   **now**, in the same kind of transaction: missing means another tab sent it (nothing happens), `undone` means the driver tapped Undo
+   while it was on its way (a DELETE is queued), otherwise the photo goes next or the item is removed. `undone` items the sender never
+   sent are deleted at the top of each send loop, inside the lock. Every send loop runs inside
+   `navigator.locks.request('snow-route-send', …)`, so two tabs never send at once. Undo on a sent check-in (item gone) still queues
+   the DELETE, from what the screen last knew about it.
+2. **Clarification 32:** the route PUT carries the `route_version` of the Storm on screen. A 409 reloads the storm and shows the message.
+   `route-edit.spec` now requires **409, `bad_state` and the exact text** "The route changed while you were editing it. Reload and try
+   again." for a stale edit (a stop added through the API between loading and editing); `[400, 409]` is gone.
+3. **Clarification 27 / M3a-2:** every queued item carries `truck_id`, including the undo the sender makes itself (from the item, or
+   the key store). Keys map to trucks in `localStorage` `snow-route:keys`, written when a route loads and never overwritten for another
+   key.
+4. **Clarification 29 / M3a-4:** tested and controlled (below).
+5. **Clarification 34 / M3b-2:** Pat's price is set to 3550 through the API before the storm; the spec asserts HST `$5.33` and every
+   money cell equal to the API row. **See the note on control (h): the named break cannot go red.**
+6. **Clarification 35 / M3b-3:** the downloaded CSV's bytes are compared with `GET /api/owner/billing.csv` fetched with the token.
+7. **Clarification 28 / M3a-3:** queued check-ins from a storm that has ended (or an earlier storm) are listed under "Saved from the storm
+   that ended, still sending", separate from stops moved to another route. An Undo that would delete a check-in that has not been sent
+   asks first: "This check-in has not reached the office yet. Delete it from this phone?" (Delete it / Keep it, both ≥ 56 px), in the
+   Undo bar and in those lists. A refused (Not accepted) item and a sent check-in do not ask.
+8. **Clarification 36 / M3b-5, M3b-6:** a 409 from End storm closes the confirm and opens that storm's summary with the API's message;
+   from Add a stop or a route edit it closes the form and repaints Tonight with the message. "Past storms" is a link (`#past`) while a
+   storm is on.
+9. **Clarification 37 / M3b-7:** "Remove from tonight" on stops with no check-in, behind an inline confirm, calling
+   `DELETE …/stops/:client_id`. A 409 reloads the storm: if it ended, Tonight repaints with the message; otherwise the message shows on
+   that stop (and its Remove button is gone because it now has a check-in).
+10. **Clarification 33:** `yard.label` errors show under the yard name, `yard.pin` errors under the map.
+11. **Clarifications 30 and 31 / M3a-5, -6, -7:** a photo refused for a stop not on this route keeps a "Photo not sent: <message>" row
+    (with the stop name) under "Saved for stops on another route" until Dismiss; a "storm already on" notice is dropped when Tonight
+    finds no storm; a re-keyed check-in for another route is listed once there, with "Moved from an old driver link.".
+
+### New and changed tests
+- `queue.spec.mjs`:
+  - **two open tabs** (26): tab 1 plows a stop while every check-in POST is held; tab 2 of the same link is reloaded so its sender
+    starts on the shared queue; release → both tabs "All sent", **one** stored check-in, **not voided**, **no DELETE**, and one POST
+    (the lock);
+  - **cross-truck** (29): tab 1 of truck 1's link plows stop 1 (sent), tab 2 of the same link plows stop 2 with a photo (the check-in is
+    sent, the photo held back), tab 1 undoes stop 1 (sent, so no question; the DELETE held back); the owner resets truck 1's link;
+    truck 2's link is opened with nothing held back → both rows say "This photo / undo belongs to another truck's link, so this link
+    cannot send it.", no PUT or DELETE under truck 2's key, stop 1 not voided, stop 2's photo still `waiting`;
+  - **ended storm** (28): a queued check-in, the owner ends the storm, the page shows "No storm on right now" and the check-in under
+    "Saved from the storm that ended, still sending" (not "moved"); Undo asks, Keep it keeps it; it then sends and is stored, not voided;
+  - **photo refused for a moved stop** (30): the photo PUT answers the Worker's own 413 text (fulfilled locally: the page downscales
+    photos, so a real one never gets that big), the stop moves to the other truck, the page reloads → the "Photo not sent" row is there
+    and Dismiss removes it;
+  - the moved-stop test now confirms its Undo (Delete it) and sends `route_version` with its route PUT.
+- `route-edit.spec.mjs`: exact 409 for a stale edit (above); **Remove from tonight** (a stop with a check-in has no Remove; Keep it;
+  Yes → gone from the owner list, the Worker and the driver page; a check-in landing after the button was shown → the DELETE answers
+  409 and the API's message shows on that stop, with no Remove after the reload).
+- `storm-end.spec.mjs`: End storm answered 409 because another screen ended it → that storm's summary with the message, confirm gone;
+  Add a stop answered 409 because the storm ended → "No storm on right now" with the message, form gone; Past storms during a storm
+  opens the list (ended storms only) and a summary.
+- `billing.spec.mjs`: Pat at $35.50, HST cell `$5.33`, every money cell equal to the API row, CSV bytes equal to the Worker's.
+- `settings.spec.mjs`: an empty yard name → the error by the yard name, none by the map; the map zoomed right out with its own control and
+  a pin tapped far west → 400 `field: yard.pin` and the error by the map, none by the yard name.
+
+**Test mistakes caught while writing (fixed):** a route pattern `…/checkins/*` matched the undo's DELETE but not the photo's PUT
+(`/checkins/<id>/photo`), so the "photo waits" step failed for the wrong reason; after Save, typing without tapping the yard name left
+it empty; an apostrophe inside a single-quoted assertion message broke `billing.spec`'s syntax.
+
+### Verified
+Full suite on the final code, all four projects: **158 passed, 0 failed, 0 skipped (8.8 min).** Steps 1–2 were also run by themselves
+on webkit-390 and webkit-1280 before the first commit (22 passed).
+
+### Negative controls, run last (7606 free), on the final code
+
+| control | break (copy only) | red |
+|---|---|---|
+| (a) queue | removes the item before sending | expected "SAMPLE Clinic walkway", received "Pat (SAMPLE)" |
+| (b) time | sends `at` = phone clock at send time | expected `…09:00:00.000Z`, received `…09:40:00.000Z` |
+| (c) overlay | transparent element over Plowed | "Plowed: hit-tests to itself", received the overlay `<div>` |
+| (d) relink | stops the whole queue on a 401 | expected "All sent", received the dead-link text with "2 items still saved" |
+| (e) billing | pushes from the storm-stop count | "Taylor (SAMPLE): pushes", expected "0", received "1" |
+| **(f) twotabs** | a missing item after 200/201 read as undone, and no Web Lock | "the push was not voided", received `voided_at` `2026-09-14T09:00:00.000Z` |
+| **(g) crosstruck** | photos and undos re-keyed across trucks (no truck comparison) | the two "another truck's link" rows: expected 2, received 0 (both were sent under truck 2's key and refused) |
+| **(h) hst** | the page shows HST as `Math.floor(amount * 0.15)` | "$5.33" expected, "$5.32" received |
+
+### For the lead: clarification 34's break cannot go red (decide)
+Clarification 34 (and sr1's M3b-2) names the break `Math.round(amount * 0.15)`, on the premise that `3550 * 0.15` is `532.4999…`. In
+JavaScript it is exactly `532.5`, so `Math.round` gives **533**, the same as the rule. I ran that control first: **GREEN**, recorded
+in `negative-control.log`. A search over every amount from 1 to 1,000,000 cents found **no** amount where
+`Math.round(amount * 0.15)` differs from `Math.floor((amount * 15 + 50) / 100)`, so no price can make that break visible. Control (h)
+therefore uses a page that **truncates** (`Math.floor(amount * 0.15)`, $5.32), which the $35.50 data does expose, with the reason in
+the control's header. The spec's data and assertions are as clarification 34 says. If you want a different recomputation as the
+control, say which; the clarification's wording should change either way.
+
+### Left undone / for the lead
+- The two-tab test proves the lock and the explicit undo together; each alone would also close the path (DECISIONS 41), and control (f)
+  removes both at once as asked, so there is no separate control for each half.
+- A photo refused for a stop that is still on this route shows on that stop's row, as before; only off-route refusals get the
+  dismissable row.
+- Browsers without Web Locks (Safari before 15.4) send without the lock; the explicit undo mark still stops the voided-push path there.

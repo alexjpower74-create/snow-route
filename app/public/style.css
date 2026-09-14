@@ -316,3 +316,14 @@ textarea.field { min-height: 88px; resize: vertical; }
   .tabs { flex-wrap: wrap; overflow-x: visible; padding: 0 8px; gap: 0 2px; }
   .tab { min-height: 48px; padding: 0 12px; }
 }
+
+/* ---- M3c: Undo confirm (driver) ---------------------------------------------- */
+.undo-bar.is-confirm { background: var(--surface); color: var(--text); border: 2px solid var(--st-skipped); }
+.undo-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; }
+.undo-confirm-text { flex: 1 1 220px; font-weight: 700; font-size: 17px; }
+.undo-confirm-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.undo-bar.is-confirm .btn-undo { background: var(--skip-bg); color: var(--skip-ink); }
+.btn-undo.btn-undo-keep { background: var(--raised); color: var(--text); border: 2px solid var(--line); }
+.rejected-list .undo-confirm .btn-undo { background: var(--skip-bg); color: var(--skip-ink); }
+.remove-confirm { margin-top: 8px; }
+.stop-error { margin-top: 6px; }

@@ -7,7 +7,11 @@
 // key is re-keyed to it (check-ins always; photos and undos only within the same truck), clarifications 17 and 24. A photo refused with 404/413/415 drops only the photo (the check-in is already on the server):
 // the item is removed and onPhotoDropped reports the server's message for that stop (API.md clarification 11).
 //
-// Item: { qid, seq, created_at, key (driver key), op: 'checkin' | 'void', state: 'send' | 'photo' | 'rejected',
+// Undo is explicit (clarification 26): the driver's Undo marks an unsent item 'undone' in one transaction. The sender deletes an undone
+// item it has not sent, and sends a DELETE only for an item that was on its way when it was marked. A check-in the sender finds MISSING
+// after a 200/201 was sent by another tab: nothing is undone. Every tab runs its sends inside one Web Lock, so two tabs never send at once.
+//
+// Item: { qid, seq, created_at, key (driver key), op: 'checkin' | 'void', state: 'send' | 'photo' | 'rejected' | 'undone',
 //         truck_id (the truck whose link saved it), label (stop name), body (the POST body, or { id, storm_id, client_id } for a
 //         void), photo: { bytes, type } | null, error: server message when rejected, rekeyed_from: the dead key it was saved under,
 //         stuck: true for a photo or undo under another truck's dead key (listed with Remove, never sent) }
@@ -50,6 +54,30 @@ export const all = async () => ((await tx('readonly', (s) => s.getAll())) || [])
 export const get = (qid) => tx('readonly', (s) => s.get(qid))
 export const put = (item) => tx('readwrite', (s) => s.put(item))
 export const remove = (qid) => tx('readwrite', (s) => s.delete(qid))
+
+// Read one item and decide in the same readwrite transaction, so a decision never rests on a copy another tab has changed.
+// change(item | undefined) → { item: <new item> | null (delete) | undefined (leave), result }. Resolves to result.
+export async function update(qid, change) {
+  const d = await db()
+  return new Promise((resolve, reject) => {
+    const t = d.transaction(STORE, 'readwrite')
+    const store = t.objectStore(STORE)
+    let outcome
+    const req = store.get(qid)
+    req.onsuccess = () => {
+      const { item, result } = change(req.result)
+      outcome = result
+      if (item === null) store.delete(qid)
+      else if (item) store.put(item)
+    }
+    t.oncomplete = () => resolve(outcome)
+    t.onerror = () => reject(t.error)
+    t.onabort = () => reject(t.error)
+  })
+}
+
+// One sender at a time across every tab of this origin. Browsers without Web Locks send without it.
+const withSendLock = (fn) => (globalThis.navigator?.locks ? navigator.locks.request('snow-route-send', fn) : fn())
 
 export async function add(item) {
   const items = await all()
@@ -128,7 +156,7 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
         await remove(item.qid)
       } else if (status === 404 || status === 413 || status === 415) {
         await remove(item.qid)
-        onPhotoDropped(item.key, item.body.id, data?.error || `error ${status}`)
+        onPhotoDropped(item.key, item.body.id, data?.error || `error ${status}`, item)
       } else {
         return failed('server', data?.error || '')
       }
@@ -137,13 +165,17 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
 
     if (status === 200 || status === 201) {
       onSent(item.key, data?.stop)
-      const still = await get(item.qid)
-      if (!still) {
-        // Undone on the phone while this check-in was on its way: the server has it now, so send the undo too.
-        await add({ qid: `void:${item.body.id}`, op: 'void', state: 'send', key: item.key, label: item.label,
+      // Decide from the item as it is now, in one transaction (clarification 26).
+      const outcome = await update(item.qid, (still) => {
+        if (!still) return { result: 'gone' } // another tab sent it and removed it: nothing was undone
+        if (still.state === 'undone') return { item: null, result: 'undone' } // the driver tapped Undo while it was on its way
+        if (item.body.has_photo && still.photo) return { item: { ...still, state: 'photo' }, result: 'photo' }
+        return { item: null, result: 'sent' }
+      })
+      if (outcome === 'undone') {
+        await add({ qid: `void:${item.body.id}`, op: 'void', state: 'send', key: item.key, truck_id: item.truck_id ?? truckOf(item.key), label: item.label,
           body: { id: item.body.id, storm_id: item.body.storm_id, client_id: item.body.client_id }, photo: null, error: null })
-      } else if (item.body.has_photo && item.photo) await put({ ...still, state: 'photo' })
-      else await remove(item.qid)
+      }
       return true
     }
     await reject(item, data?.error || `The check-in was not accepted (error ${status}).`)
@@ -156,7 +188,10 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     clearTimeout(st.timer)
     let sent = false
     try {
+      await withSendLock(async () => {
       for (;;) {
+        // Undone items this sender never sent leave the phone here, inside the lock, so no tab can be sending them.
+        for (const i of await all()) if (i.state === 'undone') await remove(i.qid)
         await rekey()
         const items = pending(await all()).filter((i) => !blocked(i))
         if (!items.length) {
@@ -175,6 +210,7 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
         }
         onChange()
       }
+      })
     } catch (e) {
       failed('error', e.message)
     } finally {
