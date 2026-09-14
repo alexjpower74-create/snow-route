@@ -156,3 +156,108 @@ Mismatches and gaps (built against the contract anyway; for the lead to relay):
 4. **Unknown check-in path shape.** The photo PUT route only matches a 36-character hex/hyphen id; a malformed id falls through to
    404 "There's nothing here." rather than "We couldn't find that check-in." Harmless for the app (it only sends its own UUIDs).
 5. **`POST /api/test/storms/:id/end` accepts any `at`**, including one before `started_at`. Test-only; the app never calls it.
+
+### What was built (DONE)
+
+- **Contract changes taken in:** clarification 11 (a 429 is kept and retried; a photo refused 404/413/415 drops only the photo,
+  removes the item and the stop's row says "Photo not sent: <server message>", never "Not accepted"), clarification 10 (the app
+  already omitted `reason`/`note` on plowed), clarification 3 (the two test routes are used by the specs only).
+- **Queue fix found by the suite:** signal coming back (`online`) now resets the backoff. Failed tries while offline had pushed
+  the next try to 80 s, so a truck regaining signal waited for no reason.
+- **Photo decode** uses `createImageBitmap(file)` first (no URL load), `<img>` as the fallback.
+- **Owner `/owner/`** (`owner/index.html`, `owner/owner.js`, owner section of `style.css`), on sr1's M1 routes only:
+  PIN sign-in (token in `localStorage` `snow-route:owner-token`, Sign out, any owner 401 returns to sign-in with the API's text);
+  **Tonight**: "No storm on right now" → **Start a storm** → every active client and truck ticked, **Tick all / Untick all**, count →
+  **Build tonight's route** → per-truck ordered stop lists with priority and status, the order note, and a map with each truck's
+  line from the yard and numbered round pins coloured by status (refreshes every 30 s while shown); **Clients**: list with
+  type / priority (+ opening time) / billing + price / truck / inactive chips, a map of every active client (tap a pin to edit),
+  **Add a client** / **Edit** with the pin placed by tapping the map or dragging it, price typed in dollars, every API message shown
+  by its field (the pin message by the pin); **Trucks**: each driver link with **Copy link** (falls back to selecting the link).
+- **Leaflet 1.9.4** copied into `app/public/vendor/leaflet/` (js, css, images, LICENSE). Tiles are OpenStreetMap's standard
+  tiles; attribution "© OpenStreetMap contributors" links to the copyright page and is always visible.
+- **Playwright** (`app/playwright.config.mjs`): the four projects, `workers: 1`, `webServer` = `tests/start-worker.mjs` (fresh
+  `app/tests/.state-<port>`, migrations, `wrangler dev --local` on 7603, inspector 7613, `--var TEST_MODE:1`, `E2E_WORKER_DIR`
+  for copies). `tests/helpers.mjs`: auto fixtures (`seed` = `POST /api/test/reset` before every test; `guarded` = tiles answered by a
+  generated 256 px PNG and any other non-127.0.0.1 request aborted and failing the test), `tap()` / `tapAt()` hit-testing the
+  point with `elementFromPoint` before a real touch or click, typing via `page.keyboard`, photos through the real file chooser
+  with a generated PNG, selects via `selectOption` only.
+- **Specs:** `driver.spec.mjs`, `offline.spec.mjs`, `status.spec.mjs`, `owner.spec.mjs`, `targets.spec.mjs` as PLAN.md lists.
+  Owner screenshots per project land in `app/tests/shots/<project>-*.png`.
+- `app/package.json` scripts: `npm test` (the suite), `npm run negative` (controls a–c), `npm run dev` (serve.mjs on 7601).
+
+### Verified (full suite, real Worker at the merged sr1 M1, all four projects)
+
+`npx playwright test` from `app/`: **52 passed, 0 failed, 8 skipped (2.7 min).**
+
+The 8 skips, each with its reason in the test:
+- `driver.spec` "Undo on a check-in the server already has…" × 4 projects: it probes `DELETE /api/driver/checkins/:id` and skips
+  while the Worker answers 404 "There's nothing here." (sr1 M2 route). It runs by itself once that route is merged.
+- `targets.spec` "every driver button ≥ 56 px…" and "no horizontal scroll at 390" × the two 1280 projects: phone-width checks.
+
+What each spec proves, and how it could have lied:
+- **driver:** Stop 1 is the Worker's medical stop with the Medical chip; the Navigate `href` is exactly the Apple URL on the iPhone
+  project and the Google URL elsewhere; Plowed with a generated photo → stop 2; Skip → Gate locked → stop 3; then through the
+  owner API the plowed stop has `photo: "stored"` (and the photo URL serves `image/jpeg`), the skip has `reason_text` "Gate locked",
+  and the database holds exactly two check-ins.
+- **offline:** in Chromium, `context.setOffline(true)`, phone clock pinned at T (`clock.setFixedTime`), Plowed with a photo + Skip
+  → "No signal. 2 check-ins saved on this phone. …", both rows marked saved, **0 rows in the database**; reload while offline →
+  the service worker serves the page, the route (stop 3) and "2 saved" come back, "Route saved on this phone at …"; phone clock
+  + 40 min and server `X-Test-Now` + 40 min, online → "All sent" → both rows have **`at` = T exactly**, `at_adjusted` 0,
+  `received_at` = T + 40 min, the photo `stored`, the skip "Car in the way". **500 once:** the first POST after signal returns is
+  answered 500 by `page.route` (Playwright's, not the Worker's; the Worker has no switch for it), the strip says "Could not send
+  yet", exactly one POST was made and the database is empty; `clock.runFor(21 s)` → the sender's next try → All sent and 2 rows.
+- **status:** the status page's "You're stop N" equals the number the driver's list shows for that client (stop 2, not stop 1,
+  so an off-by-one shows); the driver plows stops 1 and 2 through the page; the open status page polls by itself
+  (`clock.runFor(61 s)`, no reload) → "Plowed at <the check-in's at_label from the owner API>" and the photo decodes; bad link →
+  the plain 404 text with the badge.
+- **owner:** wrong PIN → the `POST /api/owner/signin` response is 401 (`waitForResponse`) and "That PIN is not right."; then
+  sign in and out (token set, then gone). Add a client: 25 listed and 25 pins; Save with no pin → 400 and the API's "Put a pin on
+  the map for this client." by the pin; a real tap on the map places the pin; Save → 26 in the list, a pin titled with the name on
+  the map, the chips, and through the API `price_cents` 4250, `walkway`, lat/lng inside Grand Falls-Windsor. Start a storm:
+  25 ticked, Untick all → 0, Tick all → 25, both trucks; build → on each truck stop 1 is medical and every medical stop is before
+  every other; "Order is by distance, not road time."; 25 numbered pins; the attribution is visible, contains OpenStreetMap, links
+  to the copyright page and hit-tests to itself. Trucks: both driver links match the reset answer; Copy link responds.
+- **targets:** at 390 in both engines every driver button (Navigate, Plowed, Plowed no photo, Skip, the four reasons, Back, the
+  note field, Skip with note, Undo, Plowed now, Back to the next stop) is ≥ 56 × 56 **and** hit-tests to itself; the SAMPLE badge
+  and company name on `/`, `/owner/`, `/d/`, `/s/`; no horizontal scroll at 390 on landing, driver, status and all owner
+  screens; Navigate / Plowed / Skip use the Design tokens and each pair is ≥ 4.5 : 1 (the contrast function is shown to go below
+  4.5 on muted-on-amber); **the guard itself**: a fresh guarded context gets a tile answered locally (200 image/png) and a fetch
+  to example.com is caught and recorded.
+
+**WebKit and "no signal" (the written reason, PLAN allows skipping only the reload step):** a probe (`app/.negative/probe/`,
+not shipped) shows that in Playwright's WebKit, once `context.setOffline(true)` is on, a file given to the file chooser cannot be
+read at all: `createImageBitmap` throws InvalidStateError, `<img>` from a blob URL fails, and `file.arrayBuffer()` throws
+NotReadableError, whether the file is a buffer or on disk and whether it was chosen before or after going offline. Online every
+step works. A real iPhone's camera photo is on the phone and reads fine with no signal. So on **WebKit only**, "no signal" in
+the first offline test is every `/api/*` request aborted at the network layer (`internetdisconnected`, which is what the queue
+sees with no signal), the service worker is blocked for that test so the aborts apply, the send after signal returns comes from
+the sender's own retry timer (no `online` event), and the offline-reload step is skipped with that reason as a test annotation.
+The time, photo and database assertions are the same on both engines. The 500 test runs with the service worker blocked on every
+project, because in WebKit a controlled page's `/api` fetches are made by the worker, where `page.route` cannot answer them.
+
+**Checks that were wrong while building (fixed):** `clock.install` let the phone time run, so the tap was stamped T + 171 ms and
+the at = T check failed for the wrong reason (now `setFixedTime`); the status test read the API while the photo check-in was still
+being prepared (it now waits for stop 3); "Tick all" also matched "Untick all" (exact names); with the service worker blocked,
+`serviceWorker.ready` never resolves (the setup no longer waits for it there).
+
+### Negative controls (M2), final specs
+
+Each control copies `app/public` + `worker` into `app/.negative/<name>/`, runs the spec against the **unbroken** copy on 7606
+first (it must pass, else VOID), breaks the copy, runs again; exit 0 only if red. All three recorded in
+`app/tests/negative-control.log` (an earlier run of each against the pre-WebKit-fix spec is also in the log, also red).
+
+| control | break (copy only) | unbroken copy | broken copy, the red |
+|---|---|---|---|
+| (a) `tests/negative-queue.mjs` | `queue.js` removes the item from IndexedDB before sending | 1 passed | `#stop-name` expected "SAMPLE Pharmacy lot", received "Pat (SAMPLE)": the photo check-in made with no signal was gone from the phone before any server answered, so it never reached the server |
+| (b) `tests/negative-time.mjs` | `queue.js` sends `at` = the phone clock at send time | 1 passed | "Pat (SAMPLE): at is the time the driver tapped, not the sync time", expected `2026-09-14T09:00:00.000Z`, received `2026-09-14T09:40:00.000Z` |
+| (c) `tests/negative-overlay.mjs` | a transparent, full-size element over the Plowed button (still 76 px tall by its rectangle) | 1 passed | "Plowed: hit-tests to itself", received `<div class="negative-overlay" aria-hidden="true"></div>` |
+
+### Left undone / for the lead
+
+- Undo against a sent check-in is only exercised once sr1's `DELETE /api/driver/checkins/:id` is merged (the test skips itself
+  until then; nothing to change on the app side).
+- The owner side has no refresh when a driver checks in, other than Tonight's 30 s poll. Editing a storm, ending it, billing,
+  settings, truck add/rename/new link: M3, as planned.
+- `api.mock.js` covers only the driver and status routes (M1); the owner side has no mock, and the suite never uses the mock.
+- The 500-once test uses Playwright's routing to produce the 500. The Worker has no switch to fail on demand, and adding one would
+  put a test lever in shipped code.
