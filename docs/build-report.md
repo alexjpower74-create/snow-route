@@ -17,6 +17,7 @@ reasoning and every attempt.
 | sr1 M5 | `a3c0a1b` | 26 / 0 / 0 | 58 / 0 / 0 | the eleven above plus plowednote: all twelve red | n/a |
 | sr1 M6 | `c63bbc5` (branch; merged with sr2 M3c, DECISIONS 46) | 26 / 0 / 0 | 63 / 0 / 0 | the twelve above plus routeversion: all thirteen red, each after its unbroken pass | n/a |
 | sr1 M7 | `caadcad` | 26 / 0 / 0 | 64 / 0 / 0 | the thirteen above plus removable: all fourteen red, each after its unbroken pass | n/a |
+| sr1 M8 | `3c306e7` | 26 / 0 / 0 | 68 / 0 / 0 | the fourteen above plus undoflag: all fifteen red, each after its unbroken pass | n/a |
 | sr2 M2 | `69076b5` | (Worker as `7ca9f24`) | (as `7ca9f24`) | app: queue, time, overlay: all red | 56 / 0 / 4 (the 4 skips: two phone-width checks on each 1280 project, replaced by project filters in sr2 M3a) |
 | sr2 M3a | `5f162b2` | (Worker as `a3c0a1b`) | (as `a3c0a1b`) | app: queue, time, overlay, relink: all red, each after its unbroken pass | **80 / 0 / 0** |
 | sr2 M3b | `318e64e` | (Worker as `a3c0a1b`) | (as `a3c0a1b`) | app: the four above plus billing: all five red, each after its unbroken pass | **122 / 0 / 0** |
@@ -57,6 +58,7 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | App: a reset driver link never blocks check-ins saved under it | the copy's queue stops everything on a 401, as in M1 | both check-ins stayed on the phone; nothing reached the server |
 | A plowed check-in keeps no note | the copy stores the body's note for plowed | the stored note was "Left a note" |
 | A route edit from a stale screen never lands | the copy drops the in-batch `route_version` guard | the stale edit answered 200 instead of 409, and both racing edits got 200 |
+| An undo's re-send never stores a live push | the copy ignores `undo` on the check-in POST | a never-stored id sent with `undo: true` was stored live (`voided: false`) |
 | The owner is offered Remove only where the office allows it | the copy computes `removable` from non-voided check-ins only | a stop whose check-in was undone said `removable: true` while its DELETE still answered 409 |
 | A mangled status link reads as a bad status link | the old router pattern `[A-Za-z0-9_-]{1,128}` restored | a trailing dot got "There's nothing here." instead of "Ask your snow clearing company for a new one." |
 
