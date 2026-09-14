@@ -221,6 +221,7 @@ test('storm start: 201, every client once, medical first per truck, the route ru
   assert.equal(storm.started_label, 'Mon Jan 12, 4:35 AM')
   assert.equal(storm.ended_at, null)
   assert.equal(storm.order_note, 'Order is by distance, not road time.')
+  assert.equal(storm.route_version, 1)
   assert.deepEqual(storm.counts, { stops: 25, plowed: 0, skipped: 0, pending: 25 })
   assert.deepEqual(storm.trucks.map(t => [t.id, t.name]), seed.trucks.map(t => [t.id, t.name]))
   assert.deepEqual(stopsOf(storm).map(s => s.client_id).sort((a, b) => a - b), seed.clients.map(c => c.id).sort((a, b) => a - b))
@@ -613,9 +614,10 @@ test('company: owner GET and PUT, validation, sample follows the name', async ()
   assert.deepEqual((await api('GET', '/api/owner/company', { token })).body, (await api('GET', '/api/company')).body)
   const yard = { label: 'Demo yard, Lincoln Road', lat: 48.95, lng: -55.66 }
   expectError(await api('PUT', '/api/owner/company', { token, body: { name: ' ', yard } }), 400, 'bad_request', 'name')
-  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, label: '' } } }), 400, 'bad_request', 'yard')
-  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, lat: 30 } } }), 400, 'bad_request', 'yard')
-  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing' } }), 400, 'bad_request', 'yard')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, label: '' } } }), 400, 'bad_request', 'yard.label')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, lat: 30 } } }), 400, 'bad_request', 'yard.pin')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { label: 'Demo yard' } } }), 400, 'bad_request', 'yard.pin')
+  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing' } }), 400, 'bad_request', 'yard.label')
   const r = await api('PUT', '/api/owner/company', { token, body: { name: ' Demo Snow Clearing ', yard } })
   assert.equal(r.status, 200, r.text)
   assert.deepEqual(r.body, { name: 'Demo Snow Clearing', sample: false, timezone: 'America/St_Johns', hst_rate: 0.15, yard })
@@ -720,7 +722,7 @@ test('storms list: newest first, counts match the storm view', async () => {
   assert.deepEqual(r.body.storms.map(s => [s.id, s.status]), [[b.id, 'active'], [a.id, 'ended']])
   for (const s of r.body.storms) {
     const view = (await api('GET', `/api/owner/storms/${s.id}`, { token })).body
-    const { trucks, order_note: _n, ...rest } = view
+    const { trucks, order_note: _n, route_version: _v, ...rest } = view
     assert.deepEqual(s, rest)
   }
   assert.deepEqual(r.body.storms[1].counts, { stops: 25, plowed: 1, skipped: 1, pending: 23 })
@@ -731,7 +733,8 @@ test('route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a
   const { token, storm, keyOf } = await stormSetup()
   const [t1, t2] = storm.trucks
   const lists = () => [{ truck_id: t1.id, client_ids: t1.stops.map(s => s.client_id) }, { truck_id: t2.id, client_ids: t2.stops.map(s => s.client_id) }]
-  const putRoute = (trucks, now) => api('PUT', `/api/owner/storms/${storm.id}/route`, { token, body: { trucks }, now })
+  const versionNow = async () => (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.route_version
+  const putRoute = async (trucks, now) => api('PUT', `/api/owner/storms/${storm.id}/route`, { token, body: { trucks, route_version: await versionNow() }, now })
 
   const missing = lists(); missing[0].client_ids.pop()
   expectError(await putRoute(missing), 400, 'bad_request', 'trucks')
@@ -770,7 +773,7 @@ test('route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a
 
   await endAt(token, storm.id, at(100))
   expectError(await putRoute(empty), 409, 'bad_state')
-  expectError(await api('PUT', '/api/owner/storms/999/route', { token, body: { trucks: [] } }), 404, 'not_found')
+  expectError(await api('PUT', '/api/owner/storms/999/route', { token, body: { trucks: [], route_version: 1 } }), 404, 'not_found')
 })
 
 test('stops: POST appends and refuses, DELETE only a stop with no check-ins and renumbers, ended storm 409', async () => {
@@ -1252,4 +1255,121 @@ test('check-ins: a plowed check-in stores no note and no reason, whatever the bo
   assert.equal(skip.status, 201, skip.text)
   assert.equal(skip.body.checkin.note, 'Truck blocking')
   assert.equal(skip.body.checkin.reason_text, 'Other: Truck blocking')
+})
+
+// ================================================================ M6
+
+const ROUTE_CHANGED = 'The route changed while you were editing it. Reload and try again.'
+const listsOf = storm => storm.trucks.map(t => ({ truck_id: t.id, client_ids: t.stops.map(s => s.client_id) }))
+const putRouteAs = (token, stormId, trucks, routeVersion) =>
+  api('PUT', `/api/owner/storms/${stormId}/route`, { token, body: routeVersion === undefined ? { trucks } : { trucks, route_version: routeVersion } })
+const reversedFirst = lists => lists.map((l, i) => (i === 0 ? { ...l, client_ids: [...l.client_ids].reverse() } : l))
+
+/** A storm with every client except the last one, so a stop can be added. */
+async function partialStorm () {
+  const seed = await reset()
+  const token = await signin()
+  const spare = seed.clients.at(-1)
+  const r = await api('POST', '/api/owner/storms', { token, body: { client_ids: seed.clients.slice(0, -1).map(c => c.id), truck_ids: seed.trucks.map(t => t.id) } })
+  assert.equal(r.status, 201, r.text)
+  return { seed, token, storm: r.body, spare }
+}
+
+test('route version: every owner Storm carries it; route PUT, stop add and stop remove each bump it, refusals do not', async () => {
+  const { seed, token, storm, spare } = await partialStorm()
+  const version = async () => (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.route_version
+  assert.equal(storm.route_version, 1)
+  assert.equal((await api('GET', '/api/owner/storms/current', { token })).body.storm.route_version, 1)
+
+  const put = await putRouteAs(token, storm.id, reversedFirst(listsOf(storm)), 1)
+  assert.equal(put.status, 200, put.text)
+  assert.equal(put.body.route_version, 2)
+
+  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: spare.id, truck_id: seed.trucks[0].id } })
+  assert.equal(added.status, 200, added.text)
+  assert.equal(added.body.route_version, 3)
+
+  const removed = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${spare.id}`, { token })
+  assert.equal(removed.status, 200, removed.text)
+  assert.equal(removed.body.route_version, 4)
+
+  // Refused edits leave the version alone.
+  const current = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
+  const dup = listsOf(current)
+  dup[1].client_ids.push(dup[0].client_ids[0])
+  expectError(await putRouteAs(token, storm.id, dup, 4), 400, 'bad_request', 'trucks')
+  expectError(await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: dup[0].client_ids[0], truck_id: seed.trucks[0].id } }), 400, 'bad_request', 'client_id')
+  assert.equal(await version(), 4)
+  // The driver route and the storms list are not part of the change.
+  assert.equal((await api('GET', '/api/driver/route', { key: seed.trucks[0].driver_key })).body.storm.route_version, undefined)
+})
+
+test('route version: a stale version with the same stop set answers 409 route changed, and the first edit stands', async () => {
+  const { token, storm } = await partialStorm()
+  const first = reversedFirst(listsOf(storm))
+  assert.equal((await putRouteAs(token, storm.id, first, 1)).status, 200)
+  // A second screen still holding version 1 moves a stop with the same stops.
+  const second = listsOf(storm)
+  second[1].client_ids.push(second[0].client_ids.shift())
+  const stale = await putRouteAs(token, storm.id, second, 1)
+  expectError(stale, 409, 'bad_state')
+  assert.equal(stale.body.error, ROUTE_CHANGED)
+  const now = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
+  assert.deepEqual(listsOf(now), first, 'the first edit is not undone')
+  assert.equal(now.route_version, 2)
+})
+
+test('route version: a stale version after a stop was added answers 409, not 400; the same lists with the current version answer 400 trucks', async () => {
+  const { seed, token, storm, spare } = await partialStorm()
+  const old = listsOf(storm)
+  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: spare.id, truck_id: seed.trucks[1].id } })
+  assert.equal(added.status, 200)
+  const stale = await putRouteAs(token, storm.id, reversedFirst(old), 1)
+  expectError(stale, 409, 'bad_state')
+  assert.equal(stale.body.error, ROUTE_CHANGED)
+  expectError(await putRouteAs(token, storm.id, reversedFirst(old), 2), 400, 'bad_request', 'trucks')
+  // Also a stale body naming a stop that was removed since.
+  const removed = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${spare.id}`, { token })
+  assert.equal(removed.status, 200)
+  const withSpare = listsOf(added.body)
+  expectError(await putRouteAs(token, storm.id, withSpare, 2), 409, 'bad_state')
+})
+
+test('route version: the current version with a duplicate stop answers 400 trucks; a missing or non-integer version answers 400 route_version', async () => {
+  const { token, storm } = await partialStorm()
+  const dup = listsOf(storm)
+  dup[1].client_ids.push(dup[0].client_ids[0])
+  expectError(await putRouteAs(token, storm.id, dup, 1), 400, 'bad_request', 'trucks')
+  const twiceTruck = listsOf(storm)
+  twiceTruck[1] = { ...twiceTruck[1], truck_id: twiceTruck[0].truck_id }
+  expectError(await putRouteAs(token, storm.id, twiceTruck, 1), 400, 'bad_request', 'trucks')
+  expectError(await putRouteAs(token, storm.id, [...listsOf(storm), { truck_id: 999, client_ids: [] }], 1), 400, 'bad_request', 'trucks')
+  // Malformed with a stale version is still malformed.
+  expectError(await putRouteAs(token, storm.id, 'nope', 7), 400, 'bad_request', 'trucks')
+  for (const v of [undefined, null, '1', 1.5]) {
+    expectError(await putRouteAs(token, storm.id, listsOf(storm), v), 400, 'bad_request', 'route_version')
+  }
+  assert.equal((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.route_version, 1)
+})
+
+test('route version: two PUTs racing with the same version give exactly one 200 and one 409', async () => {
+  const { token, storm } = await partialStorm()
+  let version = 1
+  let lists = listsOf(storm)
+  for (let round = 0; round < 5; round++) {
+    const a = reversedFirst(lists)
+    const b = lists.map((l, i) => (i === 1 ? { ...l, client_ids: [...l.client_ids].reverse() } : l))
+    const [ra, rb] = await Promise.all([putRouteAs(token, storm.id, a, version), putRouteAs(token, storm.id, b, version)])
+    const statuses = [ra.status, rb.status].sort()
+    console.log(`ROUTERACE round=${round} statuses=${statuses.join('/')}`)
+    assert.deepEqual(statuses, [200, 409], `round ${round}: ${ra.text} | ${rb.text}`)
+    const loser = ra.status === 409 ? ra : rb
+    assert.equal(loser.body.error, ROUTE_CHANGED)
+    const winnerLists = ra.status === 200 ? a : b
+    const now = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
+    assert.deepEqual(listsOf(now), winnerLists, `round ${round}: the stored route is the winner's`)
+    assert.equal(now.route_version, version + 1)
+    version = now.route_version
+    lists = listsOf(now)
+  }
 })

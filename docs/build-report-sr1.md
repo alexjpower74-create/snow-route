@@ -663,3 +663,57 @@ split the field (`yard.label` / `yard.lat`). Lead's choice; a field name change 
 - **Specs and arrangement:** route-edit, storm-end, settings and copy arrange storms and check-ins through the API and then do the thing
   under test through the page; billing.spec plows and skips through the driver page and ends the storm through the owner page. The
   `@desktop` tag filters the mouse drag off the 390 projects rather than skipping it (clarification 25).
+
+## M6: DONE (pinned for QA; merge waits for sr2 M3c)
+
+Merged main first (`git merge --ff-only main` → 7d4b52b: API.md clarifications 32–37, DECISIONS 43–45). Code commit `a265921`. **Timing:** sr2's
+current page doesn't send `route_version`, so on this commit its route edits answer 400 field `route_version` until sr2 M3c lands.
+
+### (1) Clarification 32: the route has a version
+- `migrations/0003_route_version.sql`: `ALTER TABLE storms ADD COLUMN route_version INTEGER NOT NULL DEFAULT 1` (existing and seeded storms start at
+  1; the demo seed inserts storms directly and never edits a route, so it needed no change).
+- The owner Storm view carries `route_version` (storm start, current, `GET …/:id`, route PUT, stop add/remove, end). The driver route and the storms
+  list don't carry it (not in the contract).
+- **Every edit bumps it inside its own batch:** route PUT, stop add and stop remove each add `UPDATE storms SET route_version = route_version + 1`
+  to the batch that writes the change, so a refused or rolled-back edit (ended storm, duplicate stop, stop with check-ins) never bumps it.
+- **Route PUT, in order:**
+  1. `route_version` missing or not an integer → **400 field `route_version`** "Reload the route and try again."
+  2. Malformed trucks (not arrays, a foreign truck, a truck or a stop twice, a non-integer id) → **400 field `trucks`**, whatever the version.
+  3. Well formed but not this storm's trucks and stops (a stop added or removed since) → **409 `bad_state` "The route changed while you were
+     editing it. Reload and try again."** when the version is stale, 400 `trucks` when it's current. This comparison reads the version, but it
+     only chooses **which refusal** to send and can never allow a write.
+  4. A body with the right trucks and stops is decided **only inside the write batch**: `ROUTE_VERSION_GUARD_SQL` (a `json()` guard that raises
+     when the stored version isn't the body's), then the bump, then the position updates. A stale version, or the loser of a race, rolls back
+     and answers 409 with the same text. The old count-of-stops guard is gone; the version covers it, because adds and removes bump it.
+
+### (2) Clarification 33: yard errors name their part
+Company PUT answers `field: "yard.label"` for a missing or too-long yard name and `field: "yard.pin"` for missing or out-of-province
+coordinates (texts unchanged).
+
+### Tests
+`npm test`: **26 unit tests pass, 63 API tests pass (58 + 5 new), 0 fail, 0 skipped.** Updated: storm start asserts `route_version: 1`; the company test
+expects `yard.label` / `yard.pin` (plus a yard with a name and no coordinates → `yard.pin`); the storms-list test leaves `route_version` out when
+comparing with the Storm; the M2 route-PUT test sends the current version on every call. New:
+- **bumps:** 1 at start, 2 after a PUT, 3 after an add, 4 after a remove; a refused PUT (duplicate stop) and a refused add leave it at 4; the driver
+  route has no `route_version`.
+- **a stale version with the same stop set** → 409 with the exact text; the stored route is still the first edit's and the version is 2.
+- **a stale version after a stop was added** → 409, not 400; the same old lists with the current version → 400 `trucks`; a stale body naming a
+  stop that was removed since → 409.
+- **400s:** the current version with a duplicate stop, a truck twice, or a foreign truck → 400 `trucks`; a non-array with a stale version → 400
+  `trucks`; `route_version` missing, `null`, `"1"` or `1.5` → 400 `route_version`; none of them bump the version.
+- **two PUTs racing with the same version**, five rounds (each with the version the previous round left): every round exactly one 200 and one
+  409 (`ROUTERACE round=0..4 statuses=200/409`), the stored route is the winner's lists, and the version went up by one.
+
+### Negative control `negative:routeversion`: RED
+Break: in the copy, the line `db.prepare(ROUTE_VERSION_GUARD_SQL).bind(stormId, body.route_version),` is removed from the write batch. Both named
+tests passed on the unbroken copy, then went red: the stale same-set PUT answered `actual: 200, expected: 409`, and the race gave
+`ROUTERACE round=0 statuses=200/200` (`actual: [ 200, 200 ], expected: [ 200, 409 ]`). It's honest because the page-shaped body (right
+trucks and stops) has no read-then-refuse path: only the batch guard stands between a stale screen and the write.
+
+All **thirteen** controls (a–i, pinguard, statusroute, plowednote, routeversion) re-run on `a265921`: all RED, each log section starting with
+`=== a265921 …`, no machine paths in the log.
+
+### For sr2 (M3c)
+Send `route_version` from the last Storm the page painted on every route PUT. A 409 from it (stale, or lost a race) means reload and show the
+text; a 400 `route_version` means the page sent none. Show `yard.label` by the yard name and `yard.pin` by the map. Adds and removes don't take a
+version, but they bump it, so repaint from the Storm they return.
