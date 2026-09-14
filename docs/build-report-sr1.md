@@ -906,3 +906,45 @@ one-item spec (seed IndexedDB with an item lacking `truck_id`, reset the link, o
   storm (`takeNotice`); a re-keyed check-in for a stop off this route is listed only in the off-route block (`renderOldLink` excludes those).
 - **Dropped photo for another route's stop** (clarification 30): the note keeps label and stop, is shown in the other-route block until
   dismissed, and the spec serves the Worker's exact 413 text. See M3c-9 for the wording after a storm ends.
+
+## M7: DONE
+
+Merged main first (`git merge --ff-only main` → 8cff8a3: API.md clarifications 42–47, DECISIONS 51–52). Code commit `5faa526`. Additive: nothing that
+sr2's current page sends or reads changes shape.
+
+### Clarification 42: owner stops say whether they can be removed
+- `loadStorm` reads one more statement in the **same batch** as the storm, its stops and its check-ins:
+  `SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1`. That's every stop with **any** check-in, voided ones included, so the flag and the
+  Stop come from one snapshot.
+- `stopView` adds `removable: true|false` **only when the view is the owner's** (next to `messages`): true only when that client isn't in
+  that set. Every owner Storm answer goes through `stormView`, so the flag is on every stop of: storm start (201), `GET …/storms/current`,
+  `GET …/storms/:id`, route PUT, stop add, stop remove, and the `storm` in the end answer. Driver views (`GET /api/driver/route`, the `stop` in
+  check-in, photo and undo answers), the summary and the status page don't carry it.
+- The removal rule is unchanged: `DELETE …/stops/:client_id` still refuses a stop with any check-in, voided included, with 409 "This stop has
+  check-ins, so it stays on the route." So `removable: false` is exactly the set of stops the DELETE refuses for check-ins.
+
+### Tests
+`npm test`: **26 unit tests pass, 64 API tests pass (63 + 1 new), 0 fail, 0 skipped.** Updated: the M1 driver-route test now strips `removable` as
+well as `messages` when comparing the driver's stops with the owner's, and requires the word `removable` never to appear in the driver answer.
+New "removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE
+answers 409":
+- **fresh:** every stop `true` on the storm-start answer and on `storms/current`;
+- **plowed:** that stop `false`, its neighbour still `true`; the driver's check-in answer has no `removable`;
+- **undone:** the stop is pending with `checkin: null` but still `removable: false`; the owner's DELETE answers 409 with the exact text; the
+  undo answer has no `removable`;
+- **skipped:** `false`;
+- **every owner answer:** the route PUT, a stop add (the new stop `true`, the undone one `false`), a stop remove and the end answer each carry a
+  boolean `removable` on every stop; the summary text has none.
+
+### Negative control `negative:removable`: RED
+Break: in the copy, the statement becomes `SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1 AND voided_at IS NULL`, so removable is
+worked out from non-voided check-ins only. The unbroken copy passed first; the broken copy failed at the undone case:
+`AssertionError: undone: an undone check-in is still a record, so not removable`, `actual: true, expected: false`. That's the exact mismatch
+M3c-6 described: the page would offer Remove, and the Worker would refuse it.
+
+All **fourteen** controls (a–i, pinguard, statusroute, plowednote, routeversion, removable) were re-run on `5faa526`: all RED, each log section
+starting with `=== 5faa526 …`, and no machine paths in the log.
+
+### For sr2 (M3e)
+Show "Remove from tonight" only when the owner Stop has `removable: true`. The flag is fresh on every owner Storm answer, including the one a
+route PUT, stop add or stop remove returns, so repainting from that answer keeps it right.

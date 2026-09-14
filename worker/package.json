@@ -20,6 +20,7 @@
     "negative:statusroute": "node tests/negative-statusroute.mjs",
     "negative:plowednote": "node tests/negative-plowednote.mjs",
     "negative:routeversion": "node tests/negative-routeversion.mjs",
-    "negative": "node tests/negative-twoopt.mjs && node tests/negative-tiers.mjs && node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-skipbill.mjs && node tests/negative-month.mjs && node tests/negative-csvguard.mjs && node tests/negative-voidbill.mjs && node tests/negative-stoprace.mjs && node tests/negative-pinguard.mjs && node tests/negative-statusroute.mjs && node tests/negative-plowednote.mjs && node tests/negative-routeversion.mjs"
+    "negative:removable": "node tests/negative-removable.mjs",
+    "negative": "node tests/negative-twoopt.mjs && node tests/negative-tiers.mjs && node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-skipbill.mjs && node tests/negative-month.mjs && node tests/negative-csvguard.mjs && node tests/negative-voidbill.mjs && node tests/negative-stoprace.mjs && node tests/negative-pinguard.mjs && node tests/negative-statusroute.mjs && node tests/negative-plowednote.mjs && node tests/negative-routeversion.mjs && node tests/negative-removable.mjs"
   }
 }
