@@ -10,6 +10,16 @@ const UNDO_MS = 15_000
 const LOCK_MS = 700 // a second glove tap on the same spot must not land on the next stop's button
 const REFRESH_MS = 120_000
 const ROUTE_PREFIX = 'snow-route:route:'
+const PHOTO_NOTES = 'snow-route:photo-not-sent' // { checkin id: server message } for photos the server refused
+
+function photoNotes() {
+  try { return JSON.parse(localStorage.getItem(PHOTO_NOTES)) || {} } catch { return {} }
+}
+function notePhotoDropped(id, message) {
+  const notes = photoNotes()
+  notes[id] = message
+  try { localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes)) } catch {}
+}
 
 const key = new URLSearchParams(location.search).get('k') || ''
 const state = {
@@ -217,7 +227,11 @@ function renderStop() {
 
 function statusLine(s, next) {
   const saved = s.queued ? ' · saved on this phone' : ''
-  if (s.status === 'plowed') return `Plowed ${s.checkin?.at_label || ''}${s.checkin?.photo === 'waiting' ? ' · photo to send' : ''}${saved}`
+  const dropped = s.checkin && photoNotes()[s.checkin.id]
+  if (s.status === 'plowed') {
+    const photo = dropped ? ` · Photo not sent: ${dropped}` : s.checkin?.photo === 'waiting' ? ' · photo to send' : ''
+    return `Plowed ${s.checkin?.at_label || ''}${photo}${saved}`
+  }
   if (s.status === 'skipped') return `Skipped: ${s.checkin?.reason_text || ''}${saved}`
   return s === next ? 'Up next' : 'To do'
 }
@@ -353,8 +367,15 @@ async function undo() {
   sender.flush()
 }
 
-// Downscale to at most 1600 px on the long side, JPEG quality 0.7.
-async function downscale(file) {
+// Decode the photo without loading a URL where the browser can (a blob: URL load can be refused with no signal), then
+// downscale to at most 1600 px on the long side, JPEG quality 0.7.
+async function decode(file) {
+  if (globalThis.createImageBitmap) {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, done: () => bitmap.close() }
+    } catch { /* fall back to an <img> */ }
+  }
   const url = URL.createObjectURL(file)
   try {
     const img = await new Promise((resolve, reject) => {
@@ -363,16 +384,26 @@ async function downscale(file) {
       i.onerror = () => reject(new Error('unreadable'))
       i.src = url
     })
-    const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight))
+    return { source: img, width: img.naturalWidth, height: img.naturalHeight, done: () => URL.revokeObjectURL(url) }
+  } catch (e) {
+    URL.revokeObjectURL(url)
+    throw e
+  }
+}
+
+async function downscale(file) {
+  const img = await decode(file)
+  try {
+    const scale = Math.min(1, 1600 / Math.max(img.width, img.height))
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
-    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+    canvas.width = Math.max(1, Math.round(img.width * scale))
+    canvas.height = Math.max(1, Math.round(img.height * scale))
+    canvas.getContext('2d').drawImage(img.source, 0, 0, canvas.width, canvas.height)
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7))
     if (!blob) throw new Error('no jpeg')
     return { bytes: await blob.arrayBuffer(), type: 'image/jpeg' }
   } finally {
-    URL.revokeObjectURL(url)
+    img.done()
   }
 }
 
@@ -469,6 +500,7 @@ const sender = queue.createSender({
     writeCache()
   },
   onDrained: () => loadRoute(),
+  onPhotoDropped: (itemKey, id, message) => { notePhotoDropped(id, message); renderList() },
 })
 
 async function loadRoute() {
