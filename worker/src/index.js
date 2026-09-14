@@ -465,7 +465,8 @@ function checkinInput (body) {
   const at = typeof body.at === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(body.at) ? Date.parse(body.at) : NaN
   if (!Number.isFinite(at)) throw badRequest('at', 'The check-in time could not be read.')
   if (typeof body.has_photo !== 'boolean') throw badRequest('has_photo', 'The photo flag could not be read.')
-  return { kind: body.kind, reason: body.kind === 'skipped' ? body.reason : null, note: note.trim(), at, has_photo: body.has_photo }
+  if (body.undo !== undefined && typeof body.undo !== 'boolean') throw badRequest('undo', 'The undo flag could not be read.')
+  return { kind: body.kind, reason: body.kind === 'skipped' ? body.reason : null, note: note.trim(), at, has_photo: body.has_photo, undo: body.undo === true }
 }
 
 async function duplicateAnswer (env, ctx, stored) {
@@ -502,10 +503,14 @@ async function postCheckin (request, env, ctx) {
 
   const stmts = []
   // The stop must still be on the route when this batch commits (clarification 15): a removal that won the race makes it 404.
+  // An undo re-send (clarification 52) stores a check-in the Worker doesn't have yet already voided, in this same statement: it never
+  // bills and never decides the stop, so the skip-after-plowed guard doesn't apply to it. The stop guard always does.
+  const receivedAt = iso(ctx.now)
+  const voidedAt = input.undo ? receivedAt : null
   stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))
-  if (input.kind === 'skipped') stmts.push(db.prepare(SKIP_GUARD_SQL).bind(storm.id, body.client_id, id))
-  stmts.push(db.prepare('INSERT INTO checkins (id, storm_id, client_id, truck_id, kind, reason, note, at, at_adjusted, received_at, has_photo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT(id) DO NOTHING')
-    .bind(id, storm.id, body.client_id, truck.id, input.kind, input.reason, input.note, at, atAdjusted, iso(ctx.now), input.has_photo ? 1 : 0))
+  if (input.kind === 'skipped' && !input.undo) stmts.push(db.prepare(SKIP_GUARD_SQL).bind(storm.id, body.client_id, id))
+  stmts.push(db.prepare('INSERT INTO checkins (id, storm_id, client_id, truck_id, kind, reason, note, at, at_adjusted, received_at, has_photo, voided_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT(id) DO NOTHING')
+    .bind(id, storm.id, body.client_id, truck.id, input.kind, input.reason, input.note, at, atAdjusted, receivedAt, input.has_photo ? 1 : 0, voidedAt))
   let inserted
   try {
     const results = await db.batch(stmts)

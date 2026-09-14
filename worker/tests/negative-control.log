@@ -3282,3 +3282,37 @@ test at tests/api.test.mjs:1379:1
     diff: 'simple'
   }
 verdict: RED as expected. "removable: a fresh stop is removable" fail when removable ignores voided check-ins.
+
+=== a66cd01 +uncommitted worker changes negative:undoflag 2026-09-14T11:14:34.103Z ===
+control (unbroken copy): "undo flag: a new id is stored already voided" pass
+break: src/index.js: "has_photo: body.has_photo, undo: body.undo === true }"  ->  "has_photo: body.has_photo, undo: false }"
+✖ undo flag: a new id is stored already voided: 201 voided, the stop stays pending, no push billed, no status last, removable false (160.80167ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 246.839658
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1437:1
+✖ undo flag: a new id is stored already voided: 201 voided, the stop stays pending, no push billed, no status last, removable false (160.80167ms)
+  AssertionError [ERR_ASSERTION]: stored already voided
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-undoflag/tests/api.test.mjs:1447:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "undo flag: a new id is stored already voided" fail when the undo flag is ignored and the re-send stores a live push.
