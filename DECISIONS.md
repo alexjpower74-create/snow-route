@@ -165,3 +165,11 @@ Alexander was asleep for this build; every real call is written here with its re
     send lock; 30 s is long enough for a slow upload of a 1600 px photo on a weak signal and short enough that the driver's screen moves on.
 49. **These go to sr2 as M3d after M3c**, as before: sr2 is mid-turn and the fixes touch the same queue code, so a clean hand-off beats an
     interruption.
+
+## 2026-09-14, lead (after sr2 M3c)
+
+50. **The lead's own negative control was one that could not fail, and a slice caught it.** API.md 34 named `Math.round(amount * 0.15)` as
+    the break for the billing screen's HST; sr2 ran it first, saw it stay green, and showed why (`3550 * 0.15 === 532.5` in JavaScript, and
+    no amount up to $10,000 disagrees with the half-up rule). The control now truncates instead, which shows $5.32 and goes red. The spec
+    and its $35.50 price stay: they still catch a page that computes money itself in any way that differs from the API. Recorded because
+    this is exactly the failure the rules warn about, and it came from the contract, not from a slice.

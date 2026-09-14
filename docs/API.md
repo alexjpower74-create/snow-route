@@ -393,7 +393,10 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
 33. **(sr1 M6 + sr2 M3c, review M3b-8) Yard errors name their part:** `PUT /api/owner/company` answers `field: "yard.label"` for the yard
     name and `field: "yard.pin"` for missing or out-of-province coordinates. The page shows each by its own input (the pin one by the map).
 34. **(sr2 M3c, review M3b-2) The billing spec uses a price whose HST needs rounding** (3550 cents, HST $5.33 by the half-up rule) and asserts
-    every money cell equals the API row. A negative control recomputes HST on the page with `Math.round(amount * 0.15)` and the spec goes red.
+    every money cell equals the API row. A negative control recomputes HST on the page and the spec goes red. *Corrected after sr2 M3c:*
+    the break is `Math.floor(amount * 0.15)` (shows $5.32). The first wording named `Math.round(amount * 0.15)`, but in JavaScript
+    `3550 * 0.15` is exactly `532.5`, and sr2's sweep of every amount from 1 cent to $10,000 found no price where `Math.round` disagrees
+    with the half-up integer rule, so that break could never go red.
 35. **(sr2 M3c, review M3b-3) The downloaded CSV is byte-for-byte the Worker's** `GET /api/owner/billing.csv` answer; the spec compares bytes.
 36. **(sr2 M3c, review M3b-5/M3b-6)** End storm, Add a stop and route edits answering 409 because the storm ended elsewhere close the confirm or
     form and repaint Tonight with the API's message (End storm shows that storm's summary). A "Past storms" link is shown while a storm is on.
