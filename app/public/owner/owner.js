@@ -29,6 +29,7 @@ let map = null
 let pinMarker = null
 let stormTimer = null
 let drag = null
+let edits = 0 // route changes started on this screen; a refresh that saw fewer is older than the screen (clarification 40)
 
 const $ = (id) => document.getElementById(id)
 const money = (cents) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -463,8 +464,12 @@ function paintStorm() {
 async function refreshStorm() {
   const busy = state.saving || drag || state.confirm || state.adding || document.querySelector('.texts[open]')
   if (where().summary || where().view !== 'tonight' || document.visibilityState !== 'visible' || busy) return
+  const editsBefore = edits
   try {
     const next = (await api.owner.currentStorm()).storm
+    // Drop an answer that is older than the screen: a save, drag, add or remove started while it was on its way, or a lower version.
+    if (edits !== editsBefore || state.saving || drag) return
+    if (next && state.storm && next.id === state.storm.id && next.route_version < state.storm.route_version) return
     if (JSON.stringify(next) === JSON.stringify(state.storm)) return
     clearInterval(stormTimer)
     state.storm = next
@@ -479,6 +484,7 @@ const routeLists = () => state.storm.trucks.map((t) => ({ truck_id: t.id, client
 // screen) reloads and says so (clarification 32).
 async function saveRoute(lists) {
   if (state.saving) return
+  edits += 1
   state.saving = true
   document.querySelectorAll('.stop-tools button, .drag-handle').forEach((b) => { b.disabled = true })
   try {
@@ -539,6 +545,7 @@ document.addEventListener('pointerdown', (e) => {
   e.preventDefault()
   const li = handle.closest('li')
   handle.setPointerCapture(e.pointerId)
+  edits += 1
   drag = { id: Number(handle.dataset.drag), li, pointerId: e.pointerId, startY: e.clientY, target: null }
   li.classList.add('is-dragging')
 })
@@ -571,6 +578,7 @@ document.addEventListener('pointercancel', endDrag)
 async function addStop() {
   for (const id of ['err-client_id', 'err-truck_id', 'add-stop-error']) $(id).textContent = ''
   const btn = $('add-stop-save')
+  edits += 1
   btn.disabled = true
   try {
     state.storm = await api.owner.addStop(state.storm.id, { client_id: Number($('stop-client').value), truck_id: Number($('stop-truck').value) })
@@ -613,6 +621,7 @@ async function endStorm() {
 // "Remove from tonight" (clarification 37). A 409 shows the API's message on that stop, or repaints Tonight if the storm ended.
 async function removeStop(clientId) {
   const storm = state.storm
+  edits += 1
   try {
     state.storm = await api.owner.removeStop(storm.id, clientId)
     state.confirm = null

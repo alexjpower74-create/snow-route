@@ -27,7 +27,7 @@ function notePhotoDropped(id, message, item) {
 const key = new URLSearchParams(location.search).get('k') || ''
 const state = {
   route: null, savedAt: null, fromCache: false, error: '', loading: true,
-  items: [], last: null, focus: null, locked: false, notice: '', sheet: null, routeVersion: 0, confirmUndo: null,
+  items: [], last: null, focus: null, locked: false, notice: '', sheet: null, routeVersion: 0, confirmUndo: null, confirmAttempted: false,
 }
 const app = document.getElementById('app')
 
@@ -192,7 +192,8 @@ function renderBar() {
 
 function renderStrip() {
   const strip = $('strip')
-  const live = state.items.filter((i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && !i.stuck)
+  // An undone item that was tried still has a DELETE to send (clarification 38), so it counts until that is done.
+  const live = state.items.filter((i) => ours(i) && i.state !== 'rejected' && (i.state !== 'undone' || i.attempted) && !i.stuck)
   const toSend = live.filter((i) => i.state === 'send').length
   const photos = live.filter((i) => i.state === 'photo').length
   const offline = !navigator.onLine || sender.problem === 'network'
@@ -400,9 +401,11 @@ function renderRejected() {
 // Asked before an Undo would delete a check-in that has not been sent (clarification 28).
 function confirmUndoMarkup(qid) {
   return `<div class="undo-confirm" role="group" aria-labelledby="undo-confirm-text">
-      <span class="undo-confirm-text" id="undo-confirm-text">This check-in has not reached the office yet. Delete it from this phone?</span>
+      <span class="undo-confirm-text" id="undo-confirm-text">${state.confirmAttempted
+        ? 'It may already be at the office. Undo it?'
+        : 'This check-in has not reached the office yet. Delete it from this phone?'}</span>
       <span class="undo-confirm-buttons">
-        <button class="btn-undo" id="undo-delete" type="button" data-action="undo-confirm" data-qid="${esc(qid)}">Delete it</button>
+        <button class="btn-undo" id="undo-delete" type="button" data-action="undo-confirm" data-qid="${esc(qid)}">${state.confirmAttempted ? 'Undo it' : 'Delete it'}</button>
         <button class="btn-undo btn-undo-keep" id="undo-keep" type="button" data-action="undo-keep">Keep it</button>
       </span></div>`
 }
@@ -500,13 +503,19 @@ async function takeBack(qid, known) {
   return outcome
 }
 
-const unsent = async (qid) => (await queue.get(qid))?.state === 'send'
+// The queued item if it has not been answered yet (so Undo asks first), else null. `attempted` picks the words (clarification 38).
+async function unanswered(qid) {
+  const it = await queue.get(qid)
+  return it?.state === 'send' ? it : null
+}
 
 async function undo(confirmed = false) {
   const u = state.last
   if (!u || (!u.canUndo && state.confirmUndo !== u.id)) return
-  if (!confirmed && await unsent(u.id)) {
+  const waiting = !confirmed && await unanswered(u.id)
+  if (waiting) {
     state.confirmUndo = u.id
+    state.confirmAttempted = !!waiting.attempted
     return renderUndo()
   }
   clearTimeout(undoTimer)
@@ -642,8 +651,10 @@ document.addEventListener('click', async (e) => {
       return render()
     case 'undo-item': {
       const qid = t.dataset.qid
-      if (await unsent(qid)) {
+      const waiting = await unanswered(qid)
+      if (waiting) {
         state.confirmUndo = qid
+        state.confirmAttempted = !!waiting.attempted
         return render()
       }
       await takeBack(qid, state.items.find((i) => i.qid === qid))

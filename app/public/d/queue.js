@@ -76,8 +76,13 @@ export async function update(qid, change) {
   })
 }
 
-// One sender at a time across every tab of this origin. Browsers without Web Locks send without it.
-const withSendLock = (fn) => (globalThis.navigator?.locks ? navigator.locks.request('snow-route-send', fn) : fn())
+// One sender at a time across every tab of this origin. A tab that is not on screen takes the lock only if it is free, so a forgotten
+// background tab never holds up the one the driver is looking at (clarification 39). Browsers without Web Locks send without it.
+const withSendLock = (fn) => {
+  if (!globalThis.navigator?.locks) return fn()
+  if (document.visibilityState === 'visible') return navigator.locks.request('snow-route-send', fn)
+  return navigator.locks.request('snow-route-send', { ifAvailable: true }, (lock) => (lock ? fn() : undefined))
+}
 
 export async function add(item) {
   const items = await all()
@@ -126,6 +131,12 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
 
   // One item. true = go on to the next item; false = stop for now (no signal, server trouble).
   async function step(item) {
+    if (item.op === 'checkin' && item.state === 'send' && !item.attempted && navigator.onLine !== false) {
+      // Written before the POST leaves: from here on the Worker may have it, so an Undo must send a DELETE (clarification 38).
+      const marked = await update(item.qid, (it) => (it && it.state === 'send' ? { item: { ...it, attempted: true }, result: true } : { result: false }))
+      if (!marked) return true // undone or gone meanwhile: the next pass decides
+      item = { ...item, attempted: true }
+    }
     let r
     try {
       if (item.op === 'void') r = await api.driver.undo(item.key, item.body.id)
@@ -147,6 +158,8 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       if (status === 200) {
         await remove(item.qid)
         onSent(item.key, data?.stop)
+      } else if (status === 404) {
+        await remove(item.qid) // the Worker never stored that check-in: nothing to undo (clarification 38)
       } else await reject(item, data?.error || `The undo was not accepted (error ${status}).`)
       return true
     }
@@ -190,8 +203,17 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     try {
       await withSendLock(async () => {
       for (;;) {
-        // Undone items this sender never sent leave the phone here, inside the lock, so no tab can be sending them.
-        for (const i of await all()) if (i.state === 'undone') await remove(i.qid)
+        // Undone items (clarification 38): never attempted → leave the phone with no DELETE; attempted (the Worker may have it) → an undo,
+        // whichever sender finds it. Inside the lock where there is one.
+        for (const i of await all()) {
+          if (i.state !== 'undone') continue
+          const needsUndo = !!i.attempted
+          if (needsUndo) {
+            await add({ qid: `void:${i.body.id}`, op: 'void', state: 'send', key: i.key, truck_id: i.truck_id ?? truckOf(i.key), label: i.label,
+              body: { id: i.body.id, storm_id: i.body.storm_id, client_id: i.body.client_id }, photo: null, error: null })
+          }
+          await remove(i.qid)
+        }
         await rekey()
         const items = pending(await all()).filter((i) => !blocked(i))
         if (!items.length) {
