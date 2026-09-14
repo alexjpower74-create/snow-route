@@ -16,6 +16,14 @@ const VIEWS = [['tonight', 'Tonight'], ['clients', 'Clients'], ['trucks', 'Truck
 // Truck lines and swatches use Design tokens only: ice blue, then white, then muted.
 const TRUCK_COLOURS = ['#7cc4ff', '#eef3fb', '#a3b3cc']
 const TRUCK_COLOUR_NAMES = ['blue', 'white', 'grey']
+// A truck's pins carry its line colour as a ring AND a shape of its own, so the trucks tell apart without seeing colour.
+const TRUCK_SHAPES = ['round', 'square', 'dashed']
+const TRUCK_SHAPE_NAMES = ['round', 'square', 'dashed-ring']
+const truckLook = (i) => ({
+  colour: TRUCK_COLOURS[i % TRUCK_COLOURS.length], colourName: TRUCK_COLOUR_NAMES[i % TRUCK_COLOUR_NAMES.length],
+  shape: TRUCK_SHAPES[i % TRUCK_SHAPES.length], shapeName: TRUCK_SHAPE_NAMES[i % TRUCK_SHAPE_NAMES.length],
+})
+const truckMark = (i) => { const l = truckLook(i); return `<span class="truck-mark shape-${l.shape}" data-truck="${i + 1}" style="border-color:${l.colour}" aria-hidden="true"></span>` }
 const STORM_REFRESH_MS = 30_000
 const PRICE_TEXT = 'Type a price in dollars and cents.'
 const GRIP = '<svg aria-hidden="true" width="18" height="24" viewBox="0 0 18 24"><g fill="currentColor"><circle cx="5" cy="5" r="2"/><circle cx="13" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></g></svg>'
@@ -422,7 +430,7 @@ function paintStorm() {
       <section class="panel" id="route-lists">
         ${s.trucks.map((t, i) => `
           <section class="truck-stops" data-truck-id="${t.id}">
-            <h2 class="section-title"><span class="swatch" style="background:${TRUCK_COLOURS[i % TRUCK_COLOURS.length]}"></span>${esc(t.name)} · ${plural(t.stops.length, 'stop')}</h2>
+            <h2 class="section-title">${truckMark(i)}${esc(t.name)} · ${plural(t.stops.length, 'stop')}</h2>
             <ol class="owner-stops" data-truck-id="${t.id}">
               ${t.stops.map((st, index) => stopItem(st, t, index, s.trucks)).join('')}
             </ol>
@@ -432,8 +440,8 @@ function paintStorm() {
       <section class="panel map-panel">
         <div class="map map-tall" id="map" role="region" aria-label="Tonight's route on the map"></div>
         <p class="map-legend">
-          Numbered pins are the order: green is plowed, amber is skipped, dark is still to do.
-          ${s.trucks.map((t, i) => `<span class="legend-item"><span class="swatch" style="background:${TRUCK_COLOURS[i % TRUCK_COLOURS.length]}"></span>${esc(t.name)} line (${TRUCK_COLOUR_NAMES[i % TRUCK_COLOUR_NAMES.length]})</span>`).join('')}
+          Numbered pins are the order: green is plowed, amber is skipped, dark is still to do. Each truck's pins have their own shape and ring colour.
+          ${s.trucks.map((t, i) => `<span class="legend-item legend-truck" data-truck="${i + 1}">${truckMark(i)}${esc(t.name)}: ${truckLook(i).shapeName} pins, ${truckLook(i).colourName} line</span>`).join('')}
           Lines are straight, not roads.
         </p>
       </section>
@@ -443,14 +451,15 @@ function paintStorm() {
   const y = state.company?.yard
   const points = y ? [[y.lat, y.lng]] : []
   s.trucks.forEach((t, i) => {
-    const colour = TRUCK_COLOURS[i % TRUCK_COLOURS.length]
+    const look = truckLook(i)
+    const colour = look.colour
     const line = t.stops.map((st) => [st.lat, st.lng])
     if (y) line.unshift([y.lat, y.lng])
     L.polyline(line, { color: colour, weight: 4, opacity: 0.85, interactive: false }).addTo(map)
     for (const st of t.stops) {
       points.push([st.lat, st.lng])
       L.marker([st.lat, st.lng], {
-        icon: L.divIcon({ className: `route-pin is-${st.status}`, html: `<span style="border-color:${colour}">${st.position}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+        icon: L.divIcon({ className: `route-pin is-${st.status} shape-${look.shape}`, html: `<span data-truck="${i + 1}" style="border-color:${colour}">${st.position}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
         title: `${t.name}, stop ${st.position}: ${st.name}`,
         riseOnHover: true,
       }).addTo(map)

@@ -192,3 +192,30 @@ test('at 1280 the map stays on screen while the long route list scrolls, and the
   const legendMedical = await legend.locator('.legend-dot.is-medical').evaluate((el) => getComputedStyle(el).backgroundColor)
   expect(legendMedical, 'the legend dot matches the pin').toBe(medical)
 })
+
+// Onyx's polish review: both trucks' pins looked alike, so two "1"s and two "7"s could not be told apart without following faint lines.
+// Each truck's pins now carry its ring colour AND a shape of its own (colour is never the only cue), matching its legend entry.
+test("each route pin shows its truck: its own shape and ring colour, the same as its legend entry", async ({ page, request }) => {
+  await startStorm(request, await ownerToken(request))
+  await signIn(page)
+  await expect(page.locator('.route-pin')).toHaveCount(25)
+  const styleOf = (el) => { const s = getComputedStyle(el); return `${s.borderTopColor} | ${s.borderTopLeftRadius} | ${s.borderTopStyle}` }
+  const trucks = page.locator('.truck-stops')
+  const legendLooks = []
+  for (const n of [1, 2]) {
+    const stops = await trucks.nth(n - 1).locator('.stop-row').count()
+    const pins = page.locator(`.route-pin span[data-truck="${n}"]`)
+    await expect(pins, `truck ${n}: one pin per stop`).toHaveCount(stops)
+    const pinLooks = await pins.evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return `${s.borderTopColor} | ${s.borderTopLeftRadius} | ${s.borderTopStyle}` }))
+    expect(new Set(pinLooks).size, `truck ${n}: every pin of the truck looks the same`).toBe(1)
+    const entry = page.locator(`.legend-truck[data-truck="${n}"]`)
+    await expect(entry).toContainText(/: (round|square|dashed-ring) pins, (blue|white|grey) line$/)
+    const legendLook = await entry.locator('.truck-mark').evaluate(styleOf)
+    expect(pinLooks[0], `truck ${n}: its pins look like its legend entry`).toBe(legendLook)
+    await expect(trucks.nth(n - 1).locator('.section-title .truck-mark'), `truck ${n}: the list header shows the same mark`).toHaveCount(1)
+    legendLooks.push(legendLook.split(' | '))
+  }
+  const [one, two] = legendLooks
+  expect(one[0], 'the two trucks have different ring colours').not.toBe(two[0])
+  expect(`${one[1]} ${one[2]}`, 'the two trucks have different shapes, so colour is not the only cue').not.toBe(`${two[1]} ${two[2]}`)
+})

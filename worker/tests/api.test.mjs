@@ -1116,6 +1116,8 @@ test('demo seed: two ended storms, an active one with 10 plowed and 2 skipped, p
   assert.equal(photo.headers.get('content-type'), 'image/svg+xml')
   assert.equal(photo.headers.get('content-security-policy'), "default-src 'none'; style-src 'unsafe-inline'")
   assert.match(photo.text, /^<svg[\s\S]*SAMPLE placeholder photo/)
+  assert.match(photo.text, /id="camera"/, 'the placeholder draws a camera')
+  assert.match(photo.text, /Photo taken \d{1,2}:\d{2} (AM|PM)/, 'the placeholder says when the photo was taken')
 
   const storms = (await api('GET', '/api/owner/storms', { token })).body.storms
   assert.deepEqual(storms.map(s => s.status), ['active', 'ended', 'ended'])

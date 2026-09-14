@@ -206,8 +206,14 @@ body.has-sheet { overflow: hidden; }
 .pin-yard { background: var(--text); color: var(--ground); border-radius: 6px; }
 .route-pin span {
   display: grid; place-items: center; width: 30px; height: 30px; box-sizing: border-box; border-radius: 50%;
-  border: 3px solid var(--accent); background: var(--surface); color: var(--text); font-weight: 800; font-size: 13px;
+  border: 4px solid var(--accent); background: var(--surface); color: var(--text); font-weight: 800; font-size: 13px;
+  box-shadow: 0 0 0 2px var(--ground); /* keeps a white ring readable on light map tiles */
 }
+/* Each truck's shape (owner.js truckLook): round, square, dashed ring. The legend's .truck-mark uses the same classes. */
+.route-pin.shape-square span, .truck-mark.shape-square { border-radius: 5px; }
+.route-pin.shape-dashed span, .truck-mark.shape-dashed { border-style: dashed; }
+.truck-mark { display: inline-block; flex: none; width: 18px; height: 18px; box-sizing: border-box; margin-right: 6px; vertical-align: -3px;
+  border: 4px solid var(--accent); border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--ground); }
 .route-pin.is-plowed span { background: var(--st-plowed); color: var(--ground); }
 .route-pin.is-skipped span { background: var(--st-skipped); color: var(--ground); }
 

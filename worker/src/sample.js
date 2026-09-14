@@ -1,7 +1,7 @@
 // Seeding the SAMPLE company, trucks and clients (POST /api/test/reset). Data comes from the generated sample-data.js.
 import { SAMPLE } from './sample-data.js'
 import { hashPin, randomKey } from './auth.js'
-import { TIMEZONE, dateLabel, fullLabel } from './time.js'
+import { TIMEZONE, dateLabel, fullLabel, timeLabel } from './time.js'
 import { buildRoute } from './route.js'
 
 export const SAMPLE_PIN = '2468'
@@ -57,13 +57,22 @@ const DAY = 86400000
 const iso = ms => new Date(ms).toISOString()
 const escapeXml = s => String(s).replace(/[&<>"']/g, ch => `&#${ch.charCodeAt(0)};`)
 
-/** A generated placeholder photo: no real picture of anyone's home. */
-export function placeholderSvg (title, subtitle) {
+/**
+ * A generated placeholder photo: no real picture of anyone's home. It is a neutral card that says what it is (a drawn camera, the NL
+ * time the photo was taken, the stop, and a SAMPLE label), so a client never reads it as a broken image.
+ */
+export function placeholderSvg (title, at) {
+  const taken = `Photo taken ${timeLabel(at)}`
+  const font = 'font-family="Arial, Helvetica, sans-serif"'
   return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">` +
-    `<rect width="800" height="600" fill="#1a2540"/><rect y="430" width="800" height="170" fill="#eef3fb"/>` +
-    `<text x="40" y="90" font-family="Arial, sans-serif" font-size="40" fill="#fbbf24">SAMPLE placeholder photo</text>` +
-    `<text x="40" y="170" font-family="Arial, sans-serif" font-size="36" fill="#eef3fb">${escapeXml(title)}</text>` +
-    `<text x="40" y="225" font-family="Arial, sans-serif" font-size="28" fill="#a3b3cc">${escapeXml(subtitle)}</text></svg>`
+    `<rect width="800" height="600" rx="24" fill="#1a2540"/>` +
+    `<rect x="18" y="18" width="764" height="564" rx="18" fill="none" stroke="#3b4a68" stroke-width="2" stroke-dasharray="12 10"/>` +
+    `<rect x="40" y="40" width="380" height="54" rx="27" fill="none" stroke="#fbbf24" stroke-width="3"/>` +
+    `<text x="230" y="76" text-anchor="middle" ${font} font-size="24" font-weight="700" fill="#fbbf24">SAMPLE placeholder photo</text>` +
+    `<g id="camera" fill="none" stroke="#a3b3cc" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">` +
+    `<rect x="290" y="190" width="220" height="150" rx="24"/><path d="M345 190 l20 -32 h70 l20 32"/><circle cx="400" cy="265" r="46"/></g>` +
+    `<text x="400" y="425" text-anchor="middle" ${font} font-size="46" font-weight="700" fill="#eef3fb">${escapeXml(taken)}</text>` +
+    `<text x="400" y="480" text-anchor="middle" ${font} font-size="30" fill="#a3b3cc">${escapeXml(title)}</text></svg>`
 }
 
 /**
@@ -116,7 +125,7 @@ export async function seedDemo (env, origin, nowMs) {
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, 0, ?8, ?9)`)
         .bind(id, storm.id, k.s.client_id, k.t.truck_id, k.kind, k.reason, iso(k.at), iso(k.at + MIN), k.photo ? 1 : 0))
       if (k.photo === 'stored') {
-        const svg = new TextEncoder().encode(placeholderSvg(k.s.name, `Plowed ${fullLabel(k.at)}`))
+        const svg = new TextEncoder().encode(placeholderSvg(k.s.name, k.at))
         puts.push(env.PHOTOS.put(`checkins/${id}`, svg, { httpMetadata: { contentType: 'image/svg+xml' } }))
         stmts.push(db.prepare("INSERT INTO photos (checkin_id, token, content_type, size, stored_at) VALUES (?1, ?2, 'image/svg+xml', ?3, ?4)")
           .bind(id, randomKey(16), svg.byteLength, iso(k.at + 2 * MIN)))

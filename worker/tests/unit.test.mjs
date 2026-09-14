@@ -111,3 +111,17 @@ test('no Worker text says "Please try again" (the scan is shown to catch a known
   const hits = readdirSync(dir).filter(f => f.endsWith('.js')).flatMap(f => scan(readFileSync(new URL(f, dir), 'utf8')).map(l => `${f}: ${l.trim()}`))
   assert.deepEqual(hits, [])
 })
+
+// The demo placeholder photo is an intentional card, not a dark block over a flat white one (Onyx's polish review, DECISIONS 59).
+import { test as placeholderTest } from 'node:test'
+import placeholderAssert from 'node:assert/strict'
+import { placeholderSvg } from '../src/sample.js'
+placeholderTest('the demo placeholder photo is a card: SAMPLE label, a drawn camera, the NL time taken, the stop, no flat white block', () => {
+  const svg = placeholderSvg('Pat <SAMPLE> & co', '2026-01-12T11:12:00.000Z')
+  placeholderAssert.match(svg, /^<svg [^>]*viewBox="0 0 800 600"/)
+  placeholderAssert.ok(svg.includes('SAMPLE placeholder photo'), 'the SAMPLE label')
+  placeholderAssert.ok(svg.includes('id="camera"'), 'a drawn camera')
+  placeholderAssert.ok(svg.includes('Photo taken 7:42 AM'), 'the NL time the photo was taken (11:12Z is 7:42 AM NST)')
+  placeholderAssert.ok(svg.includes('Pat &#60;SAMPLE&#62; &#38; co'), 'the stop name, XML-escaped')
+  placeholderAssert.ok(!/<rect[^>]*fill="#eef3fb"/.test(svg), 'no flat white block that reads as a broken image')
+})
