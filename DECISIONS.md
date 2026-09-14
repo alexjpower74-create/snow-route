@@ -173,3 +173,12 @@ Alexander was asleep for this build; every real call is written here with its re
     no amount up to $10,000 disagrees with the half-up rule). The control now truncates instead, which shows $5.32 and goes red. The spec
     and its $35.50 price stay: they still catch a page that computes money itself in any way that differs from the API. Recorded because
     this is exactly the failure the rules warn about, and it came from the contract, not from a slice.
+
+## 2026-09-14, lead (after sr1's review of sr2 M3c steps 3-11)
+
+51. **A stop keeps its place on the route once any truck checked in there, even if the check-in was undone** (API.md 42, sr1's option (a)).
+    The owner Stop view says `removable` so the page never offers a removal the office will refuse. Letting voided-only stops go would
+    also work, but an undone check-in is still evidence a truck was there, and the summary should not lose that.
+52. **M3e is the last app round.** The reviews have gone from a night of lost check-ins (R1) and voided pushes (M3a-1) to wording and test
+    honesty (M3c-9 to M3c-11). After M3d and M3e land and pass pinned QA, the build moves to its finish: final QA, screenshots, README,
+    private repo, status file. Anything a further review finds that is not a data-loss or billing defect goes into the README's known gaps.

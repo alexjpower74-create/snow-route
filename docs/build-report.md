@@ -119,6 +119,19 @@ the lock wraps the whole send loop, and consecutive edits on one screen always c
 | M3c-4 | The two-tab control broke two defences at once, so the missing-means-undone rule alone was never proven; the response-lost path had no test | the lead's QA | API.md 41 |
 | M3c-5 | The Undo confirm said "has not reached the office" for check-ins usually in flight | driver | API.md 38 |
 
+**sr1 read sr2's M3c steps 3-11** (`f1d486d`) and corrected its own earlier arithmetic (M3b-2): `Math.round(a * 0.15)` never differs from the
+half-up rule. The cross-truck control (g), the truncating HST control (h), the CSV byte check, ended-storm wording, the 409 flows, Past storms
+and yard errors all checked out. Six findings:
+
+| # | Defect | Who it hurts | Adopted as |
+|---|---|---|---|
+| M3c-6 | "Remove from tonight" shown on a stop whose only check-in was undone; the office refuses it every time | owner | API.md 42 (`removable`, sr1 M7) |
+| M3c-7 | A check-in re-keyed across trucks whose first POST was stored under the old truck could send its photo to a truck that answers 404 | driver sharing a phone, owner | API.md 43 |
+| M3c-8 | A removal refused with 404 (removed on another screen) left the stale row | owner | API.md 44 |
+| M3c-9 | After a storm ends, "Photo not sent" notes read as stops moved off the route | driver | API.md 45 |
+| M3c-10 | The billing totals would pass a page computing total HST from the subtotal | the lead's QA | API.md 46 |
+| M3c-11 | The keys store was never exercised by any spec | the lead's QA | API.md 47 |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.

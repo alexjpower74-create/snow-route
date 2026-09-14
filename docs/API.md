@@ -418,3 +418,17 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     "missing after 200/201 means undone" and that no-locks run goes red. A response-lost spec (the Worker stores the POST, the page's
     response is aborted, the driver taps Undo and confirms) expects a voided check-in in the database; a negative control drops the
     `attempted` rule and it goes red.
+42. **(sr1 M7 + sr2 M3e, review M3c-6) Owner stops say whether they can be removed.** Each Stop in the owner view carries
+    `"removable": true|false`: true only when the stop has no check-ins at all, voided ones included (an undone check-in is still a record
+    that a truck was there). The page shows "Remove from tonight" only when `removable` is true. The Worker's removal rule is unchanged.
+43. **(sr2 M3e, review M3c-7) A check-in's truck is the one the office stored.** After a 200 or 201, the item takes `truck_id` from
+    `data.checkin.truck_id`. If that is not the page's truck, its photo (and any later undo) is marked stuck like any other cross-truck item,
+    never sent to a truck that would answer 404.
+44. **(sr2 M3e, review M3c-8) A stop removal refused with 404** (already removed on another screen) reloads the Storm like a 409, then shows
+    the message.
+45. **(sr2 M3e, review M3c-9) "Photo not sent" notes have their own neutral heading**, "Photos not sent", keyed by storm, and never sit under
+    wording about moved stops.
+46. **(sr2 M3e, review M3c-10) The billing spec's totals need the sum-of-rows rule to pass:** two per-push clients at $35.50 (row HST 533 + 533 =
+    1066, where 15% of the $71.00 subtotal would be 1065). The stale comment in `billing.spec.mjs` about `Math.round(3550 * 0.15)` is fixed.
+47. **(sr2 M3e, review M3c-11) The keys store is exercised:** a spec seeds the queue with one item that has no `truck_id` (arrangement of data an
+    older build left), resets that truck's link, opens the other truck's link and expects the item listed as belonging to another truck.
