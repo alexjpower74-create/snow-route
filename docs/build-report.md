@@ -20,6 +20,7 @@ reasoning and every attempt.
 | sr2 M2 | `69076b5` | (Worker as `7ca9f24`) | (as `7ca9f24`) | app: queue, time, overlay: all red | 56 / 0 / 4 (the 4 skips: two phone-width checks on each 1280 project, replaced by project filters in sr2 M3a) |
 | sr2 M3a | `5f162b2` | (Worker as `a3c0a1b`) | (as `a3c0a1b`) | app: queue, time, overlay, relink: all red, each after its unbroken pass | **80 / 0 / 0** |
 | sr2 M3b | `318e64e` | (Worker as `a3c0a1b`) | (as `a3c0a1b`) | app: the four above plus billing: all five red, each after its unbroken pass | **122 / 0 / 0** |
+| sr2 M3c (+ sr1 M6) | `2213dc3` | 26 / 0 / 0 | 63 / 0 / 0 | app: the five above plus twotabs, crosstruck, hst: all eight red, each after its unbroken pass | **158 / 0 / 0** |
 
 Counts are passed / failed / skipped.
 
@@ -49,6 +50,9 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | App: the queue sends the time the driver tapped | the copy's queue stamps `at` when it sends | `at` 09:40Z instead of the tapped 09:00Z |
 | App: taps land on the button they aim at | a transparent full-size element over Plowed | the hit-test found the overlay `div`, not the button |
 | App: the billing screen shows the API's push count | the copy's billing screen counts the client's storm stops instead | the skipped seasonal client showed 1 push where the API says 0 |
+| App: two open tabs of the driver link never void a push | the copy reads a missing item after 200/201 as "undone" and sends without the Web Lock | a stored push was voided by a DELETE nobody tapped |
+| App: photos and undos never go to another truck's link | the copy re-keys photos and undos across trucks | a photo PUT and an undo DELETE went out under truck 2's key |
+| App: the billing screen's HST is the API's, not the page's | the copy computes HST on the page with `Math.floor(amount * 0.15)` | $5.32 shown where the API row says $5.33 |
 | App: a reset driver link never blocks check-ins saved under it | the copy's queue stops everything on a 401, as in M1 | both check-ins stayed on the phone; nothing reached the server |
 | A plowed check-in keeps no note | the copy stores the body's note for plowed | the stored note was "Left a note" |
 | A route edit from a stale screen never lands | the copy drops the in-batch `route_version` guard | the stale edit answered 200 instead of 409, and both racing edits got 200 |
