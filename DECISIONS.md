@@ -87,3 +87,14 @@ Alexander was asleep for this build; every real call is written here with its re
     transaction would test SQLite, not this code. The check-in side needed proof because its guard was once a separate read.
 28. **Stop numbers are rebuilt from a snapshot when stops are removed.** The race test showed that renumbering from the position read
     earlier left gaps when several stops went at once, which would have shown a client "stop 7" on a six-stop route.
+
+## 2026-09-14, lead (after sr1's read-only review of sr2's M1 app code)
+
+29. **Check-ins saved under a dead driver link are resent with the page's working link** (API.md 17). The alternative, keeping them
+    until the owner does something, would leave a whole night of pushes on a phone after an ordinary "New link". The check-in id makes
+    the resend safe, and the phone really did the work. If the driver opened a different truck's link, the check-ins record that truck,
+    which is what happened on the ground.
+30. **A mangled status link is fixed in both places** (API.md 18): the Worker routes every status path to the status handler, and the
+    app shows its own bad-link text. Messaging apps glue punctuation onto links; the client must always see "ask for a new one".
+31. **The per-IP status guard stays** (DECISIONS 24) with a DEPLOY.md note about carrier-shared IPs, because the app no longer retries a
+    bad link and one contractor's clients are a small crowd. Loosening it is a known dial, not a hidden risk.

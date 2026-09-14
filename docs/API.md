@@ -342,3 +342,16 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     removal (and the check-in answers 404, which the phone puts in "Not accepted").
 16. **(sr1 M3) Wrong `current` PINs on `PUT /api/owner/pin` count toward the sign-in guard** (same 5 per 15 minutes per IP). A stolen
     session must not be able to try every PIN and lock the owner out.
+17. **(sr2 M3, sr1 review R1) A dead driver key never blocks the queue.** A 401 marks only that item's key as dead; the sender goes on
+    to the next item. When the page's own key works (its route loaded), every item under a dead key is re-keyed to the page's key and
+    sent again: the check-in id makes a resend harmless and the Worker accepts a check-in whichever truck the stop is on now. Items under
+    a dead key stay listed on screen ("Saved under an old driver link, sending with this one") until they are sent. The strip shows the
+    401 text only when the page's own key is the one refused.
+18. **(sr1 M4 + sr2 M3, review R2/R3) A bad status link always reads as a bad status link.** Worker: every `GET /api/status/<anything>`
+    goes to the status handler, so a key with a trailing `.`, `)` or `%20` answers the status 404 text (and counts toward the guard like
+    any unknown key), never the router's "There's nothing here.". App: the status page shows its own bad-link text for any 404 and stops
+    checking (no timer, no `visibilitychange` re-check) until the page is reloaded.
+19. **(sr2 M3, review R4) Undo on an item in "Not accepted" only removes it from the phone.** The server never stored it, so no DELETE is
+    queued and the refusal text is not replaced by a second error.
+20. **(sr2 M3, review R5) A queued check-in for a stop that is no longer on this truck stays visible** in a "Saved for stops on another
+    route" row with its stop name, time and Undo, until it is sent.

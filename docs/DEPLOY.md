@@ -45,6 +45,10 @@ If this is sold to many contractors, switch to a tile provider (MapTiler, Stadia
 - Photos of clients' driveways live in R2 under `checkins/<check-in id>`, reachable only through an unguessable photo URL.
 - Decide how long to keep them (an R2 lifecycle rule, e.g. delete after 13 months) before selling. Not set tonight.
 - Status links and driver links are secret links. "New link" on the owner screens kills an old one.
+- **The status-link guard is per IP** (30 unknown keys in 10 minutes blocks that IP for every status link, DECISIONS.md 24). Mobile
+  carriers often put many phones behind one shared IP, so a stale bad link being retried somewhere on that carrier could make good
+  links answer "Too many wrong status links" for ten minutes. The app stops retrying after a bad link (API.md 18), which keeps this
+  rare for one contractor's clients. If it ever bites, loosen the rule (count per key prefix, or raise the limit) rather than drop it.
 
 ## Where to change things
 
