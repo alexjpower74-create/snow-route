@@ -182,3 +182,11 @@ Alexander was asleep for this build; every real call is written here with its re
 52. **M3e is the last app round.** The reviews have gone from a night of lost check-ins (R1) and voided pushes (M3a-1) to wording and test
     honesty (M3c-9 to M3c-11). After M3d and M3e land and pass pinned QA, the build moves to its finish: final QA, screenshots, README,
     private repo, status file. Anything a further review finds that is not a data-loss or billing defect goes into the README's known gaps.
+
+## 2026-09-14, lead (sr2 M3d)
+
+53. **M3d's Playwright suite is QA'd at `aa04bba` right away; its app negative controls are run by the lead in the final QA instead.** sr2's
+    own control run was using port 7606 when M3d's code landed, and two control runs on one port measure each other. The final pinned QA
+    after M3e runs every app control (a–j and M3e's) on the merged code, so no control goes unverified by the lead.
+54. **sr1's last review tags each finding DATA LOSS, BILLING, SECURITY or OTHER** (the M3e scope rule, DECISIONS 52), so the finish line is set by
+    severity, not by how many rounds a reviewer can keep finding wording to improve.
