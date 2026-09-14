@@ -249,3 +249,31 @@ page were looked at. The other twelve app controls and fifteen Worker controls t
 Pinned QA at `e86f0b1` (`rig qa --ref`, HEAD checked): Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 200 / 0 / 0 in all four projects;
 controls (n) attribution and (m) truck pins red after their unbroken passes. The other app and Worker controls cover code this round did not
 change and were last run at `31630e6`. Looked at: the owner Tonight and Clients maps at 1280 (chromium and webkit) and the driver page at 390.
+
+## SAMPLE street points: robots.txt fix (found by Home Care's lead via Onyx, lead only, `e2273eb` + `2bb826c`)
+
+- The first points came from one Overpass query to `overpass-api.de/api/interpreter`. That host's robots.txt reads `Disallow: /api/`,
+  so the fetch broke our robots.txt rule. The robots file is saved in `data/sources/robots/` and quoted in DECISIONS 68. The Overpass files are removed.
+- Checked before any download, and refused:
+  - Geofabrik: robots disallows the `.osm.pbf` and `.shp.zip` extracts.
+  - NRCan `ftp.maps.canada.ca`: `Disallow: /pub`.
+- The source that worked: Statistics Canada's National Road Network, NL edition 7.0 (Open Government Licence – Canada) from
+  `geo.statcan.gc.ca`, which has no robots.txt (404, so no restrictions under RFC 9309). The download sha256 is recorded in `data/sample-clients.json`.
+- The same 25 clients with the same SAMPLE names and streets, and still no house numbers. Each pin is the named street's vertex nearest its middle
+  (DECISIONS 69); the median move is 226 m. Birch Drive is not in the NRN, so Frankie is on Sapling Street. The yard moved to Mill Road's
+  NRN point, edited in place in migration 0002 (DECISIONS 70).
+- Pinned QA at `e2273eb` (`rig qa --ref`, HEAD checked): Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 196 passed, **4 failed**. The
+  failure was the same `billing.spec` assertion in all four projects: it expected Pat's stop before the Clinic's. Both are medical, so their
+  order is nearest the yard first, and the new yard is about 330 m from the Clinic and 2 km from Pat. The Worker was right; the spec had the
+  old map baked in. DECISIONS 71.
+- A sweep for the old coordinates then found three more copies: the generated `?mock=1` data (`app/public/mock-data.js`, regenerated),
+  `worker/tests/route.test.mjs` (the yard, two haversine points, and five crossing-check stops now written as offsets from the yard), and
+  the `docs/API.md` examples. The sweep matches whole numbers only. A first version matched the first five decimals of longer NRN values and
+  flagged the NRN extract itself. The sweep's own control is the control log, which still quotes 580 old numbers. That log and git history
+  before `e2273eb` are left as records (DECISIONS 71).
+
+Pinned QA at `2bb826c` (`rig qa --ref`, HEAD checked): Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 200 / 0 / 0 in all four projects.
+Controls re-run because their tests changed: Worker (twoopt, tiers), which read `route.test.mjs`, and app (billing, hst), which read
+`billing.spec.mjs`. All four went red after their unbroken passes. The other controls cover code this round did not change. Looked at:
+the owner Clients and Tonight maps at 1280 (the Clinic walkway now leads Truck 1, nearer the yard than Pat) and the driver page at 390.
+The demo was restarted detached on 7601 and all 36 docs screenshots were re-taken from it.

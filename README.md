@@ -57,6 +57,10 @@ cd app && npm run negative     # every app negative control, same rule (port 760
 
 ## Test numbers
 
+After the SAMPLE street points were rebuilt from Statistics Canada's National Road Network (the robots.txt fix), pinned QA at `2bb826c`:
+Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 200 / 0 / 0; the route controls (2-opt, tiers) and the billing controls (billing, HST)
+red after their unbroken passes. The first run, at `e2273eb`, failed one billing spec in all four projects because it had the old map baked in (DECISIONS 71).
+
 After the map tiles round (OpenFreeMap), pinned QA at `e86f0b1`: Worker unit 28 / 0 / 0, API 68 / 0 / 0; Playwright 200 / 0 / 0;
 the attribution control (the 14th app control) and the truck-pins control red after their unbroken passes.
 
