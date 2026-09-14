@@ -50,15 +50,25 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
   const truck = seed.trucks[0]
   const started = await api(request, 'POST', '/api/owner/storms', { token, data: { client_ids: [pat.id, clinic.id, taylor.id], truck_ids: [truck.id] } })
   expect(started.status).toBe(201)
-  expect(started.body.trucks[0].stops.map((s) => s.client_id), 'medical stops first, the seasonal client last').toEqual([pat.id, clinic.id, taylor.id])
+  // Both medical stops first, the nearer to the yard leading (API.md ordering: nearest neighbour from the yard; with two stops 2-opt
+  // cannot do better), and the seasonal client last. Worked out from the yard here, not hard-coded, so moving a SAMPLE point
+  // cannot silently flip it.
+  const { yard } = (await api(request, 'GET', '/api/owner/company', { token })).body
+  const metres = (a, b) => {
+    const rad = (d) => (d * Math.PI) / 180
+    const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2
+    return 2 * 6371000 * Math.asin(Math.sqrt(h))
+  }
+  const [first, second] = [pat, clinic].sort((a, b) => metres(yard, a) - metres(yard, b))
+  expect(started.body.trucks[0].stops.map((s) => s.client_id), 'medical stops first, nearer the yard leading, the seasonal client last').toEqual([first.id, second.id, taylor.id])
 
   // The driver works the route on the phone.
   await page.goto(`/d/?k=${truck.driver_key}`)
-  await expect(page.locator('#stop-name')).toHaveText(pat.name)
-  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo (Pat)')
-  await expect(page.locator('#stop-name')).toHaveText(clinic.name)
+  await expect(page.locator('#stop-name')).toHaveText(first.name)
+  await tap(page, page.locator('#plowed-nophoto'), `Plowed, no photo (${first.name})`)
+  await expect(page.locator('#stop-name')).toHaveText(second.name)
   await expect(page.locator('#plowed-nophoto')).toBeEnabled()
-  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo (Clinic)')
+  await tap(page, page.locator('#plowed-nophoto'), `Plowed, no photo (${second.name})`)
   await expect(page.locator('#stop-name')).toHaveText(taylor.name)
   await expect(page.locator('#skip')).toBeEnabled()
   await tap(page, page.locator('#skip'), 'Skip this stop (Taylor)')

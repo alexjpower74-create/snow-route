@@ -3,7 +3,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { haversine, tierOf, pathLength, nearestNeighbour, orderStops, orderTier, assignTrucks, buildRoute } from '../src/route.js'
 
-const YARD = { lat: 48.94346, lng: -55.67465 }
+// The SAMPLE yard from migration 0002 (a Statistics Canada NRN point on Mill Road, DECISIONS 69).
+const YARD = { lat: 48.92729, lng: -55.66127 }
 
 // Park's Miller-Carta generator: the same 50 instances every run.
 function rng (seed) {
@@ -38,9 +39,9 @@ function tierRuns (yard, ordered) {
 }
 
 test('haversine matches the formula written out for two SAMPLE street points', () => {
-  // Harris Avenue and Hardy Avenue centre points from data/sample-clients.json.
-  const a = { lat: 48.94434, lng: -55.64701 }
-  const b = { lat: 48.95209, lng: -55.63473 }
+  // Harris Avenue and Hardy Avenue points from data/sample-clients.json (Statistics Canada NRN, DECISIONS 69).
+  const a = { lat: 48.94155, lng: -55.6461 }
+  const b = { lat: 48.95392, lng: -55.63153 }
   const R = 6371008.8
   const toRad = d => d * Math.PI / 180
   const phi1 = toRad(a.lat)
@@ -50,8 +51,8 @@ test('haversine matches the formula written out for two SAMPLE street points', (
   const h = Math.sin(dPhi / 2) * Math.sin(dPhi / 2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2)
   const expected = 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
   assert.ok(Math.abs(haversine(a, b) - expected) < 1e-6, `${haversine(a, b)} vs ${expected}`)
-  // And a sanity bound: about 1.25 km apart (0.00775 deg of latitude is ~862 m, 0.01228 deg of longitude here is ~899 m).
-  assert.ok(expected > 1200 && expected < 1300, String(expected))
+  // And a sanity bound: about 1.74 km apart (0.01237 deg of latitude is ~1375 m, 0.01457 deg of longitude here is ~1064 m).
+  assert.ok(expected > 1700 && expected < 1780, String(expected))
   assert.equal(haversine(a, a), 0)
 })
 
@@ -97,14 +98,15 @@ function crossesItself (start, path) {
   return false
 }
 
-// Five stops north-east of the yard (about 0-900 m). Nearest neighbour goes 2, 4, 1, then back down across its own
-// 2 -> 4 leg to 3 and 5. 2-opt uncrosses it.
+// Five made-up stops north-east of the yard (about 0-900 m), placed by their offset from it in degrees. Nearest neighbour
+// goes 2, 4, 1, then back down across its own 2 -> 4 leg to 3 and 5. 2-opt uncrosses it.
+const near = (id, dLat, dLng) => ({ client_id: id, lat: +(YARD.lat + dLat).toFixed(5), lng: +(YARD.lng + dLng).toFixed(5), priority: 'none' })
 const CROSSING = [
-  { client_id: 1, lat: 48.95174, lng: -55.67465, priority: 'none' },
-  { client_id: 2, lat: 48.94536, lng: -55.67069, priority: 'none' },
-  { client_id: 3, lat: 48.94825, lng: -55.66467, priority: 'none' },
-  { client_id: 4, lat: 48.95022, lng: -55.67015, priority: 'none' },
-  { client_id: 5, lat: 48.94834, lng: -55.66431, priority: 'none' }
+  near(1, 0.00828, 0),
+  near(2, 0.00190, 0.00396),
+  near(3, 0.00479, 0.01000),
+  near(4, 0.00676, 0.00450),
+  near(5, 0.00488, 0.01034)
 ]
 
 test('crossing: nearest neighbour crosses itself, the built route does not, and the order is exactly 2, 3, 5, 4, 1', () => {
@@ -142,7 +144,7 @@ test('nearest neighbour ties go to the lower client_id', () => {
 
 test('empty and one-stop inputs', () => {
   assert.deepEqual(orderStops(YARD, []), [])
-  const one = { client_id: 3, lat: 48.94434, lng: -55.64701, priority: 'none' }
+  const one = { client_id: 3, lat: 48.94155, lng: -55.6461, priority: 'none' }
   assert.deepEqual(orderStops(YARD, [one]), [one])
   assert.deepEqual(buildRoute(YARD, [], [1, 2]), [{ truck_id: 1, stops: [] }, { truck_id: 2, stops: [] }])
 })

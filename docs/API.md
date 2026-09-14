@@ -45,13 +45,13 @@ JSON in, JSON out. Errors are always `{ "error": "<plain English>", "code": "<ma
 **Company**
 ```json
 { "name": "SAMPLE Snow Clearing — Grand Falls-Windsor (demo)", "sample": true, "timezone": "America/St_Johns",
-  "hst_rate": 0.15, "yard": { "label": "SAMPLE yard, Mill Road", "lat": 48.94346, "lng": -55.67465 } }
+  "hst_rate": 0.15, "yard": { "label": "SAMPLE yard, Mill Road", "lat": 48.92729, "lng": -55.66127 } }
 ```
 `sample` is `true` while the name contains `SAMPLE`. The app shows a SAMPLE badge on every screen while it is true.
 
 **Client** (owner view)
 ```json
-{ "id": 3, "name": "Sam (SAMPLE)", "address": "Harris Avenue, Grand Falls-Windsor, NL", "lat": 48.94434, "lng": -55.64701,
+{ "id": 3, "name": "Sam (SAMPLE)", "address": "Harris Avenue, Grand Falls-Windsor, NL", "lat": 48.94155, "lng": -55.6461,
   "type": "driveway", "type_label": "Driveway", "priority": "none", "priority_label": "None", "opens_at": null,
   "notes": "Gate on left, don't pile by the hydrant.", "billing": "seasonal", "price_cents": 55000, "truck_id": 1,
   "active": true, "status_url": "http://127.0.0.1:7602/s/?k=…",
@@ -99,7 +99,7 @@ Validation → 400 `bad_request` with `field`:
 
 **Stop** (one client in one storm)
 ```json
-{ "client_id": 3, "truck_id": 1, "position": 4, "name": "Sam (SAMPLE)", "address": "…", "lat": 48.94434, "lng": -55.64701,
+{ "client_id": 3, "truck_id": 1, "position": 4, "name": "Sam (SAMPLE)", "address": "…", "lat": 48.94155, "lng": -55.6461,
   "type": "driveway", "type_label": "Driveway", "priority": "none", "priority_label": "None", "opens_at": null,
   "notes": "…", "status": "pending", "checkin": null }
 ```

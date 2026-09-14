@@ -300,3 +300,18 @@ Alexander was asleep for this build; every real call is written here with its re
 70. **Migration `0002_company.sql` is edited in place to the new yard** rather than superseded by a new migration. Nothing is deployed,
     every local database (tests, demo) is rebuilt from the migrations on each run, and a unit test ties 0002 to the sample data. Once there is a
     real deploy, applied migrations are never edited.
+
+71. **The pinned QA at `e2273eb` found one spec with the old geography baked in, and three more copies of the old points.**
+    - `billing.spec` failed on every project in under half a second: it expected Pat's stop before the Clinic's. Both are medical, so
+      the order between them is nearest-from-the-yard, and the new yard is about 330 m from the Clinic and 2 km from Pat. The Worker was
+      right and the spec was wrong. The spec now works that order out from the yard it reads from `GET /api/owner/company` (haversine
+      written out in the spec) and drives the driver page in that order. The check that medical stops come first and the seasonal stop last is unchanged.
+    - `app/public/mock-data.js` (the `?mock=1` in-browser mock) is generated from `data/sample-clients.json` and had not been
+      regenerated. It is rebuilt with `node tools/build-mock-data.mjs`.
+    - `worker/tests/route.test.mjs` used the old yard, Sam's and Lee's old points, and five crossing-check stops written as absolute
+      coordinates near the old yard. It now uses the migration 0002 yard and the NRN Harris Avenue and Hardy Avenue points, with the
+      sanity bound moved to 1.70-1.78 km. The five stops keep the same offsets from the yard, so the crossing geometry is unchanged.
+    - `docs/API.md`: the example Company yard and Sam's example point now carry the new values.
+    - **Left alone:** `worker/tests/negative-control.log`, an append-only record of past control runs whose failure output quotes old
+      client rows, and git history before `e2273eb`. Rewriting the log would falsify a record, and purging history needs a force-push
+      to the private repo, which is Alexander's call. Nothing the app runs, seeds or shows reads either.
