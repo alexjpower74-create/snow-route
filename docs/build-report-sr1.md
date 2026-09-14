@@ -1129,3 +1129,50 @@ reading (below), but nothing would go red if one were split again. Known gap.
    - **The two-tab no-locks run** now requires exactly 2 POSTs before release (closes M3d-7).
    - **The billing spec's** two $35.50 rows make the totals row sum (1066) differ from 15 % of the subtotal (1065) (closes M3c-10).
    - **The keys-store spec** is M3e-3.
+
+## M8: DONE
+
+Merged main first (`git merge --ff-only main` → a66cd01: API.md clarifications 52–53, DECISIONS 57). Code commit `e6ebeb2`. Additive: a check-in
+without `undo` behaves exactly as before.
+
+### Clarification 52: the check-in POST takes `undo`
+- `checkinInput` (`worker/src/index.js:468-469`): `undo` must be a boolean when present, else **400 field `undo`** "The undo flag could not be
+  read." It's validated with the other body fields, so a resend of a **stored** id still answers 200 duplicate whatever its body says.
+- **A new id with `undo: true`:** the one `INSERT … ON CONFLICT(id) DO NOTHING` writes `voided_at = received_at` (`index.js:508-513`), so the row is
+  voided **in the same statement** that creates it. There's no moment when it is a live push, and nothing to undo later. The answer is **201** with
+  `checkin.voided: true`.
+  - Because it's voided, every reader already leaves it out: billing (`isBillable`), the stop's status and deciding check-in (non-voided only),
+    `last` on the status link, `last_plowed_at`, storm counts and the summary.
+  - `removable` reads `false`, because a check-in row exists (M7).
+  - The skip-after-plowed guard isn't added for an undo (a voided row can never decide a stop). The stop guard is always in the batch, so a client
+    no longer on the route answers 404 and nothing is stored.
+  - The partial index `checkins_one_plowed` only covers non-voided rows, so a voided plowed undo for a stop someone else plowed is stored too.
+- **A stored id:** `ON CONFLICT(id)` inserts nothing, so it's **200 `duplicate`** with the stored row, unchanged, whatever `undo` says. The DELETE
+  keeps its 15-minute rule.
+- The two older controls that patch this code still find their anchors: ` ON CONFLICT(id) DO NOTHING` (idempotent) and
+  `const at = inWindow ? iso(input.at) : iso(ctx.now)` (time).
+
+### Tests
+`npm test`: **26 unit tests pass, 68 API tests pass (64 + 4 new), 0 fail, 0 skipped.** New:
+- **a new id is stored already voided:** 201, `voided: true`, stop `pending` with no deciding check-in; the raw row's `voided_at` equals its
+  `received_at`; owner stop `pending` and `removable: false`; storm counts show nothing plowed; January billing has 0 pushes for the client and
+  no month in `billing/months`; the status link has `last: null` and `tonight.state: waiting`; `last_plowed_at` is null; a resend of the same undo is
+  a 200 duplicate, still voided, and a DELETE of it is 200.
+- **a stored id:** a plain check-in 201, then the same id with `undo: true` → 200 duplicate, `voided: false`, stop still plowed, the raw row not
+  voided, one push billed; the DELETE then voids it, the stop is pending and nothing bills.
+- **a skip for a plowed stop:** a plain skip is 409 `already_plowed`; with `undo: true` it's 201 voided, the stop stays plowed with the plowed
+  check-in deciding, one live row out of two, and one push billed. A second plowed with `undo: true` is also stored voided, and still one push.
+- **refusals:** `undo` `"yes"`, `1` and `null` → 400 field `undo` with the exact text, nothing stored; `undo: false` is a normal 201 plowed check-in;
+  `undo: true` for a client removed from the route → 404 and nothing stored.
+
+### Negative control `negative:undoflag`: RED
+Break: in the copy, `checkinInput` returns `undo: false` whatever the body says, so the re-send stores a live push. The unbroken copy passed first;
+the broken copy failed at the first assertion that matters: `AssertionError: stored already voided`, `actual: false, expected: true`.
+
+All **fifteen** controls (a–i, pinguard, statusroute, plowednote, routeversion, removable, undoflag) were re-run on `e6ebeb2`: all RED, each log
+section starting with `=== e6ebeb2 …`, and no machine paths in the log.
+
+### For sr2 (M3f)
+Send `"undo": true` on the re-send made for an undo (clarification 49). A **201 with `checkin.voided: true`** means the office never had it and now
+has it voided: remove the void, and send no DELETE. A **200 `duplicate`** means it was really there: send the DELETE as now (a 409 "too late" there
+is a real late undo, for "Not accepted"). Any other answer to the re-send stays as clarification 49 says.
