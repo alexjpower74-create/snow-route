@@ -416,3 +416,39 @@ a minute.". The spec asserts the strip, not this text, so nothing fails. Worth m
   the raw rows, which matches the Worker's time rule. `status.spec.mjs:46` uses a key-shaped unknown key; since sr1 M4, a mangled key gets the
   same text too.
 - **Headers:** `Authorization: Bearer` only on owner routes, `X-Driver-Key` only on driver routes, JSON content type on bodies.
+
+## M5: DONE
+
+Merged main first (`git merge --ff-only main` → 69076b5, sr2 M2 merged). Code commit `035401f`. These are the two points from sr2's review
+of my M1 (`rig/sr2:docs/build-report-sr2.md`, "Mismatches and gaps" 1 and 2).
+
+### (1) Clarification 10: a plowed check-in stores no note and no reason
+- sr2 was right: `checkinInput` nulled `reason` for plowed but kept `note.trim()`, and even refused a plowed check-in whose note was over
+  120 characters. Now `note` is `''` for a plowed check-in whatever the body sends, and its note isn't validated (it's ignored, so it
+  can't be refused). A skip keeps its trimmed note and the 120-character rule.
+- Two M1 tests encoded the old behaviour and were changed to the contract: "check-ins: plowed 201" now expects `note: ''` for a body
+  sending `note: 'Done.'`, and the "note over 120" refusal is now sent on a skip.
+- New API test "check-ins: a plowed check-in stores no note and no reason, whatever the body sends": a plowed body with `note` and
+  `reason: 'gate'` → 201, answer and **raw stored row** both `note ''` and `reason null`, owner view `note ''`; a plowed body with a 500-character
+  note → 201 with `note ''`; a skip with `'  Truck blocking  '` keeps `'Truck blocking'` and `reason_text` "Other: Truck blocking".
+- **Negative control `negative:plowednote`: RED.** Break: `const note = plowed || body.note === undefined …` → `const note = body.note ===
+  undefined …`. Red output: `actual: 'Left a note', expected: ''`. It's a separate control because no other test looks at the note stored on a
+  plowed check-in, so no existing control could turn red for this.
+
+### (2) The 500 text
+- **Confirmed:** on main the unexpected-failure answer was already exactly `{ "error": "Something went wrong on our side. Try again in a
+  minute.", "code": "server_error" }` (since M2, clarification 6). sr2's point 2 was measured against my M1 commit.
+- **One text did still say "Please try again":** the 400 for an unreadable request body ("That request could not be read. Please try
+  again."). A malformed body won't read better on a retry, so it now says **"That request could not be read."** Lead: a one-line
+  clarification if you want different wording.
+- New unit tests: the 500 answer's exact body and `Cache-Control: no-store` (a database stub that throws); the unreadable-body 400's exact
+  body, answered before the database is touched; a scan of every `worker/src/*.js` for "Please try again" that finds nothing, and is
+  shown in the same test to catch the old line.
+
+### Verified
+`npm test`: **26 unit tests pass (23 + 3 new), 58 API tests pass (57 + 1 new), 0 fail, 0 skipped.** All **twelve** negative controls (a–i, pinguard,
+statusroute, plowednote) re-run on `035401f`: all RED, each log section starting with `=== 035401f …`, no machine paths in the log.
+
+### For sr2 (nothing for sr1 to change)
+`app/tests/offline.spec.mjs:98` still fakes the 500 with the old text (my M2-6 note); with the Worker text confirmed above, the fake can
+copy it exactly.
