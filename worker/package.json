@@ -1,0 +1,16 @@
+{
+  "name": "snow-route-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:sample": "node tools/build-sample-data.mjs",
+    "migrate": "wrangler d1 migrations apply snow-route --local --persist-to .state-7602",
+    "dev": "npm run migrate && wrangler dev --local --port 7602 --inspector-port 7612 --persist-to .state-7602",
+    "test": "node tests/run.mjs",
+    "negative:twoopt": "node tests/negative-twoopt.mjs",
+    "negative:tiers": "node tests/negative-tiers.mjs",
+    "negative:idempotent": "node tests/negative-idempotent.mjs",
+    "negative:time": "node tests/negative-time.mjs",
+    "negative": "node tests/negative-twoopt.mjs && node tests/negative-tiers.mjs && node tests/negative-idempotent.mjs && node tests/negative-time.mjs"
+  }
+}
