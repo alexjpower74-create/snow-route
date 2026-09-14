@@ -94,7 +94,99 @@ the owner storm view.
   the unbroken copy to pass first, which gives the same VOID protection.
 - Cross-review: sr2, please read `src/index.js` against API.md before M2, especially the check-in answers and the Stop/Checkin shapes.
 
-### Not done in M1 (by design; M2)
-Sign-in rate guard (the `signin_attempts` table exists, unused), unknown-status-key guard, PIN change, company PUT, client
-reset-link and messages route, trucks POST/PUT/reset-link, storms list, route PUT, stops POST/DELETE, end, summary, billing
-(months, JSON, CSV), driver undo, `POST /api/test/seed`, and negative controls (e)–(h).
+### Not done in M1 (by design; M2): DONE in M2 below
+Sign-in rate guard, unknown-status-key guard, PIN change, company PUT, client reset-link and messages route, trucks
+POST/PUT/reset-link, storms list, route PUT, stops POST/DELETE, end, summary, billing (months, JSON, CSV), driver undo,
+`POST /api/test/seed`, and negative controls (e)–(h).
+
+## M2: DONE
+
+Merged main first (`git merge --ff-only main` → 7b8013b: API.md clarifications 1–9, DECISIONS 18–21). From the clarifications:
+the 500 text is now "Something went wrong on our side. Try again in a minute." (6), and labels replace U+2009 and U+00A0 as well
+as U+202F with a plain space (1).
+
+### What I built
+- `src/billing.js` (pure): `isBillable` (plowed and not voided), `isPush` (plus inside the NL month's UTC bounds), HST
+  `Math.floor((amount × 15 + 50) / 100)`, rows (clients with a push + every active seasonal client, sorted by name), totals as row
+  sums, months newest first, money, RFC 4180 text cells with the formula guard, the CSV, the filename. The Worker's query only
+  takes a padded window (the NL month ± 2 days); `billing.js` alone decides what bills, so every billing rule has one home.
+- `src/index.js`, every remaining route: `PUT /api/owner/pin` (ends every other session), owner company GET/PUT, client
+  `reset-link` and `messages`, trucks POST/PUT/`reset-link`, storms list (counts in SQL, checked equal to the storm view), route
+  PUT, stops POST/DELETE (positions renumbered), end, summary, billing months/JSON/CSV, driver `DELETE` (undo).
+- **Rate guards in one statement.** An attempt row is inserted only `WHERE (SELECT COUNT(*) …) < limit`, so parallel guesses
+  can't overrun the limit with a read-then-write. Sign-in takes a slot before checking the PIN and gives it back when the PIN is
+  right, so only wrong tries count. The 6th try inside 15 minutes gets 429, right PIN included. Status: an unknown key takes a slot;
+  the 31st lookup inside 10 minutes gets 429, **and so does every lookup from that IP, known keys included**, so a guesser can't
+  tell a hit by its answer.
+- **Edits can't land on an ended storm.** Route PUT, stops POST and stops DELETE carry a guard statement in their batch that
+  raises if the storm has ended since it was read (the same `json()` trick as the skip guard). Route PUT also refuses (409) if the
+  number of stops changed under it. DELETE also rechecks for check-ins inside the batch.
+- `src/sample.js` `seedDemo`: reset, then two ended storms 13 and 6 days before now (every stop plowed with a placeholder photo,
+  one "Car in the way" skip each) and an active storm started 2 hours ago (each truck's first 5 stops plowed, truck 1's 5th still
+  `photo: "waiting"`, the 6th skipped "Gate locked"). Placeholders are generated SVGs ("SAMPLE placeholder photo", the stop
+  name, the time), XML-escaped, stored as `image/svg+xml` and served with the CSP header.
+
+### Verified
+`npm test`: **23 unit tests pass (18 + 5 in `tests/billing.test.mjs`), 53 API tests pass (34 M1 + 19 M2), 0 fail, 0 skipped.**
+New API tests: PIN change (wrong current 401, four bad `next` values 400, other sessions end, old PIN refused, new PIN works);
+company GET/PUT and validation, `sample` false after renaming; **messages text exact for each kind** (status_link for a driveway
+and a parking lot, on_route, plowed "6:42 AM" at 10:12Z, skipped "client cancelled"; client messages add `plowed` only when the
+latest check-in is plowed); client reset-link (old key 404, new works, deactivating keeps it); trucks POST/PUT/validation/order,
+an inactive truck refused at storm start but its link still answers, reset-link (old key 401); storms list newest first with
+counts equal to the storm view; **route PUT** refuses a missing stop, a duplicate stop, an extra foreign truck, a swapped-in
+foreign truck, a missing truck, a truck twice and a non-array; a plowed stop moved to the other truck shows at the end of that
+driver's route, still plowed, and is gone from the first; an empty list is allowed; ended → 409; stops POST refusals (truck not in
+the storm, already a stop, unknown, inactive) and append; DELETE refused with a check-in, even a voided one, 404 for a non-stop,
+positions renumbered; ended → 409 for both; **end and summary** exact (duration "3 h 40 min", skipped with reason and time,
+not_reached in route order, per-truck counts and first/last, null for a truck with no check-ins), second end 409, driver sees no
+storm; **undo** at exactly 15 min → voided, stop pending, no billing, status `last` null, photo 404, `last_plowed_at` null; undo
+again 200; another truck 404; plowed again after undo 201; undo 16 min after arrival → 409 with the exact text; **billing** (3 ×
+$35.50 → 10650 / 1598 / 12248; a second client at $35.50 → 533, so totals hst 2131 ≠ 15% of the subtotal 2130, proving row sums;
+seasonal row with pushes and 0 amounts; active seasonal client with no pushes listed; inactive seasonal client not listed);
+**a skipped stop never bills**; **a voided check-in never bills** (months list empty too); **NL month boundary**
+(`2026-02-01T03:00:00Z` bills in January with date `2026-01-31`, not February; no `month` at that time defaults to January);
+**CSV** (content type, filename with SAMPLE and without, CRLF only, trailing CRLF, header exact, `'=SUM(A1)` guarded, `"Doe,
+""Jo"" (SAMPLE)"` quoted, total row, a row per JSON row); bad month 400 on JSON and CSV; **rate guards** with `X-Test-IP`
+(including "a right PIN doesn't use up a try" and "known keys never count"); **demo seed** (unknown scenario 400; 10 plowed,
+2 skipped, 1 photo waiting; an SVG photo served with the CSP header; storms 13 and 6 days back each with 24 plowed and one "Car in
+the way"; this month's billing has 58 pushes and a non-zero total).
+
+Two test mistakes of mine were caught along the way, and neither was a Worker bug: a sign-in guard assertion that expected 429
+and 200 at the same instant, and an "ended_label" I worked out by hand wrong (11:25Z is 7:55 AM NST, not 7:25). Both tests were fixed to the rule.
+
+### Negative controls: all eight RED in one run of the current tree (`worker/tests/negative-control.log`)
+(a)–(d) were re-run because `index.js` changed: all still red with the same breaks and outputs as in M1.
+
+| control | break (in the copy only) | red output |
+|---|---|---|
+| (e) `negative:skipbill` | `src/billing.js`: `  if (checkin.kind !== 'plowed') return false` removed | ✖ a skipped stop never bills: `actual: { … name: 'Jordan (SAMPLE)' … pushes: 1 … total_cents: 4600 }, expected: undefined` |
+| (f) `negative:month` | `src/billing.js`: `const bounds = monthBounds(month)` → UTC midnight bounds | ✖ NL month boundary: `actual: [ undefined, undefined ], expected: [ 1, [ '2026-01-31' ] ]` |
+| (g) `negative:csvguard` | `src/billing.js`: the `if (/^[=+\-@\t\r]/.test(s)) s = \`'${s}\`` line removed | ✖ billing CSV: `actual: '=SUM(A1),"Memorial Avenue, …` vs `expected: '\'=SUM(A1),…` |
+| (h) `negative:voidbill` | `src/billing.js`: `  if (checkin.voided_at) return false` removed | ✖ a voided check-in never bills: `actual: { … name: 'Chris (SAMPLE)' … pushes: 1 … }, expected: undefined` |
+
+### Choices the contract leaves open in M2 (lead: confirm or change)
+1. Error texts not given by API.md: PIN `next` "A PIN is 4 to 8 digits."; company `name` "Give the company a name (up to 80
+   characters)."; `yard` (field `yard` for both) "Give the yard a name (up to 80 characters)." / "Put a pin on the map for the yard.";
+   truck `name` "Give the truck a name." / "Keep the truck name under 40 characters."; truck `active` "Say whether this truck is
+   active."; route PUT `trucks` "List every truck in this storm once and every stop once."; stops `client_id` "Pick one of your
+   active clients." / "That client is already on the route."; `truck_id` "Pick a truck that is out in this storm."; editing an
+   ended storm "This storm has ended, so it can't be changed."; route changed underneath "The route changed while you were editing
+   it. Reload and try again." (409 `bad_state`); stop with check-ins "This stop has check-ins, so it stays on the route."; second end
+   "This storm has already ended."; `month` "Pick a month like 2026-01."; 429 for status links "Too many wrong status links from
+   here. Wait 10 minutes and try again."; seed `scenario` "The only scenario is \"demo\"."
+2. **Status guard blocks known keys too** once an IP hits 30 unknown lookups (reason above). The contract only says unknown lookups
+   count; it doesn't say whether a known key from a blocked IP still answers.
+3. **Summary per-truck `first_label`/`last_label`** come from the non-voided check-ins *made by* that truck (`checkin.truck_id`);
+   `plowed/skipped/pending` count the stops *on* that truck now. After a stop moves between trucks the two can differ.
+4. **"A check-in with voided ones still counts as having check-ins"**: DELETE of a stop is refused if it has any check-in, voided
+   included, as API.md says ("no check-ins at all").
+5. `POST …/stops` answers **200** with the Storm (API.md gives no 201 for it). Undo leaves the R2 photo in place; `GET` answers 404.
+6. PIN change doesn't count wrong `current` tries toward the sign-in guard (the caller already holds a session).
+7. The demo's ended storms have placeholder photos on every plowed stop too, so a client whose last push was days ago still has a
+   photo on the status page.
+
+### Known gaps
+- A check-in racing a stop DELETE could, in a tiny window, insert a check-in for a client that was just removed from the route
+  (the check-in insert checks the stop by reading first). The owner would see it in billing and not on the route. Closing it needs
+  the check-in batch to carry a stop-exists guard; say if you want it.
+- Billing reads every client and a padded month of check-ins per request: fine for one contractor, not for a fleet.

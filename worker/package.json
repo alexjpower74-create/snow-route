@@ -11,6 +11,10 @@
     "negative:tiers": "node tests/negative-tiers.mjs",
     "negative:idempotent": "node tests/negative-idempotent.mjs",
     "negative:time": "node tests/negative-time.mjs",
-    "negative": "node tests/negative-twoopt.mjs && node tests/negative-tiers.mjs && node tests/negative-idempotent.mjs && node tests/negative-time.mjs"
+    "negative:skipbill": "node tests/negative-skipbill.mjs",
+    "negative:month": "node tests/negative-month.mjs",
+    "negative:csvguard": "node tests/negative-csvguard.mjs",
+    "negative:voidbill": "node tests/negative-voidbill.mjs",
+    "negative": "node tests/negative-twoopt.mjs && node tests/negative-tiers.mjs && node tests/negative-idempotent.mjs && node tests/negative-time.mjs && node tests/negative-skipbill.mjs && node tests/negative-month.mjs && node tests/negative-csvguard.mjs && node tests/negative-voidbill.mjs"
   }
 }

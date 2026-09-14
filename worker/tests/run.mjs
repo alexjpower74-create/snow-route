@@ -70,8 +70,8 @@ export async function startWorker ({ dir = root, port, log }) {
 }
 
 async function main () {
-  console.log('\n== unit: tests/route.test.mjs tests/unit.test.mjs ==')
-  if (step(process.execPath, ['--test', '--test-concurrency=1', 'tests/route.test.mjs', 'tests/unit.test.mjs']) !== 0) process.exit(1)
+  console.log('\n== unit: tests/route.test.mjs tests/unit.test.mjs tests/billing.test.mjs ==')
+  if (step(process.execPath, ['--test', '--test-concurrency=1', 'tests/route.test.mjs', 'tests/unit.test.mjs', 'tests/billing.test.mjs']) !== 0) process.exit(1)
 
   let worker = null
   let status = 1
