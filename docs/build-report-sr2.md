@@ -261,3 +261,77 @@ first (it must pass, else VOID), breaks the copy, runs again; exit 0 only if red
 - `api.mock.js` covers only the driver and status routes (M1); the owner side has no mock, and the suite never uses the mock.
 - The 500-once test uses Playwright's routing to produce the 500. The Worker has no switch to fail on demand, and adding one would
   put a test lever in shipped code.
+
+## M3a — 2026-09-14 (review fixes only)
+
+Merged main first (sr1 M2–M4, API.md clarifications 12–25). Code commit `38cc37e`.
+
+### Fixed (DONE), each with the clarification and review item
+1. **Clarification 25 / M2-2.** The Undo probe-and-skip is gone from `driver.spec.mjs`: the Undo test runs on all four projects and
+   passes. The phone-width tests are tagged `@phone` and the 1280 projects filter them out (`grepInvert` in the config), so they are
+   not counted as skipped. **The suite now has 0 skips.** The one WebKit limit left is a skipped *step* inside the offline test (the
+   offline reload), written as a test annotation with its reason; the test itself runs and passes on WebKit.
+2. **Clarifications 17 and 24 / R1, M2-5.** A 401 marks only that item's key dead and the sender goes on. When the page's route loads,
+   the page tells the sender its key works and its truck; every check-in under a dead key is re-keyed to the page's key, and a photo or
+   undo only when the dead key's truck (stored on each item as `truck_id`, falling back to the route saved with that key) is the page's
+   truck. Otherwise it is marked stuck and listed with **Remove from this phone**, never sent. Items saved under another link of the same
+   truck, and re-keyed items until they are sent, show in **Saved under an old driver link** ("Saved under an old driver link, sending
+   with this one."). The strip shows the 401 text only when the page's own key is refused.
+3. **Clarification 18 / R2, R3.** The status page shows its own bad-link text for any 404, clears its timer, and ignores
+   `visibilitychange` until a reload.
+4. **Clarification 19 / R4.** Undo on an item in Not accepted removes it from the phone only: no DELETE is queued and the refusal text
+   is not replaced.
+5. **Clarification 20 / R5.** Queued check-ins for a stop no longer on this route (moved truck, or another storm) show in **Saved for
+   stops on another route** with the stop name, what and when, and an **Undo** (≥ 56 px) that takes it back the same way.
+6. **Clarification 21 / M2-1.** `api.js`: an owner 401 **with** a `field` is thrown as a form error and keeps the session; only a 401
+   without `field` clears the token and signs out. (No page calls `PUT /api/owner/pin` yet; Change PIN is M3b and its spec will cover a
+   wrong current PIN.)
+7. **Clarification 22 / M2-3.** A 409 `bad_state` on Build tonight's route closes the picker and shows the running storm with the API's
+   message above it.
+8. **Clarification 23 / M2-4.** Price accepts `45`, `45.5`, `45.50`, `.50`, `45.`, `$1,200.00`; anything else shows "Type a price in
+   dollars and cents." by the field and nothing is sent.
+9. **M2-6.** The faked 500 in `offline.spec.mjs` carries the Worker's text "Something went wrong on our side. Try again in a minute."
+
+**A regression the suite caught while fixing R1 (DONE):** telling the sender "this key works" after every route load started an
+immediate send, and a send requested during a failing send ran straight after it. The 500 test went red (2 POSTs where 1 was
+expected): a route refresh was skipping the backoff. Now `setPage` sends at once only when it is news (the key just started working,
+or dead-key items wait), and a send requested during a failed send waits for the backoff timer.
+
+### New and changed tests
+- `queue.spec.mjs` (service worker blocked, so `page.route` sees every `/api` request in both engines):
+  - **link reset:** phone clock pinned at T, no signal, Plowed no photo + Skip → Gate locked, "2 saved"; the owner resets the truck's
+    link through the API; with every check-in POST held by a gate, the phone opens the **new** link at T + 40 min: the route shows,
+    **Saved under an old driver link** lists both stops, the strip has no dead-link text; release → All sent, the row is gone, the new
+    key was used, and the database holds both rows with `at` = T, `received_at` = T + 40 min, `truck_id` = the truck, the skip "Gate locked".
+  - **moved stop:** a queued Plowed; the owner moves that stop to the other truck (route PUT); with check-in POSTs failing at the
+    network, the page reloads its route: the stop is off the list, **Saved for stops on another route** shows it "Plowed at 6:30 AM";
+    Undo removes it; after sends are allowed again, the database has 0 rows.
+  - **refused undo:** a queued Plowed; another check-in marks that stop plowed through the API; signal returns → Not accepted "This
+    stop is already marked plowed."; Undo inside the 15 s → Not accepted gone, **no DELETE request**, the other check-in not voided.
+- `status.spec.mjs` **trailing dot:** the Worker answers the key with a `.` 404; the page shows the bad-link text and the badge; after
+  that, two tab returns make **no** status lookup. Headless Playwright never changes `visibilityState` on a tab switch (probed in
+  chromium and webkit), so the test dispatches `visibilitychange` itself, and first proves that dispatch reaches the page: on a good
+  link one dispatch makes exactly one more lookup. That in-test control is what stops "no lookup" from passing on a listener that is
+  simply never called.
+- `owner.spec.mjs`: **storm started elsewhere** (picker open, a storm started through the API, Build → the 409 response's `error`
+  shown in `#storm-notice`, picker gone, the storm lists and order note shown); **price input** (`4.5.0` → the message and no PUT;
+  `.50` → 50 cents; `45.` → 4500 cents, through the API).
+
+### Verified
+Full suite against the merged Worker, all four projects: **80 passed, 0 failed, 0 skipped (3.2 min).**
+
+### Negative controls, run last this turn (7606 was free), all on the final code
+Each passes on its unbroken copy first, then goes red on the break (`app/tests/negative-control.log`, entries from 09:26Z):
+
+| control | break (copy only) | red |
+|---|---|---|
+| (a) queue | removes the item before sending | `#stop-name` expected "SAMPLE Pharmacy lot", received "Pat (SAMPLE)" |
+| (b) time | sends `at` = phone clock at send time | expected `2026-09-14T09:00:00.000Z`, received `2026-09-14T09:40:00.000Z` |
+| (c) overlay | transparent element over Plowed | "Plowed: hit-tests to itself", received the overlay `<div>` |
+| **(d) relink** (`tests/negative-relink.mjs`) | the sender stops the whole queue on a 401, as in M1 | expected "All sent", received "This driver link doesn't work any more. Ask the owner for a new one. 2 items still saved on this phone." |
+
+### Left undone / for the lead
+- Clarification 21 has no page yet to exercise it (Change PIN is M3b); the `api.js` rule is in place and M3b's settings spec will
+  test a wrong current PIN staying on the form.
+- The in-test proof that `visibilitychange` reaches the status page uses a dispatched event, because headless Playwright cannot
+  produce a real one. A real phone switching tabs fires the same event.
