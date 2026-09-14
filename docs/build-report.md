@@ -16,6 +16,7 @@ reasoning and every attempt.
 | sr1 M4 | `7ca9f24` | 23 / 0 / 0 | 57 / 0 / 0 | the ten above plus statusroute: all eleven red | n/a |
 | sr1 M5 | `a3c0a1b` | 26 / 0 / 0 | 58 / 0 / 0 | the eleven above plus plowednote: all twelve red | n/a |
 | sr2 M2 | `69076b5` | (Worker as `7ca9f24`) | (as `7ca9f24`) | app: queue, time, overlay: all red | 56 / 0 / 4 (the 4 skips: two phone-width checks on each 1280 project, replaced by project filters in sr2 M3a) |
+| sr2 M3a | `5f162b2` | (Worker as `a3c0a1b`) | (as `a3c0a1b`) | app: queue, time, overlay, relink: all red, each after its unbroken pass | **80 / 0 / 0** |
 
 Counts are passed / failed / skipped.
 
@@ -44,6 +45,7 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | App: a check-in made with no signal survives until the server has it | the copy's queue removes the item before sending | the photo check-in was gone from the phone; the driver screen went back to Pat (SAMPLE) |
 | App: the queue sends the time the driver tapped | the copy's queue stamps `at` when it sends | `at` 09:40Z instead of the tapped 09:00Z |
 | App: taps land on the button they aim at | a transparent full-size element over Plowed | the hit-test found the overlay `div`, not the button |
+| App: a reset driver link never blocks check-ins saved under it | the copy's queue stops everything on a 401, as in M1 | both check-ins stayed on the phone; nothing reached the server |
 | A mangled status link reads as a bad status link | the old router pattern `[A-Za-z0-9_-]{1,128}` restored | a trailing dot got "There's nothing here." instead of "Ask your snow clearing company for a new one." |
 
 ## Cross-review
@@ -73,6 +75,19 @@ matched by name and type. It found five defects that no test on either side woul
 | M2-4 | `.50` and `45.` refused as prices | owner | API.md 23 |
 | M2-5 | Re-keying photos and undos to a different truck's link would get 404 | driver sharing a phone | API.md 24 |
 | M2-6 | The offline spec's faked 500 still carried the old error text | test fidelity | fix in sr2 M3 |
+
+**sr1 read sr2's M3a** (the review fixes, `38cc37e`, through git). The owner 401 rule, the storm 409, price parsing and the status page's stop
+all checked out, and `queue.spec`'s link-reset test measures what it claims. Seven findings, the first a real billing bug:
+
+| # | Defect | Who it hurts | Adopted as |
+|---|---|---|---|
+| M3a-1 | Two open tabs of the driver link: the second tab's duplicate send finds the item gone, reads it as "undone" and voids a real push | owner (lost billing), client, driver | API.md 26: explicit undo mark + one sender across tabs (Web Lock) |
+| M3a-2 | An undo the sender creates in flight has no `truck_id`, so after a link reset it is wrongly "stuck" and never sent | driver, owner | API.md 27 |
+| M3a-3 | After End storm, still-sending check-ins read as "moved off this route" with an Undo that deletes unsent work | driver, owner | API.md 28 |
+| M3a-4 | The cross-truck rule for photos and undos had no test and no negative control | the lead's QA | API.md 29 |
+| M3a-5 | A dropped photo for a stop on another route left no trace | driver, owner | API.md 30 |
+| M3a-6 | A storm-start notice could surface on the next storm | owner | API.md 31 |
+| M3a-7 | A re-keyed check-in for another route's stop was listed twice | driver | API.md 31 |
 
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).

@@ -130,3 +130,13 @@ Alexander was asleep for this build; every real call is written here with its re
     A colour the owner cannot read is noise on a storm night.
 40. **M3 was split into M3a (review fixes) and M3b (the rest of the owner side)** so the high-risk queue fix (a dead driver link blocking a
     whole night of check-ins) was QA'd and merged on its own before another large change landed on the same files.
+
+## 2026-09-14, lead (after sr1's review of sr2 M3a)
+
+41. **An undo must be something the driver did, never something the phone inferred** (API.md 26). sr1 traced a path where two open tabs of
+    the driver link turn a harmless duplicate send into a DELETE that voids a real push: the stop goes back to pending and never bills.
+    Two fixes together: an explicit undo mark (the inference is gone), and one sender at a time across tabs with a Web Lock (Chromium and
+    Safari 15.4+ both have it). Either alone would close this path; both keep the next one from opening. It gets a two-tab test and a
+    negative control.
+42. **The M3a review findings go to sr2 as M3c after M3b**, not by interrupting M3b. The bug needs two tabs of the same driver link, which is
+    rare tonight (nothing is deployed) and common in the field; it must be fixed and QA'd before this build is called done, not before M3b.

@@ -368,3 +368,19 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     a truck that would answer 404, never silently dropped.
 25. **(sr2 M3, review M2-2) No spec skips itself because a route might be missing.** Every route in this contract exists on main, so a
     missing route must fail. The only allowed skips are named WebKit limits with a written reason (for example reading the clipboard).
+26. **(sr2 M3c, review M3a-1) Only the driver's Undo tap ever sends a DELETE.** An undo is an explicit mark on the queued item
+    (`state: 'undone'`); a check-in the sender finds missing from the queue after a 200/201 means another tab already sent it, never
+    that it was undone. Every driver tab also runs its sends inside one Web Lock (`navigator.locks.request('snow-route-send', …)`), so two
+    tabs of the driver page never send the same item at once. Two tabs sending one check-in must leave one stored, non-voided check-in.
+27. **(sr2 M3c, review M3a-2) Every queued item carries the `truck_id` of the check-in it belongs to**, including an undo the sender creates
+    itself. Keys are mapped to trucks in their own store (`snow-route:keys`), never overwritten by a newer route for the same truck.
+28. **(sr2 M3c, review M3a-3) Queued check-ins from a storm that has ended read as that**, "Saved from the storm that ended, still
+    sending", not as stops moved off the route. An Undo that would delete an unsent check-in from the phone asks first ("This check-in has
+    not reached the office yet. Delete it from this phone?").
+29. **(sr2 M3c, review M3a-4) The cross-truck rule is tested and has a negative control:** a photo and an undo saved under truck 1's link,
+    truck 1's link reset, truck 2's link opened → both rows say they belong to another truck's link and no PUT or DELETE reaches the Worker
+    under truck 2's key; the control removes the truck comparison and the test goes red.
+30. **(sr2 M3c, review M3a-5) A photo dropped for a stop in "Saved for stops on another route"** keeps a short "Photo not sent: <message>"
+    row there until the driver dismisses it.
+31. **(sr2 M3c, review M3a-6/7)** The storm-start notice is cleared when Tonight finds no storm. A re-keyed check-in for a stop on another
+    route is listed once, in "Saved for stops on another route", with a small "moved from an old driver link" note.
