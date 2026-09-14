@@ -948,3 +948,105 @@ starting with `=== 5faa526 …`, and no machine paths in the log.
 ### For sr2 (M3e)
 Show "Remove from tonight" only when the owner Stop has `removable: true`. The flag is fresh on every owner Storm answer, including the one a
 route PUT, stop add or stop remove returns, so repainting from that answer keeps it right.
+
+## Cross-review of sr2 M3d (aa04bba)
+
+Last review round (DECISIONS 52). Read only through git (`git diff 2213dc3 aa04bba -- app/`, `git show aa04bba:<path>`), never sr2's worktree.
+Checked against docs/API.md (clarifications 38–41) and `worker/src/index.js` (main after M7). No code changed, nothing run. Each finding is tagged
+**DATA LOSS**, **BILLING**, **SECURITY** or **OTHER**; nothing I found is DATA LOSS or SECURITY. Files: `app/public/d/queue.js`, `app/public/api.js`,
+`app/public/d/driver.js`, `app/public/owner/owner.js`, `app/tests/{queue,route-edit}.spec.mjs`, `app/tests/negative-{attempted,missingundo,twotabs}.mjs`.
+
+### Findings (most harmful first)
+
+**M3d-1 [BILLING]. Without Web Locks, an undo's DELETE can reach the Worker before the check-in's own POST, get 404, and be dropped quietly;
+the POST then lands and bills.** Clarification 38 makes a void answering 404 "nothing to undo": the void is removed with no trace
+(`app/public/d/queue.js:161-162`). That is only true if no earlier attempt of that POST can still arrive, and M3d has two ways for one to:
+- **Two tabs, no Web Locks** (`queue.js:82`: older iPhones, any non-https origin). Tab A's POST is on its way. The driver taps Undo (the item
+  is `attempted`, so it becomes `undone`). Tab B's send pass isn't blocked by any lock, so it turns the `undone` item into a void and removes
+  it (`queue.js:208-216`), then sends the DELETE at once. If the DELETE reaches the Worker first, it gets 404 "We couldn't find that check-in."
+  (`worker/src/index.js:953`) and is dropped. Tab A's POST is stored a moment later; tab A's 201 finds the item gone (`queue.js:183`) and
+  queues nothing. The push stays stored, plowed and billed, and the driver's tapped Undo left no trace.
+- **A POST that timed out on the phone** (`app/public/api.js:48-49`, 30 s) but whose request is still being delivered or run. The phone treats
+  it as no signal (`queue.js:145-146`), the driver taps Undo ("It may already be at the office. Undo it?"), and the next pass sends the DELETE.
+  If that beats the stalled POST, same outcome. I can't prove from here how long an aborted request can still arrive, so this one is "can't
+  rule out", not "shown".
+
+For whom: the owner bills a push the driver took back; the client's status says plowed. Suggested fix (sr2), which also closes M3d-2: for an
+`attempted` undone item, **send the check-in's POST again under its own key first** (idempotent: 201 if it never arrived, 200 duplicate if it
+did, and a late original then also answers duplicate), and **only then** the DELETE. The DELETE then always finds the row, so a 404 means
+"another truck's check-in" and can go to "Not accepted". The cost: a check-in that never reached the office is stored and immediately voided.
+That's harmless for billing and the summary, but by clarification 42 it makes the stop `removable: false`. Lead's call whether that
+trade is right; the alternative is to keep the 404-as-nothing rule and retry the DELETE once after a delay before dropping it.
+
+**M3d-2 [BILLING]. An undo sent under the wrong truck is now dropped silently instead of shown.** My Worker also answers the undo with **404**
+when the check-in exists but belongs to another truck (`worker/src/index.js:953`: `row.truck_id !== truck.id`), with the same text as "never
+stored". `queue.js:161-162` can't tell them apart. The known path to a wrong-truck void is M3c-7: a check-in whose POST reached truck 1 but
+whose answer was lost, re-keyed to truck 2 (`queue.js:113-114`); its undo goes out under truck 2. Before M3d that undo landed in "Not accepted"
+(visible, the owner can fix it); now it vanishes and the push stays billed. Clarification 43 (the stored truck wins, sr2 M3e) removes that path,
+but until then a 404 isn't safe to drop. For whom: the owner and the client. Fix: M3d-1's POST-first order makes the DELETE carry the right
+truck. Or, if the lead prefers a Worker-side fix, I can make the undo route answer a **different code for "another truck's check-in"** (for
+example 403 `not_found`-style text with code `other_truck`), so the app can drop only the true "never stored" 404. That would be a contract
+change.
+
+**M3d-3 [BILLING, tiny window]. Two places delete the undone item and add its void in separate transactions; a page closed between them loses
+the undo.** After a 200/201, `update()` deletes the `undone` item (`queue.js:184`) and only then, in a second transaction, `add`s the void
+(`queue.js:188-190`). The driver's Undo on a check-in whose photo is still waiting does the same (`app/public/d/driver.js:496` deletes the photo
+item in the deciding transaction, then `queue.add` the void at `driver.js:499-500`). A reload, crash or browser discard between the two commits
+leaves neither item: no DELETE is ever sent, and the push stays billed. The flush loop does it the safe way round (add the void, then remove
+the item: `queue.js:212-215`). For whom: the owner, rarely. Fix: in the deciding transaction, leave the item as `undone` + `attempted` (or photo
+→ `undone`) and let the flush loop convert it (add then remove), or put the void in the same readwrite transaction.
+
+**M3d-4 [BILLING, small window]. Re-keying writes back a stale copy and can overwrite an Undo tapped a moment before.** `rekey()` reads all items
+(`queue.js:110`) and, for each item under a dead key, `put`s `{ ...item, key, truck_id, … }` from that snapshot (`queue.js:114`). The driver's
+Undo (`driver.js:491`) runs outside the send lock. If it marks an item `undone` between the snapshot and that `put`, the `put` restores
+`state: 'send'`, the check-in is sent, and the tapped Undo is gone. It needs a dead key being re-keyed at the same moment as the tap, so it's
+rare. (`reject()` at `queue.js:129` is also a blind write, but only after a 4xx refusal, when nothing was stored, so it's harmless for billing.)
+Fix: re-key through `update()` so the decision reads the item in the transaction that writes it.
+
+**M3d-5 [OTHER]. The 30 s timeout on photo uploads can hold every later check-in back on a slow uplink.** `DRIVER_TIMEOUT_MS` (`app/public/api.js:104`)
+also applies to the photo PUT (`api.js:143`). A 1600 px JPEG at quality 0.7 is often a few hundred KB; on a weak rural uplink (tens of kbit/s)
+that takes longer than 30 s, so the PUT aborts **every** time. The photo item keeps its place at the head of the queue (`queue.js:143`), the
+failure stops the whole pass (`queue.js:146`, `:227`), and every check-in the driver makes after it waits behind the photo until the signal
+improves, while the strip says "No signal" when there is some. Nothing is lost, and times and billing are right once it sends, but the office
+and the status pages are behind all night. For the README's known gaps, or a quick fix: send pending check-ins before any photo, and scale the
+photo timeout with its size.
+
+**M3d-6 [OTHER]. `attempted` is skipped whenever `navigator.onLine` is false** (`queue.js:134`), and the POST is still made (`queue.js:144`). When
+`onLine` is false the request almost never leaves, so this is normally right, and it keeps the offline Undo wording "not reached the office".
+But `onLine` is a hint: a POST that does get through while it says false would be stored without `attempted`, and a later Undo would delete it
+from the phone with no DELETE. Rare; known gap.
+
+**M3d-7 [OTHER, test honesty]. The no-Web-Locks two-tab run passes even when the second tab never sends.** `app/tests/queue.spec.mjs` (the
+`for (const locks of [true, false])` block) requires at most two POSTs in the no-locks run (`toBeLessThanOrEqual(2)`). The rule it exists for
+(missing after 200/201 isn't undone) is only exercised when **both** tabs POST the same check-in; if tab 2's pass hasn't reached the POST before
+the gate is released (it gets 1.5 s), one POST happens and the run passes without measuring anything. Control (j) went red in sr2's run, which
+shows the run *can* measure the rule, not that every QA run does. Suggest requiring exactly 2 POSTs in the no-locks run (both tabs held at the
+gate before release), so a run that didn't set up the race fails instead of passing.
+
+**M3d-8 [OTHER]. Clarification 40's lower-version drop has no test of its own.** `route-edit.spec.mjs`'s new refresh test proves the "an edit
+started while the refresh was out" rule (`app/public/owner/owner.js:471`). But the same scenario is also stopped by the version rule
+(`owner.js:472`), so removing either line alone leaves the test green, and there's no negative control for clarification 40. Known gap.
+
+### Answers to the lead's questions
+1. **The attempted flag.** On a first send it's written in its own committed transaction before `fetch` is called (`queue.js:134-139`), and only
+   while the item is still `send`. A re-keyed item keeps it (the re-key copies the item after the mark). A reload mid-send finds `attempted`
+   already on the item. A tab without Web Locks marks before its own POST too. It isn't written when `navigator.onLine` is false (M3d-6). **An
+   attempted undone item deleted without a DELETE:** yes, through the two-transaction windows (M3d-3), the stale re-key write (M3d-4), and
+   through the DELETE itself being dropped on a 404 that didn't mean "never stored" (M3d-1, M3d-2). **A DELETE the driver didn't tap:** none
+   found; voids come only from an `undone` mark or the driver's own Undo, and a missing item after 200/201 queues nothing. **The DELETE 404** is
+   handled as nothing to undo (`queue.js:161-162`), which is exactly what M3d-1 and M3d-2 question.
+2. **The timeout** never removes or rejects an item: an abort, or a body that can't be read, is a network failure (`api.js:48-49`,
+   `queue.js:145-146`), so the item stays and backs off. A timed-out POST that did reach the Worker can't double-bill (the check-in id is the
+   primary key, so a resend answers 200 duplicate), but it can feed M3d-1's lost undo. **`ifAvailable` in a hidden tab** (`queue.js:84`) skips a
+   pass only while another tab holds the lock, and the skipped pass still schedules the next try (`queue.js:240-241`). A lone hidden tab, for
+   example with the screen locked, gets the lock, so items aren't left unsent for good.
+3. **The owner refresh drop** (`owner.js:464-472`) drops an answer only if a route edit started on this screen while it was out (`edits` is
+   bumped by a save, a drag start, an add and a remove), a save or drag is running, or the answer's `route_version` is lower than the screen's.
+   It can't drop a newer Storm for good: an equal version with new check-in statuses is painted, and a dropped answer leaves the 30 s timer
+   running, so the next refresh paints the latest. A drag start that doesn't end in a save drops one refresh, costing up to 30 s of stale
+   statuses.
+4. **The specs and controls.** The response-lost test stores the POST through `route.fetch()` and aborts the page's answer, then requires a
+   voided row; control (i) forgets `attempted` and it goes red. Honest. The never-stored test requires a DELETE answered 404, nothing in "Not
+   accepted" and no row. Honest. The timeout test lets a POST go unanswered and requires "No signal" after at least 29 s and the check-in kept.
+   Honest. Control (f) now breaks the lock and the rule only in the with-locks run, and control (j) restores only the rule in the no-locks run;
+   both are correct in shape, with the caveat in M3d-7. The owner refresh test is honest for the rule it names (M3d-8).
