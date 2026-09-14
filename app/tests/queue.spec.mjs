@@ -115,8 +115,9 @@ test('a queued check-in whose stop moved to the other truck stays visible, and U
 
   await tap(page, row.getByRole('button', { name: 'Undo' }), 'Undo (other route)')
   // It has not been sent, so Undo asks first (clarification 28).
-  await expect(row).toContainText('This check-in has not reached the office yet. Delete it from this phone?')
-  await tap(page, row.getByRole('button', { name: 'Delete it' }), 'Delete it')
+  // The sender already tried it (signal back, POST failed), so the Worker may have it: Undo it sends a DELETE, answered 404 and dropped quietly.
+  await expect(row).toContainText('It may already be at the office. Undo it?')
+  await tap(page, row.getByRole('button', { name: 'Undo it' }), 'Undo it')
   await expect(page.locator('#other-route')).toHaveCount(0)
   await page.unroute('**/api/driver/checkins')
   await expect(page.locator('#sync-text')).toHaveText('All sent')
@@ -153,8 +154,12 @@ test('Undo on a check-in the server refused only removes it from the phone', asy
   expect(rows[0].voided_at, 'the other check-in stands').toBeNull()
 })
 
-test('two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent', async ({ page, context, request, seed }) => {
+for (const locks of [true, false]) {
+test(`two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent${locks ? '' : ' (without Web Locks)'}`, async ({ page, context, request, seed }) => {
+  // Without Web Locks (older phones) both tabs may send the same check-in: the rule "missing after 200/201 is not undone" alone must hold (clarification 41).
+  if (!locks) await context.addInitScript(() => Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true }))
   const { storm, truck, key } = await driverAtT(page, context, request, seed)
+  if (!locks) expect(await page.evaluate(() => navigator.locks), 'Web Locks removed').toBeUndefined()
   const s1 = truck.stops[0]
   const deletes = []
   const posts = []
@@ -191,8 +196,10 @@ test('two open tabs of the same driver link: one check-in ends as one stored pus
   expect(rows, 'one check-in stored').toHaveLength(1)
   expect(rows[0].voided_at, 'the push was not voided').toBeNull()
   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
-  expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
+  if (locks) expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
+  else expect(posts.length, 'without the lock both tabs may send it').toBeLessThanOrEqual(2)
 })
+}
 
 test("a photo and an undo saved under truck 1's link, that link reset, truck 2's link opened: both are listed as another truck's and nothing is sent under truck 2's key", async ({ page, context, request, seed }) => {
   const { token, storm, truck, key } = await driverAtT(page, context, request, seed)
@@ -262,7 +269,7 @@ test('a check-in queued before the owner ended the storm reads as that storm, st
   await expect(page.locator('#other-route'), 'not "moved off this route"').toHaveCount(0)
 
   await tap(page, ended.getByRole('button', { name: 'Undo' }), 'Undo (ended storm)')
-  await expect(ended).toContainText('This check-in has not reached the office yet. Delete it from this phone?')
+  await expect(ended).toContainText('It may already be at the office. Undo it?')
   await tap(page, ended.getByRole('button', { name: 'Keep it' }), 'Keep it')
   await expect(ended.getByRole('button', { name: 'Undo' })).toBeVisible()
 
@@ -302,4 +309,65 @@ test('a photo refused for a stop that then moved off this route keeps a Photo no
   await expect(note).toContainText('Photo not sent: That photo is too big. It has to be under 5 MB.')
   await tap(page, note.getByRole('button', { name: 'Dismiss' }), 'Dismiss')
   await expect(page.locator('#other-route')).toHaveCount(0)
+})
+
+test('the Worker stored the check-in but the answer is lost: Undo (after its question) still voids it', async ({ page, request, context, seed }) => {
+  const { storm, truck } = await driverAtT(page, context, request, seed)
+  // The POST reaches the Worker and is stored; the phone never hears back.
+  let first = true
+  await page.route('**/api/driver/checkins', async (route) => {
+    if (!first) return route.continue()
+    first = false
+    await route.fetch()
+    await route.abort('internetdisconnected')
+  })
+  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo')
+  await expect(page.locator('#stop-name')).toHaveText(truck.stops[1].name)
+  await expect.poll(async () => (await dbCheckins(request, storm.id)).length, { message: 'the Worker stored it' }).toBe(1)
+  await expect(page.locator('#sync-text')).toHaveText(/^No signal\. 1 check-in saved on this phone\./)
+
+  await tap(page, page.locator('#undo-btn'), 'Undo')
+  await expect(page.locator('#undo-confirm-text')).toHaveText('It may already be at the office. Undo it?')
+  await tap(page, page.locator('#undo-delete'), 'Undo it')
+  await expect.poll(async () => (await dbCheckins(request, storm.id))[0]?.voided_at ?? null,
+    { message: 'the tapped Undo reached the Worker: the push is voided', timeout: 30_000 }).not.toBeNull()
+  await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
+  expect(await dbCheckins(request, storm.id)).toHaveLength(1)
+})
+
+test('a check-in tried but never stored: Undo sends a DELETE, the 404 is dropped quietly, nothing is left over', async ({ page, request, context, seed }) => {
+  const { storm, truck } = await driverAtT(page, context, request, seed)
+  await page.route('**/api/driver/checkins', (route) => route.abort('internetdisconnected'))
+  const deletes = []
+  page.on('response', (r) => { if (r.request().method() === 'DELETE') deletes.push(r.status()) })
+  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo')
+  await expect(page.locator('#sync-text')).toHaveText(/^No signal\. 1 check-in saved on this phone\./)
+  await tap(page, page.locator('#undo-btn'), 'Undo')
+  await expect(page.locator('#undo-confirm-text')).toHaveText('It may already be at the office. Undo it?')
+  await tap(page, page.locator('#undo-delete'), 'Undo it')
+  await expect.poll(() => deletes, { message: 'the DELETE went and the Worker answered 404' }).toEqual([404])
+  await expect(page.locator('#sync-text')).toHaveText('All sent')
+  await expect(page.locator('#not-accepted'), 'a 404 undo is not a refusal to show').toHaveCount(0)
+  expect(await dbCheckins(request, storm.id)).toHaveLength(0)
+  await expect(page.locator('#stop-name')).toHaveText(truck.stops[0].name)
+})
+
+test('a check-in POST that never answers gives up after 30 s as no signal, stays saved, and sends later @phone', async ({ page, request, context, seed }) => {
+  test.setTimeout(120_000)
+  const { storm } = await driverAtT(page, context, request, seed)
+  // No switch in the app: the request simply never gets an answer, and the page's own AbortSignal.timeout(30000) must end it.
+  await page.route('**/api/driver/checkins', () => {})
+  const started = Date.now()
+  await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo')
+  await expect(page.locator('#sync-text')).toHaveText(/^Sending 1 check-in/)
+  await expect(page.locator('#sync-text')).toHaveText(/^No signal\. 1 check-in saved on this phone\./, { timeout: 45_000 })
+  const waited = Date.now() - started
+  expect(waited, `gave up after ${waited} ms`).toBeGreaterThanOrEqual(29_000)
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await context.setOffline(true)
+  await context.setOffline(false) // signal "comes back": the sender tries at once
+  await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
+  const rows = await dbCheckins(request, storm.id)
+  expect(rows).toHaveLength(1)
+  expect(rows[0].voided_at).toBeNull()
 })

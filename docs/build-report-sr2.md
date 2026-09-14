@@ -522,3 +522,55 @@ control, say which; the clarification's wording should change either way.
 - A photo refused for a stop that is still on this route shows on that stop's row, as before; only off-route refusals get the
   dismissable row.
 - Browsers without Web Locks (Safari before 15.4) send without the lock; the explicit undo mark still stops the voided-push path there.
+
+## M3d — 2026-09-14 (review fixes only, short)
+
+Merged main (clarifications 38–41). Code commit `aa04bba`.
+
+### Fixed (DONE)
+1. **38, a tapped Undo is never lost.** The sender writes `attempted: true` (one IndexedDB transaction) before a POST leaves, only
+   while `navigator.onLine`. An `undone` item never attempted is deleted with no DELETE; an attempted one always becomes a DELETE,
+   whichever sender finds it. A DELETE answering 404 is removed quietly. The confirm reads "It may already be at the office. Undo
+   it?" (Undo it) for an attempted item, otherwise "This check-in has not reached the office yet. Delete it from this phone?"
+   (Delete it). The strip keeps counting an attempted undo until its DELETE is done.
+2. **41.** The two-tab test also runs with `navigator.locks` removed through `addInitScript` (one stored push, not voided, no
+   DELETE; up to two POSTs).
+3. **39.** `AbortSignal.timeout(30000)` on every driver call; a timeout (also while reading the body) is a network failure. A tab
+   that is not visible asks for the send lock with `{ ifAvailable: true }` and skips the pass if another tab holds it.
+   **Timeout test (honest, no switch in the app):** `@phone` projects only. A POST route that never answers; the strip shows
+   "Sending…", then "No signal. 1 check-in saved…" after ≥ 29 s of real time; signal "comes back" and the check-in is stored,
+   not voided. The page clock cannot drive it: `AbortSignal.timeout` runs on the browser's own timer, not the page's `setTimeout`,
+   so the test waits the real 30 s. The `ifAvailable` branch has no test (headless Playwright never reports a page as not visible).
+4. **40.** The owner's refresh counts edits started on the screen (save, drag, add, remove) and drops an answer if one started
+   while it was on its way, or if its `route_version` is lower than the one on screen.
+
+### Specs
+- `queue.spec.mjs`: **answer lost** (the Worker stores the POST through `route.fetch()`, the page's response is aborted; Undo →
+  the attempted question → Undo it → the database shows the check-in voided); **tried but never stored** (Undo → the DELETE
+  answers 404 → no "Not accepted", nothing stored); **two tabs without Web Locks**; **POST that never answers** (above).
+  The moved-stop and ended-storm tests now see an attempted item, so they expect the attempted wording.
+- `route-edit.spec.mjs`: the 30 s refresh fires (`page.clock.runFor`), its GET is answered by the Worker at once and held; a Move
+  answers 200; the held (older) answer is released and dropped; the moved order stays; the next Move answers 200, not 409.
+
+**Test mistakes caught (fixed):** an assertion that the strip must not say "All sent" right after Undo raced a fast, correct app
+(a debug run at 1280 showed the DELETE answered 200 about 250 ms after the tap); the spec now polls the database for `voided_at`.
+A replacement string containing `$'` in a JavaScript `String.replace` mangled control (f)'s file; it was rewritten.
+
+### Verified
+Full suite, four projects, final code: **176 passed, 0 failed, 0 skipped (10.1 min).**
+
+### Negative controls, run last (7606 free), on the final code
+Each passes on its unbroken copy first, then goes red on the break (`app/tests/negative-control.log`, 10:51–10:56Z).
+
+| control | break (copy only) | red |
+|---|---|---|
+| (a) queue | removes the item before sending | expected "SAMPLE Clinic walkway", received "Pat (SAMPLE)" |
+| (b) time | `at` = phone clock at send time | expected `…09:00:00.000Z`, received `…09:40:00.000Z` |
+| (c) overlay | transparent element over Plowed | "Plowed: hit-tests to itself", received the overlay |
+| (d) relink | whole queue stops on a 401 | expected "All sent", received the dead-link text |
+| (e) billing | pushes from the storm-stop count | Taylor pushes expected "0", received "1" |
+| (f) twotabs | missing read as undone and no lock (with-locks run) | "the push was not voided", received a `voided_at` |
+| (g) crosstruck | photos and undos re-keyed across trucks | "another truck's link" rows expected 2, received 0 |
+| (h) hst | page shows `Math.floor(amount * 0.15)` | expected "$5.33", received "$5.32" |
+| **(i) attempted** | an undone item is deleted with no DELETE even when attempted | "the tapped Undo reached the Worker: the push is voided", received `null` |
+| **(j) missingundo** | only "missing after 200/201 means undone" (lock code untouched), no-locks run | "the push was not voided", received a `voided_at` |

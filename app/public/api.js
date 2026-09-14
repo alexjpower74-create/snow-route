@@ -34,7 +34,7 @@ export class ApiError extends Error {
 const NO_SIGNAL = { error: 'No signal. Check your connection and try again.', code: 'network' }
 
 // One request. Answers { status, data } for every HTTP status; throws ApiError(0, network) only when nothing came back.
-export async function send(method, path, { json, bytes, type, headers = {} } = {}) {
+export async function send(method, path, { json, bytes, type, headers = {}, timeout } = {}) {
   const h = { ...headers }
   let body
   if (json !== undefined) { h['content-type'] = 'application/json'; body = JSON.stringify(json) }
@@ -45,11 +45,13 @@ export async function send(method, path, { json, bytes, type, headers = {} } = {
   }
   let res
   try {
-    res = await fetch(path, { method, headers: h, body, cache: 'no-store' })
+    const signal = timeout && globalThis.AbortSignal?.timeout ? AbortSignal.timeout(timeout) : undefined
+    res = await fetch(path, { method, headers: h, body, cache: 'no-store', signal })
   } catch {
-    throw new ApiError(0, NO_SIGNAL)
+    throw new ApiError(0, NO_SIGNAL) // no signal, or no answer within the timeout
   }
-  const text = await res.text()
+  let text
+  try { text = await res.text() } catch { throw new ApiError(0, NO_SIGNAL) }
   let data = null
   try { data = JSON.parse(text) } catch {}
   return { status: res.status, data }
@@ -99,6 +101,7 @@ async function ownerCsv(path) {
   return { blob: await res.blob(), filename }
 }
 const driverHeaders = (key) => ({ 'X-Driver-Key': key })
+const DRIVER_TIMEOUT_MS = 30_000 // no driver request waits forever: a timeout is a network failure (clarification 39)
 
 export const api = {
   mocked,
@@ -134,10 +137,10 @@ export const api = {
     changePin: (body) => owner('PUT', '/api/owner/pin', body),
   },
   driver: {
-    route: (key) => call('GET', '/api/driver/route', { headers: driverHeaders(key) }),
+    route: (key) => call('GET', '/api/driver/route', { headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
     // The queue needs every status code (201, 200 duplicate, 409, 5xx), so these answer { status, data } instead of throwing.
-    checkin: (key, body) => send('POST', '/api/driver/checkins', { json: body, headers: driverHeaders(key) }),
-    photo: (key, id, bytes, type) => send('PUT', `/api/driver/checkins/${q(id)}/photo`, { bytes, type, headers: driverHeaders(key) }),
-    undo: (key, id) => send('DELETE', `/api/driver/checkins/${q(id)}`, { headers: driverHeaders(key) }),
+    checkin: (key, body) => send('POST', '/api/driver/checkins', { json: body, headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
+    photo: (key, id, bytes, type) => send('PUT', `/api/driver/checkins/${q(id)}/photo`, { bytes, type, headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
+    undo: (key, id) => send('DELETE', `/api/driver/checkins/${q(id)}`, { headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
   },
 }

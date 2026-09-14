@@ -156,3 +156,42 @@ test('Remove from tonight: only on stops with no check-ins, behind a confirm; a 
   await expect(row(s3.client_id).locator('.stop-error')).toHaveText((await refused.json()).error)
   await expect(row(s3.client_id).getByRole('button', { name: 'Remove from tonight' }), 'reloaded: it has a check-in now').toHaveCount(0)
 })
+
+test("the 30 s refresh never paints an older route over a Move made while it was on its way; the next Move is 200, not 409", async ({ page, request }) => {
+  const token = await ownerToken(request)
+  const storm = await startStorm(request, token)
+  const truck = storm.trucks[0]
+  const names = truck.stops.map((s) => s.name)
+  await page.clock.install()
+  await signIn(page)
+  await expect(rowsOf(page, truck.id)).toHaveCount(names.length)
+
+  // The refresh GET is answered by the Worker at once (the old route) and handed to the page only when released.
+  let answered
+  let release
+  const gotOld = new Promise((r) => { answered = r })
+  const held = new Promise((r) => { release = r })
+  await page.route('**/api/owner/storms/current', async (route) => {
+    const response = await route.fetch()
+    answered()
+    await held
+    await route.fulfill({ response }).catch(() => {})
+  })
+  await page.clock.runFor(31_000)
+  await gotOld
+
+  const moved = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${storm.id}/route`) && r.request().method() === 'PUT')
+  await tap(page, rowsOf(page, truck.id).nth(1).getByRole('button', { name: 'Move up' }), 'Move up (stop 2)')
+  expect((await moved).status()).toBe(200)
+  const after = [names[1], names[0], ...names.slice(2)]
+  await expect.poll(() => namesOf(page, truck.id)).toEqual(after)
+
+  release()
+  await page.waitForTimeout(1000)
+  expect(await namesOf(page, truck.id), 'the older refresh was dropped').toEqual(after)
+
+  const next = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${storm.id}/route`) && r.request().method() === 'PUT')
+  await tap(page, rowsOf(page, truck.id).nth(0).getByRole('button', { name: 'Move down' }), 'Move down (stop 1)')
+  expect((await next).status(), 'the next Move carries the current route_version').toBe(200)
+  await expect.poll(() => orderOf(request, token, storm.id, truck.id)).toEqual(names)
+})

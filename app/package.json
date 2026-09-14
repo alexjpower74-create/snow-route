@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "negative": "node tests/negative-queue.mjs && node tests/negative-time.mjs && node tests/negative-overlay.mjs && node tests/negative-relink.mjs && node tests/negative-billing.mjs && node tests/negative-twotabs.mjs && node tests/negative-crosstruck.mjs && node tests/negative-hst.mjs",
+    "negative": "node tests/negative-queue.mjs && node tests/negative-time.mjs && node tests/negative-overlay.mjs && node tests/negative-relink.mjs && node tests/negative-billing.mjs && node tests/negative-twotabs.mjs && node tests/negative-crosstruck.mjs && node tests/negative-hst.mjs && node tests/negative-attempted.mjs && node tests/negative-missingundo.mjs",
     "negative:queue": "node tests/negative-queue.mjs",
     "negative:time": "node tests/negative-time.mjs",
     "negative:overlay": "node tests/negative-overlay.mjs",
@@ -14,7 +14,9 @@
     "negative:billing": "node tests/negative-billing.mjs",
     "negative:twotabs": "node tests/negative-twotabs.mjs",
     "negative:crosstruck": "node tests/negative-crosstruck.mjs",
-    "negative:hst": "node tests/negative-hst.mjs"
+    "negative:hst": "node tests/negative-hst.mjs",
+    "negative:attempted": "node tests/negative-attempted.mjs",
+    "negative:missingundo": "node tests/negative-missingundo.mjs"
   },
   "dependencies": {
     "leaflet": "1.9.4"
