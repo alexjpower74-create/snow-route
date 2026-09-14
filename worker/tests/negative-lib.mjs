@@ -45,7 +45,7 @@ export function createLog (title) {
   const lines = []
   const say = s => { console.log(s); lines.push(s) }
   const sha = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
-  const dirty = spawnSync('git', ['status', '--porcelain', '--', '.'], { cwd: root, encoding: 'utf8' }).stdout.trim() ? '+uncommitted worker changes' : ''
+  const dirty = spawnSync('git', ['status', '--porcelain', '--', '.', ':!tests/negative-control.log'], { cwd: root, encoding: 'utf8' }).stdout.trim() ? '+uncommitted worker changes' : ''
   say(`\n=== ${sha}${dirty ? ` ${dirty}` : ''} ${title} ${new Date().toISOString()} ===`)
   return {
     say,
