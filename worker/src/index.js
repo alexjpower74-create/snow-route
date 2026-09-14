@@ -435,6 +435,9 @@ async function driverStop (env, ctx, stormId, clientId) {
 
 const getCheckin = (db, id) => db.prepare(`${CHECKIN_SELECT} WHERE ck.id = ?1`).bind(id).first()
 
+const STOP_GUARD_SQL = `SELECT json(CASE WHEN NOT EXISTS (SELECT 1 FROM storm_stops WHERE storm_id = ?1 AND client_id = ?2)
+  THEN 'not a stop' ELSE '0' END)`
+
 // Refuses a skip inside the batch when the stop already has a plowed check-in (API.md: checked inside the same DB.batch()).
 const SKIP_GUARD_SQL = `SELECT json(CASE WHEN EXISTS (SELECT 1 FROM checkins WHERE storm_id = ?1 AND client_id = ?2 AND kind = 'plowed'
   AND voided_at IS NULL AND id <> ?3) THEN 'already plowed' ELSE '0' END)`
@@ -483,6 +486,8 @@ async function postCheckin (request, env, ctx) {
   const atAdjusted = inWindow ? 0 : 1
 
   const stmts = []
+  // The stop must still be on the route when this batch commits (clarification 15): a removal that won the race makes it 404.
+  stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))
   if (input.kind === 'skipped') stmts.push(db.prepare(SKIP_GUARD_SQL).bind(storm.id, body.client_id, id))
   stmts.push(db.prepare('INSERT INTO checkins (id, storm_id, client_id, truck_id, kind, reason, note, at, at_adjusted, received_at, has_photo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT(id) DO NOTHING')
     .bind(id, storm.id, body.client_id, truck.id, input.kind, input.reason, input.note, at, atAdjusted, iso(ctx.now), input.has_photo ? 1 : 0))
@@ -494,6 +499,8 @@ async function postCheckin (request, env, ctx) {
     if (!isUniqueViolation(e) && !isGuardRefusal(e)) throw e
     const stored = await getCheckin(db, id)
     if (stored) return duplicateAnswer(env, ctx, stored)
+    const stillStop = await db.prepare('SELECT 1 FROM storm_stops WHERE storm_id = ?1 AND client_id = ?2').bind(storm.id, body.client_id).first()
+    if (!stillStop) throw notFound('That client is not a stop in this storm.')
     const plowed = await db.prepare(`${CHECKIN_SELECT} WHERE ck.storm_id = ?1 AND ck.client_id = ?2 AND ck.kind = 'plowed' AND ck.voided_at IS NULL`)
       .bind(storm.id, body.client_id).first()
     throw new HttpError(409, 'already_plowed', 'This stop is already marked plowed.', { checkin: plowed ? checkinView(plowed, ctx.origin) : null })
@@ -614,9 +621,14 @@ const inNewfoundlandAndLabrador = (lat, lng) =>
 async function changePin (request, env, ctx) {
   const body = await readJson(request)
   const company = await loadCompany(env.DB)
+  // Wrong current PINs count toward the sign-in guard (clarification 16), so a stolen session can't try every PIN.
+  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)
+  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')
   if (!(await verifyPin(typeof body.current === 'string' ? body.current : '', company.pin))) {
     throw unauthorized('That PIN is not right.', 'current')
   }
+  // A right current PIN gives its try back straight away: only wrong PINs count, whatever happens to `next`.
+  await env.DB.prepare('DELETE FROM signin_attempts WHERE id = ?1').bind(attempt).run()
   if (typeof body.next !== 'string' || !/^\d{4,8}$/.test(body.next)) throw badRequest('next', 'A PIN is 4 to 8 digits.')
   await env.DB.batch([
     env.DB.prepare('UPDATE company SET pin = ?1 WHERE id = 1').bind(await hashPin(body.next)),
@@ -801,8 +813,11 @@ async function removeStop (request, env, ctx) {
       db.prepare("SELECT json(CASE WHEN EXISTS (SELECT 1 FROM checkins WHERE storm_id = ?1 AND client_id = ?2) THEN 'has check-ins' ELSE '0' END)")
         .bind(data.storm.id, clientId),
       db.prepare('DELETE FROM storm_stops WHERE storm_id = ?1 AND client_id = ?2').bind(data.storm.id, clientId),
-      db.prepare('UPDATE storm_stops SET position = position - 1 WHERE storm_id = ?1 AND truck_id = ?2 AND position > ?3')
-        .bind(data.storm.id, row.truck_id, row.position)
+      // Positions are renumbered from what is stored at commit, not from the position read earlier, so removals at once stay 1..n.
+      // The numbering comes from one window-function snapshot (UPDATE … FROM), never from rows this statement already rewrote.
+      db.prepare(`UPDATE storm_stops SET position = r.rn
+        FROM (SELECT client_id, ROW_NUMBER() OVER (PARTITION BY truck_id ORDER BY position, client_id) AS rn FROM storm_stops WHERE storm_id = ?1) AS r
+        WHERE storm_stops.storm_id = ?1 AND storm_stops.client_id = r.client_id`).bind(data.storm.id)
     ])
   } catch (e) {
     if (!isGuardRefusal(e)) throw e

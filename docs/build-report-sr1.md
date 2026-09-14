@@ -190,3 +190,58 @@ and 200 at the same instant, and an "ended_label" I worked out by hand wrong (11
   (the check-in insert checks the stop by reading first). The owner would see it in billing and not on the route. Closing it needs
   the check-in batch to carry a stop-exists guard; say if you want it.
 - Billing reads every client and a padded month of check-ins per request: fine for one contractor, not for a fleet.
+
+## M3: DONE
+
+Merged main first (`git merge --ff-only main` → 2a9deca: API.md clarifications 12–16). Code commits `f87d1e5` (the two fixes, tests,
+controls) and `ec5afb1` (log header only). All ten controls were re-run on `ec5afb1`.
+
+### (1) Clarification 15: a check-in and a removal of the same stop, exactly one wins
+- **Check-in:** its batch now starts with `STOP_GUARD_SQL`, a `json()` guard that raises if the client isn't a stop of that storm
+  when the batch commits. The earlier read stays (it gives the plain 404 fast), but it no longer decides. On a guard refusal
+  the Worker checks again: a stored id means duplicate (200), a missing stop means 404 "That client is not a stop in this storm.",
+  otherwise 409 `already_plowed`.
+- **Removal:** its batch already carried the "has check-ins" guard (409 "This stop has check-ins, so it stays on the route."). One
+  more fix the race test found: removal renumbered positions from the position it had **read**, so several removals at once left
+  gaps. It now renumbers inside the batch from a window-function snapshot
+  (`UPDATE storm_stops SET position = r.rn FROM (SELECT … ROW_NUMBER() OVER (PARTITION BY truck_id ORDER BY position, client_id) …)`).
+  My first try, a correlated `COUNT(*)` in the `UPDATE`, was also wrong: it reads rows the same statement has already rewritten.
+  The guarded run of the control (all ten removals winning at once) caught it before commit.
+- Tests: "stops: a check-in after the removal answers 404; a removal after the check-in answers 409" (exact texts, no stored row,
+  the kept stop still on the route). "stop race": 10 pairs, each a check-in with its removal fired 5 ms later; asserts 0 check-ins
+  on removed stops (raw rows via `/api/test/checkins`), exactly one winner per pair (201/409 or 404/200), positions 1..n per truck.
+  It prints `STOPRACE orphans=N outcomes=…`. On the shipped code with no added gap, every pair ends 201/409 (the check-in finishes
+  first), which is why the control below widens the gap.
+
+### Negative control (i) `negative:stoprace`: RED, honest
+- **Both runs** of the copy get `await scheduler.wait(25)` between the check-in's read of the stop and its write (setup patch before
+  `// TIME-RULE:`). So the passing run isn't passing just because the gap was tiny: with the guard kept and the same 25 ms gap, **0 of
+  10** check-ins landed on a removed stop, every pair ended 404/200 (all ten removals won), and positions stayed 1..n.
+- **Break:** the `stmts.push(db.prepare(STOP_GUARD_SQL)…)` line removed, so the check-in trusts its earlier read. **10 of 10**
+  check-ins landed on removed stops (`actual: 10, expected: 0`). They also answered **500**: the Worker then builds the stop view for
+  a client that isn't on the route. That's one more reason the guard belongs in the batch.
+- Exit 0 only if the guarded copy shows 0, the broken copy shows ≥ 1, and the test goes red. Took well under the 30-minute time box.
+- **Not proven by a race:** the other ordering (the removal reads "no check-ins", then a check-in commits, then the removal writes).
+  The removal's in-batch guard handles it, but the control only widens the check-in's gap. A second control would need a wait inside
+  the removal path. Say if you want it.
+
+### (2) Clarification 16: wrong current PINs on `PUT /api/owner/pin` count toward the sign-in guard
+- PIN change takes a slot with the same one-statement `takeAttempt` as sign-in (5 per 15 min per IP), before checking `current`.
+  A right `current` gives the slot back **at once**, before `next` is validated. The first version gave it back only after the whole
+  change went through; M2's PIN test then got 429 (one wrong PIN plus four right-PIN-bad-`next` tries used all five slots). That
+  was a Worker bug, fixed in the Worker; the test was left as it was.
+- Test "PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP": 5 wrong → 401 ×5,
+  then the right current → 429 and sign-in from that IP → 429; 3 wrong sign-ins + 2 wrong changes share the 5 tries; another IP
+  changes the PIN (204) and signs in with the new one.
+- **Negative control `negative:pinguard`: RED** (`actual: 204, expected: 429`). Break: in the copy, the PIN change's
+  `takeAttempt` call and its 429 are replaced by `const attempt = 0`. Not redundant with the sign-in guard: PIN change calls the
+  shared helper on its own path, and no other control removes that call.
+
+### Log header
+Each section of `worker/tests/negative-control.log` now starts with the short sha: `=== ec5afb1 negative:stoprace <time> ===`.
+`+uncommitted worker changes` follows the sha when files under `worker/` (other than the log itself) differ from that commit. The
+M3 development runs on 2a9deca are marked that way.
+
+### Verified
+`npm test`: **23 unit tests pass, 56 API tests pass (53 + 3 new), 0 fail, 0 skipped.** Negative controls on `ec5afb1`: **all ten RED**
+(a twoopt, b tiers, c idempotent, d time, e skipbill, f month, g csvguard, h voidbill, i stoprace, pinguard); no machine paths in the log.
