@@ -1130,3 +1130,73 @@ test('demo seed: two ended storms, an active one with 10 plowed and 2 skipped, p
   assert.ok(bill.totals.total_cents > 0)
   assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [JAN] })
 })
+
+// ================================================================ M3
+
+test('stops: a check-in after the removal answers 404; a removal after the check-in answers 409', async () => {
+  const { token, storm, keyOf } = await stormSetup()
+  const truck = storm.trucks[0]
+  const key = keyOf(truck.id)
+  const [gone, kept] = truck.stops
+  const removed = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${gone.client_id}`, { token })
+  assert.equal(removed.status, 200, removed.text)
+  const late = await post(key, checkin(storm, gone))
+  expectError(late, 404, 'not_found')
+  assert.equal(late.body.error, 'That client is not a stop in this storm.')
+  assert.equal((await storedRows(storm.id, gone.client_id)).length, 0)
+
+  assert.equal((await post(key, checkin(storm, kept))).status, 201)
+  const refused = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${kept.client_id}`, { token })
+  expectError(refused, 409, 'bad_state')
+  assert.equal(refused.body.error, 'This stop has check-ins, so it stays on the route.')
+  assert.ok(stopsOf((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body).some(s => s.client_id === kept.client_id))
+})
+
+test('stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop', async () => {
+  const seed = await reset()
+  const token = await signin()
+  const truck = seed.trucks[0]
+  const started = await api('POST', '/api/owner/storms', { token, body: { client_ids: seed.clients.map(c => c.id), truck_ids: [truck.id] } })
+  assert.equal(started.status, 201, started.text)
+  const storm = started.body
+  const targets = storm.trucks[0].stops.slice(0, 10)
+  const pairs = await Promise.all(targets.map(async stop => {
+    const sent = post(truck.driver_key, checkin(storm, stop))
+    await new Promise(resolve => setTimeout(resolve, 5))
+    const removal = api('DELETE', `/api/owner/storms/${storm.id}/stops/${stop.client_id}`, { token })
+    return { client_id: stop.client_id, checkin: (await sent).status, removal: (await removal).status }
+  }))
+  const view = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
+  const onRoute = new Set(stopsOf(view).map(s => s.client_id))
+  const rows = (await api('GET', `/api/test/checkins?storm_id=${storm.id}`)).body.checkins
+  const orphans = rows.filter(k => !onRoute.has(k.client_id)).length
+  console.log(`STOPRACE orphans=${orphans} outcomes=${pairs.map(p => `${p.checkin}/${p.removal}`).join(',')}`)
+  assert.equal(orphans, 0, `${orphans} check-ins landed on removed stops`)
+  for (const p of pairs) {
+    const oneWinner = (p.checkin === 201 && p.removal === 409) || (p.checkin === 404 && p.removal === 200)
+    assert.ok(oneWinner, `client ${p.client_id}: check-in ${p.checkin}, removal ${p.removal}`)
+  }
+  for (const t of view.trucks) assert.deepEqual(t.stops.map(s => s.position), t.stops.map((_, i) => i + 1))
+})
+
+test('PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP', async () => {
+  await reset()
+  const token = await signin()
+  const change = (current, ip) => api('PUT', '/api/owner/pin', { token, ip, now: at(1), body: { current, next: '1357' } })
+  const signinFrom = (pin, ip) => api('POST', '/api/owner/signin', { body: { pin }, ip, now: at(1) })
+
+  for (let i = 0; i < 5; i++) expectError(await change('0000', '10.6.6.6'), 401, 'unauthorized', 'current')
+  const limited = await change('2468', '10.6.6.6')
+  expectError(limited, 429, 'rate_limited')
+  assert.equal(limited.body.error, 'Too many tries. Wait 15 minutes and try again.')
+  expectError(await signinFrom('2468', '10.6.6.6'), 429, 'rate_limited')
+
+  // Wrong sign-ins and wrong PIN changes share the same 5 tries.
+  for (let i = 0; i < 3; i++) expectError(await signinFrom('0000', '10.7.7.7'), 401, 'unauthorized')
+  for (let i = 0; i < 2; i++) expectError(await change('0000', '10.7.7.7'), 401, 'unauthorized')
+  expectError(await change('2468', '10.7.7.7'), 429, 'rate_limited')
+
+  // A right current PIN doesn't use up a try, and another IP is unaffected.
+  assert.equal((await change('2468', '10.8.8.8')).status, 204)
+  assert.equal((await signinFrom('1357', '10.8.8.8')).status, 200)
+})

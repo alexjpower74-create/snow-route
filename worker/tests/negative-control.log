@@ -486,3 +486,210 @@ test at tests/api.test.mjs:974:1
     diff: 'simple'
   }
 verdict: RED as expected. "billing: a voided check-in never bills" fail when billing counts an undone check-in.
+
+=== 2a9deca +uncommitted worker changes negative:stoprace 2026-09-14T08:50:43.058Z ===
+setup (both runs): src/index.js: "  // TIME-RULE:"  ->  "  await scheduler.wait(25) // NEGATIVE CONTROL ONLY: widen the gap between the check-in's read and its write\n  // TIME-RULE:"
+control (unbroken copy): "stop race" DID NOT PASS (exit 1)
+STOPRACE orphans=0 outcomes=404/200,404/200,404/200,404/200,404/200,404/200,404/200,404/200,404/200,404/200
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (303.448974ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 366.555877
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1155:1
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (303.448974ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  -   1,
+      2,
+  +   2,
+      3,
+  -   4,
+  -   5,
+      6,
+  +   6,
+  +   6,
+  -   7,
+      8,
+  +   8,
+      9,
+  -   10,
+      11,
+  +   11,
+  -   12,
+      13,
+  +   13,
+  -   14,
+      15,
+  +   15
+    ]
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-stoprace/tests/api.test.mjs:1179:39)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [
+       2,  2,  3,  6,  6,  6,
+       8,  8,  9, 11, 11, 13,
+      13, 15, 15
+    ],
+    expected: [
+       1,  2,  3,  4,  5,  6,
+       7,  8,  9, 10, 11, 12,
+      13, 14, 15
+    ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+break: src/index.js: "  stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))\n"  ->  ""
+STOPRACE orphans=6 outcomes=500/200,500/200,500/200,500/200,201/409,201/409,201/409,201/409,500/200,500/200
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (306.912144ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 371.24942
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1155:1
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (306.912144ms)
+  AssertionError [ERR_ASSERTION]: 6 check-ins landed on removed stops
+  
+  6 !== 0
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-stoprace/tests/api.test.mjs:1174:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 6,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+check: check-ins on removed stops, same 25 ms gap: with the guard 0, without it 6 (of 10 pairs)
+verdict: NOT RED as required (unbroken did not pass, broken exit 1, every named test red: true).
+
+=== 2a9deca +uncommitted worker changes negative:pinguard 2026-09-14T08:50:49.243Z ===
+control (unbroken copy): "PIN change: wrong current PINs count toward the sign-in guard" pass
+break: src/index.js: "  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)\n  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')\n  if (!(await verifyPin(typeof body.current"  ->  "  const attempt = 0\n  if (!(await verifyPin(typeof body.current"
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (193.30227ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 254.53055
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1182:1
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (193.30227ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  204 !== 429
+  
+      at expectError (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:39:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:1190:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 204,
+    expected: 429,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "PIN change: wrong current PINs count toward the sign-in guard" fail when a wrong current PIN on PUT /api/owner/pin is not counted.
+
+=== 2a9deca +uncommitted worker changes negative:stoprace 2026-09-14T08:51:49.324Z ===
+setup (both runs): src/index.js: "  // TIME-RULE:"  ->  "  await scheduler.wait(25) // NEGATIVE CONTROL ONLY: widen the gap between the check-in's read and its write\n  // TIME-RULE:"
+control (unbroken copy): "stop race" pass
+break: src/index.js: "  stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))\n"  ->  ""
+STOPRACE orphans=10 outcomes=500/200,500/200,500/200,500/200,500/200,500/200,500/200,500/200,500/200,500/200
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (369.80921ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 436.009739
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1155:1
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (369.80921ms)
+  AssertionError [ERR_ASSERTION]: 10 check-ins landed on removed stops
+  
+  10 !== 0
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-stoprace/tests/api.test.mjs:1174:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 10,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+check: check-ins on removed stops, same 25 ms gap: with the guard 0, without it 10 (of 10 pairs)
+verdict: RED as expected. "stop race" fail when the check-in batch no longer re-checks that the stop is still on the route.
+
+=== 2a9deca +uncommitted worker changes negative:pinguard 2026-09-14T08:51:55.900Z ===
+control (unbroken copy): "PIN change: wrong current PINs count toward the sign-in guard" pass
+break: src/index.js: "  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)\n  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')\n  if (!(await verifyPin(typeof body.current"  ->  "  const attempt = 0\n  if (!(await verifyPin(typeof body.current"
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (191.26877ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 254.832715
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1182:1
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (191.26877ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  204 !== 429
+  
+      at expectError (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:39:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:1190:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 204,
+    expected: 429,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "PIN change: wrong current PINs count toward the sign-in guard" fail when a wrong current PIN on PUT /api/owner/pin is not counted.

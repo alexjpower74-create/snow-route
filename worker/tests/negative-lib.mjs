@@ -45,7 +45,8 @@ export function createLog (title) {
   const lines = []
   const say = s => { console.log(s); lines.push(s) }
   const sha = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
-  say(`\n=== ${title} ${new Date().toISOString()} (HEAD ${sha}, working tree) ===`)
+  const dirty = spawnSync('git', ['status', '--porcelain', '--', '.'], { cwd: root, encoding: 'utf8' }).stdout.trim() ? '+uncommitted worker changes' : ''
+  say(`\n=== ${sha}${dirty ? ` ${dirty}` : ''} ${title} ${new Date().toISOString()} ===`)
   return {
     say,
     // The log is committed: never write this machine's folder names into it (plain or file:// URL form).
@@ -60,16 +61,21 @@ const failed = (out, name) => out.includes(`✖ ${name}`)
 const nameArgs = tests => tests.flatMap(t => ['--test-name-pattern', `^${escapeRe(t)}`])
 
 /**
- * One control: copy, run the named tests on the untouched copy (each must pass), apply the breaks, run again (each named
- * test must show ✖; a file that no longer loads is not accepted as red). For API tests the copy is served on 7605.
- * Exits the process 0 only when every named test went red.
+ * One control: copy, apply `setup` (patches both runs share), run the named tests on that copy (each must pass), apply the
+ * breaks, run again (each named test must show ✖; a file that no longer loads is not accepted as red). For API tests the copy
+ * is served on 7605. `check(beforeOutput, afterOutput)` may add a verdict of its own ({ ok, note }).
+ * Exits the process 0 only when every named test went red and `check` (if any) agrees.
  */
-export async function runControl ({ title, testFile, tests, breaks, describe, api = false }) {
+export async function runControl ({ title, testFile, tests, breaks, setup = [], check, describe, api = false }) {
   const log = createLog(title)
   let ok = false
   let worker = null
   try {
     const dir = copyWorker(title.replace(/[^a-z0-9]+/gi, '-'))
+    for (const b of setup) {
+      patchFile(dir, b.file, b.find, b.replace, `${title} setup`)
+      log.say(`setup (both runs): ${b.file}: ${JSON.stringify(b.find)}  ->  ${JSON.stringify(b.replace)}`)
+    }
     const args = ['--test', ...nameArgs(tests), testFile]
     let env = {}
     if (api) {
@@ -93,6 +99,11 @@ export async function runControl ({ title, testFile, tests, breaks, describe, ap
     log.say(after.output.trimEnd())
     const red = tests.every(t => failed(after.output, t))
     ok = cleanOk && after.status !== 0 && red
+    if (check) {
+      const c = check(before.output, after.output)
+      log.say(`check: ${c.note}`)
+      ok = ok && c.ok
+    }
     log.say(ok ? `verdict: RED as expected. ${tests.map(t => `"${t}"`).join(' and ')} fail when ${describe}.`
       : `verdict: NOT RED as required (unbroken ${cleanOk ? 'passed' : 'did not pass'}, broken exit ${after.status}, every named test red: ${red}).`)
   } catch (e) {
