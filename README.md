@@ -54,7 +54,10 @@ cd app && npm run negative     # every app negative control, same rule (port 760
 
 ## Test numbers
 
-Final pinned QA at `31630e6`, one run, nothing re-run to get green:
+After the polish round (Onyx's review of the demo), pinned QA at `8aaf382`: Worker unit 27 / 0 / 0, API 68 / 0 / 0; Playwright 196 / 0 / 0;
+the new truck-pins control (the 13th app control) red after its unbroken pass.
+
+Final pinned QA at `31630e6` before that round, one run, nothing re-run to get green:
 
 - **Worker:** unit 26 passed / 0 failed / 0 skipped; API 68 / 0 / 0 against `wrangler dev --local`.
 - **Worker negative controls: 15.** Each passes on an unbroken copy first, then goes red on its break (route order, priorities,
@@ -77,7 +80,7 @@ Optional custom domain.
 ## Where to pick this up
 
 - `PLAN.md` is the build contract, `docs/API.md` the API contract with 53 numbered clarifications (most came out of cross-review),
-  `DECISIONS.md` every call made overnight (58).
+  `DECISIONS.md` every call made overnight (61, including the polish round).
 - `docs/build-report.md` has the QA history, every negative control and every cross-review finding with where it was adopted; each
   slice's own report is beside it (`docs/build-report-sr1.md` Worker, `docs/build-report-sr2.md` app).
 - Code map: `worker/src/index.js` (routes), `route.js` (route order), `billing.js` (what bills), `time.js` (NL time); `app/public/d/queue.js`

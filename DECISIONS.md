@@ -213,3 +213,16 @@ Alexander was asleep for this build; every real call is written here with its re
 58. **M3f gets no separate review round.** It sends one flag whose Worker side sr1 designed and QA'd (M8), changes one `add` to `update()`,
     and adds a spec and negative control (l). The lead's final pinned QA runs every Worker control and every app control (a-l) on the merged
     code, so (l) is verified by the lead, not just by its author. sr1 stays open until that QA passes, in case the Worker needs a fix.
+
+## 2026-09-14, lead (polish after Onyx's review of the real demo)
+
+59. **Each truck's route pins carry its ring colour AND a shape of its own** (round, square, dashed ring), and the list headers and legend
+    show the same mark ("Truck 2 (SAMPLE): square pins, white line"). With two trucks both numbered from 1, the old identical pins showed two
+    "1"s and two "7"s that could only be told apart by following faint lines, and blue against white is not a difference everyone can see.
+    Shape is the cue that never depends on colour; a dark outline keeps the white ring readable on light map tiles. A spec checks each
+    truck's pins match its legend and that the trucks differ in colour and shape; control (m) draws every pin with truck 1's look and goes red.
+60. **The demo placeholder photo is a card that says what it is**: a drawn camera, "Photo taken 7:51 AM", the stop name and the SAMPLE label,
+    instead of a dark block over a flat white one that read as a broken image. It stays a generated SVG (no real picture of any home). A unit
+    test checks the card; the old placeholder was run against that test and fails it.
+61. **Onyx's running demo was restarted, not duplicated.** The placeholder photos are made when the demo seeds, so new screenshots needed a
+    fresh seed: the running copy was stopped by its exact pids, port 7601 checked free, and one copy started again and left running.

@@ -25,6 +25,7 @@ reasoning and every attempt.
 | sr2 M3d | `aa04bba` | (Worker as `caadcad`) | (as `caadcad`) | app controls (a–j) run in the final QA: port 7606 was in use by sr2's own control run (DECISIONS 53) | **176 / 0 / 0** |
 | sr2 M3e (+ sr1 M8) | `50c7984` | (Worker as `3c306e7`) | (as `3c306e7`) | app controls (a–k) run in the final QA (sr2 needed 7606 for M3f) | **188 / 0 / 0** |
 | **FINAL** (sr1 M8 + sr2 M3f) | **`31630e6`** | **26 / 0 / 0** | **68 / 0 / 0** | **Worker 15 red + app 12 red, every one after its unbroken pass** | **192 / 0 / 0** |
+| Polish (Onyx's review, lead only) | `8aaf382` | 27 / 0 / 0 | 68 / 0 / 0 | app: truckpins (m) red after its unbroken pass; the old placeholder fails the new placeholder test | 196 / 0 / 0 |
 
 Counts are passed / failed / skipped.
 
@@ -73,6 +74,8 @@ says "Plowed at 6:05 AM" → the driver page moves on to "Stop 2 of 13". Zero co
 | App: two open tabs of the driver link never void a push | the copy reads a missing item after 200/201 as "undone" and sends without the Web Lock | a stored push was voided by a DELETE nobody tapped |
 | App: photos and undos never go to another truck's link | the copy re-keys photos and undos across trucks | a photo PUT and an undo DELETE went out under truck 2's key |
 | App: the billing screen's HST is the API's, not the page's | the copy computes HST on the page with `Math.floor(amount * 0.15)` | $5.32 shown where the API row says $5.33 |
+| App: each truck's route pins can be told apart and match the legend | the copy draws every truck's pins with truck 1's ring colour and shape | truck 2's pins no longer matched truck 2's legend entry |
+| Demo placeholder photo is an intentional card | the new unit test run against the old placeholder (`0113369`) | fails: no camera, no "Photo taken", a flat white block |
 | App: a reset driver link never blocks check-ins saved under it | the copy's queue stops everything on a 401, as in M1 | both check-ins stayed on the phone; nothing reached the server |
 | A plowed check-in keeps no note | the copy stores the body's note for plowed | the stored note was "Left a note" |
 | A route edit from a stale screen never lands | the copy drops the in-batch `route_version` guard | the stale edit answered 200 instead of 409, and both racing edits got 200 |
@@ -211,3 +214,20 @@ The lead copies the log out to the session scratchpad and restores the file afte
   storm showed 10 plowed, 2 skipped, 13 pending; September billing 58 pushes, $2,369.00. The demo was then stopped and ports 7601/7611
   checked free, so the command works for Alexander in the morning.
 - Status file: `~/Projects/Prospecting/overnight/status/snow-route.md`.
+
+## Polish (Onyx's review of the real demo, lead only, `8aaf382`)
+
+Onyx looked at the running demo (owner at 1280, driver and a client status link at 390) and asked for two things:
+
+- **Route pins by truck.** Both trucks' pins looked alike, so the map showed two "1"s, "7"s and "12"s. Each truck's pins now carry its ring
+  colour and a shape of its own (round, square, dashed ring), with a dark outline for light tiles; the list headers and the legend show the
+  same mark ("Truck 2 (SAMPLE): square pins, white line"). New spec in `owner.spec.mjs` (all four projects); control (m)
+  `negative-truckpins.mjs` draws every pin with truck 1's look and goes red. DECISIONS 59.
+- **Placeholder photo.** The demo's generated photo was a dark block over a flat white one and read as broken. It is now a card with a drawn
+  camera, "Photo taken 7:51 AM", the stop name and the SAMPLE label (`worker/src/sample.js`), checked by a unit test and the demo-seed API
+  test; the old placeholder fails the new test. DECISIONS 60.
+
+Pinned QA at `8aaf382` (`rig qa --ref`, HEAD checked): Worker unit 27 / 0 / 0, API 68 / 0 / 0; Playwright 196 / 0 / 0 (the new spec on all four
+projects); control (m) red after its unbroken pass. Onyx's running demo was stopped by pid and started again as one copy so the photos were
+re-seeded (DECISIONS 61); all 36 `docs/shots` were re-taken from it and the owner Tonight map, a 2x close-up of it, and the client status
+page were looked at. The other twelve app controls and fifteen Worker controls touch code this round did not change and were last run at `31630e6`.
