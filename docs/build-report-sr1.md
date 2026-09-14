@@ -1050,3 +1050,82 @@ started while the refresh was out" rule (`app/public/owner/owner.js:471`). But t
    accepted" and no row. Honest. The timeout test lets a POST go unanswered and requires "No signal" after at least 29 s and the check-in kept.
    Honest. Control (f) now breaks the lock and the rule only in the with-locks run, and control (j) restores only the rule in the no-locks run;
    both are correct in shape, with the caveat in M3d-7. The owner refresh test is honest for the rule it names (M3d-8).
+
+## Cross-review of sr2 M3e steps 1-2 (0590380)
+
+Focused on clarifications 49 and 50. Read only through git (`git diff 1e44e16 0590380 -- app/`, `git show 0590380:<path>`), never sr2's worktree.
+Checked against `worker/src/index.js` (main after M7). No code changed, nothing run. Tags as before: **DATA LOSS**, **BILLING**, **SECURITY**, **OTHER**.
+No DATA LOSS or SECURITY found. Files: `app/public/d/queue.js`, `app/public/d/driver.js`, `app/tests/{queue,route-edit,billing}.spec.mjs`,
+`app/tests/negative-{resend,attempted,missingundo,twotabs,crosstruck,lib}.mjs`.
+
+### Findings (most harmful first)
+
+**M3e-1 [BILLING, narrow]. The re-sent POST can itself create a push that then can't be undone.** For an attempted check-in that never reached the
+office, the re-send stores it (`queue.js:163`, answered 201) with `received_at` = now, and the DELETE follows as the next step (`queue.js:179-180`, then
+`:184`). If the signal drops in the second between those two requests and the phone stays without signal for **more than 15 minutes**, my Worker
+answers the DELETE **409 "Too late to undo. Ask the owner to fix it."** (`worker/src/index.js:958`, `:967`). The void goes to "Not accepted"
+(`queue.js:205`) and the push stays stored, non-voided and billed. **That push was created by the undo**: before M3e the check-in was never on
+the server. It's visible, not silent (the driver sees the refusal), but the owner is billing a stop the driver took back.
+Who: the owner and the client, on a truck that loses signal for a while.
+Two ways to close it, both needing the lead's call:
+- **(sr1, contract)** the check-in POST takes an optional `"undo": true`: if the id isn't stored yet, the Worker stores it **already voided** in the
+  same statement (never billable, not even for a moment); if it is stored, it's a duplicate as now, and the DELETE follows. One request for the
+  never-arrived case, so no window.
+- **(sr2, app-side)** after a re-send answered **201** (the undo created the row), a DELETE answering 409 "too late" is retried and not rejected. That
+  doesn't work, because my Worker's 15-minute rule would keep refusing, so this path really needs the Worker change or a looser undo rule for rows the
+  same phone just created.
+A 200 duplicate on the re-send (the original did arrive) followed by a 409 is the old, pre-existing case: the driver's undo came too late for a real
+push, and "Not accepted" is the right place for it.
+
+**M3e-2 [OTHER]. A second Undo tap on a stale row can overwrite a pending re-send void with a plain one.** `takeBack`'s "already sent" branch
+(`app/public/d/driver.js:509-511`) adds `voidFor(known)` with `resend: false` through `queue.add` (a blind `put`, `queue.js:99-103`) under the same
+`void:<id>` key. If the item had meanwhile been turned into a **re-send** void by the flush loop (`queue.js:253-256`), and the driver taps Undo again
+on a row painted before that, the new put replaces it: no re-send, the DELETE goes straight out, and if the check-in never arrived it gets 404 and
+lands in "Not accepted". That's visible, so not silent. Only if the original POST is still on its way in another tab without Web Locks does it then
+store and bill. It needs a stale row and a second tap. Fix: add the void through `update()` and keep an existing void untouched.
+
+**M3e-3 [OTHER, test honesty]. The keys-store spec passes with the keys store broken.** "an item an older build saved without truck_id…"
+(`app/tests/queue.spec.mjs`, last test) opens **truck 2's** link and expects the old photo to be listed as another truck's. With a broken store,
+`truckOf(key)` is `null`, and `null === page.truckId` is false in `rekey()` (`queue.js:128`), so the item is marked stuck anyway and the row
+appears: the test is green. Its first assertion (the store maps the link) proves the store is written, not that it's used. The store only changes
+the outcome when an old item is re-keyed to **its own truck's new link**. Suggest a second case: reset truck 1's link, open truck 1's **new** link,
+and expect the old photo to be re-keyed and sent (no stuck row, the PUT under the new key, `photo: "stored"`).
+
+**M3e-4 [OTHER]. Clarification 50 has no negative control.** No spec can close a page between two commits, and none of the controls puts
+back a two-transaction version (for example `item: null` without `also`, followed by a separate `add`). The single transactions are right by
+reading (below), but nothing would go red if one were split again. Known gap.
+
+### Answers to the lead's questions
+1. **Can the re-sent POST do harm?**
+   - **An undo tapped before the check-in ever left:** no re-send. An `undone` item without `attempted` is removed with no void (`queue.js:255-256`).
+   - **Wrong truck:** the re-send goes under the item's own key, and the answer's `checkin.truck_id` (the stored truck, `worker/src/index.js:524`) replaces
+     the void's truck. A mismatch with the key's truck marks the void stuck, so it's never sent (`queue.js:177-179`). A 201 means the sending truck
+     stored it, so it matches.
+   - **Loops:** none. Every answer either changes the void (`resend: false`, rejected or dead key) or backs off.
+   - **Answers to the re-send:**
+     - 409 `already_plowed` (another check-in plowed the stop, so this one was never stored), 404 (the stop was removed, so never stored) and 400 →
+       the void goes to "Not accepted" with the server's text (`queue.js:173-174`). Nothing is billed, and the row shows.
+     - 401 → the key is marked dead and the void is re-keyed like any other same-truck item (`queue.js:168-171`).
+     - 5xx, 429 or a timeout → kept with `resend: true` and backed off (`queue.js:164-167`). A late original arriving meanwhile only turns the next
+       re-send into a 200 duplicate.
+   - **The one real harm:** M3e-1.
+2. **Is every undone-to-void conversion one transaction?** Yes:
+   - after a 200/201, the item is deleted and its void put in one `update()` (`queue.js:229-234`, the `also` list written in the same transaction,
+     `queue.js:73`);
+   - in the flush loop, likewise (`queue.js:253-257`);
+   - in the driver's Undo on a photo-waiting check-in, likewise (`driver.js:506`).
+   The only separate write left is `takeBack`'s `add` when the item is already gone (`driver.js:509-511`), where there's nothing to delete, so a
+   close between commits can't lose anything (M3e-2 is a different problem). I found no remaining place where closing a page between two commits
+   loses an undo.
+3. **`rekey()` through `update()`:** each item is re-read in the transaction that writes it (`queue.js:125-131`). An Undo tapped between the snapshot
+   and the write is kept: the re-key copies the current item, `state: 'undone'` included, and a check-in that became `undone` is no longer treated as
+   a `send` check-in. `reject()` is now an `update()` too (`queue.js:143-145`). A tap can't be overwritten.
+4. **The new specs and control (k):**
+   - **"an Undo tapped while the check-in is on its way, sent by another tab without Web Locks…":** tab A's POST is held with a page-level route,
+     tab B has no route, so its re-send and DELETE really reach my Worker. The test requires tab B's DELETE to answer 200, one voided row, and still
+     voided after tab A's late POST. Control (k) removes the re-send and brings back the quiet 404: tab B's DELETE then answers 404 and the row
+     stays live, so the test goes red. Honest.
+   - **The never-stored and moved-stop tests** now require a stored, voided row and nothing in "Not accepted", matching clarification 49.
+   - **The two-tab no-locks run** now requires exactly 2 POSTs before release (closes M3d-7).
+   - **The billing spec's** two $35.50 rows make the totals row sum (1066) differ from 15 % of the subtotal (1065) (closes M3c-10).
+   - **The keys-store spec** is M3e-3.
