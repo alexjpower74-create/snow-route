@@ -1,0 +1,12 @@
+{
+  "name": "snow-route",
+  "private": true,
+  "type": "module",
+  "description": "Routes, check-ins with photos, client status links and month-end billing for a small snow-clearing contractor. Local build; see README.md.",
+  "scripts": {
+    "demo": "node demo.mjs",
+    "test:worker": "cd worker && npm test",
+    "test:negative": "cd worker && npm run negative",
+    "test:e2e": "cd app && npx playwright test"
+  }
+}
