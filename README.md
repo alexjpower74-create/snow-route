@@ -54,7 +54,18 @@ cd app && npm run negative     # every app negative control, same rule (port 760
 
 ## Test numbers
 
-_Filled in from the final pinned QA run; see `docs/build-report.md`._
+Final pinned QA at `31630e6`, one run, nothing re-run to get green:
+
+- **Worker:** unit 26 passed / 0 failed / 0 skipped; API 68 / 0 / 0 against `wrangler dev --local`.
+- **Worker negative controls: 15.** Each passes on an unbroken copy first, then goes red on its break (route order, priorities,
+  safe resend, tapped time, skipped never bills, NL month, CSV formula guard, undone never bills, stop-removal race, PIN guard, mangled
+  status link, plowed note, route version, removable, undo flag).
+- **Playwright:** 192 / 0 / 0 in chromium and webkit at 390 and 1280, real taps, typing, drags and the real file chooser; tap targets
+  hit-tested with `elementFromPoint`; tests never fetch real map tiles or any host but 127.0.0.1.
+- **App negative controls: 12**, same rule (offline queue, tapped time, overlay hit-test, reset link, billing count, two tabs, cross-truck,
+  HST, attempted undo, missing-means-undone, re-send before undo, undo flag).
+- **Cross-review:** 9 rounds between the two slices found 51 defects on the Worker/app boundary; every data-loss and billing one was fixed
+  and re-tested (`docs/build-report.md`).
 
 ## What deploying needs
 

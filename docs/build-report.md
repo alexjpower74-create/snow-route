@@ -25,7 +25,25 @@ reasoning and every attempt.
 | sr2 M3d | `aa04bba` | (Worker as `caadcad`) | (as `caadcad`) | app controls (a–j) run in the final QA: port 7606 was in use by sr2's own control run (DECISIONS 53) | **176 / 0 / 0** |
 | sr2 M3e (+ sr1 M8) | `50c7984` | (Worker as `3c306e7`) | (as `3c306e7`) | app controls (a–k) run in the final QA (sr2 needed 7606 for M3f) | **188 / 0 / 0** |
 
+| **FINAL** (sr1 M8 + sr2 M3f) | **`31630e6`** | **26 / 0 / 0** | **68 / 0 / 0** | **Worker 15 red + app 12 red, every one after its unbroken pass** | **192 / 0 / 0** |
+
 Counts are passed / failed / skipped.
+
+## Final QA (`31630e6`)
+
+One run of `final-qa.sh` in the QA worktree pinned with `rig qa --ref 31630e6` (HEAD checked equal before any test), exit codes taken
+from each command directly, nothing re-run:
+
+- Worker unit 26 / 0 / 0; Worker API 68 / 0 / 0 (`wrangler dev --local`, `TEST_MODE=1`, fresh state, port 7609).
+- Worker negative controls, 15 red after 15 unbroken passes: twoopt, tiers, idempotent, time, skipbill, month, csvguard, voidbill,
+  stoprace, pinguard, statusroute, plowednote, routeversion, removable, undoflag.
+- Playwright 192 / 0 / 0: chromium-390, chromium-1280, webkit-390 (iPhone 14), webkit-1280; the only in-test WebKit exception is the
+  offline reload step (DECISIONS 35) and the clipboard read (API.md 25), each annotated; 0 skipped tests.
+- App negative controls, 12 red after 12 unbroken passes: queue, time, overlay, relink, billing, twotabs, crosstruck, hst, attempted,
+  missingundo, resend, undoflag.
+- `npm run demo` from a clean start on main: owner, driver, client status and API all answer 200, and the SAMPLE storm shows 13 stops on Truck 1.
+- 36 screenshots of that demo in `docs/shots/` (chromium and webkit, 390 viewport and 1280 full page; landing, driver, client status,
+  owner sign-in, Tonight, Clients, Trucks, Billing, Settings), taken by signing in through the form, with no page or API errors.
 
 ## Integration smoke (lead, `110f190`, before any cross-slice test suite existed)
 
