@@ -121,3 +121,12 @@ Alexander was asleep for this build; every real call is written here with its re
     shipped code is exactly the kind of switch the rules forbid.
 37. **The mock covers only driver and status routes.** No test uses the mock; it exists to show pages without a Worker. Extending it to the
     owner side is not worth the upkeep.
+
+## 2026-09-14, lead (after looking at the owner screenshots, sent to sr2 with M3b)
+
+38. **At 1280 the maps stay in view.** The owner's Tonight and Clients screens put a 25-row list beside the map; with the map vertically
+    centred in its column, the owner scrolls the list and loses the map. The map column is sticky at the top instead.
+39. **Map pins use the Design tokens, with a one-line legend.** The first Clients map showed red pins that no token and no legend explained.
+    A colour the owner cannot read is noise on a storm night.
+40. **M3 was split into M3a (review fixes) and M3b (the rest of the owner side)** so the high-risk queue fix (a dead driver link blocking a
+    whole night of check-ins) was QA'd and merged on its own before another large change landed on the same files.
