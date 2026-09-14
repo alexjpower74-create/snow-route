@@ -155,3 +155,13 @@ Alexander was asleep for this build; every real call is written here with its re
 46. **sr1's M6 (the required `route_version`) is QA'd on its own branch but merged into main only when sr2 starts M3c.** Merging it earlier
     would make main's route-editing specs red, because sr2's M3b page does not send the version yet. Main stays green at every merge; the
     two halves of one contract change land back to back.
+
+## 2026-09-14, lead (after sr1's review of sr2 M3c steps 1-2, `0994459`)
+
+47. **An Undo is judged by whether the check-in may have left the phone, written down before it leaves** (API.md 38). The first fix stopped
+    phantom undos but could drop a real one when the POST reached the office and the answer was lost, the most ordinary failure in a truck
+    with one bar. A DELETE for a check-in the office never got is harmless (404, removed quietly), so "may have left" always sends the undo.
+48. **30 seconds is the driver request timeout** (API.md 39). A request on a dead cellular link can hang for minutes and would hold the
+    send lock; 30 s is long enough for a slow upload of a 1600 px photo on a weak signal and short enough that the driver's screen moves on.
+49. **These go to sr2 as M3d after M3c**, as before: sr2 is mid-turn and the fixes touch the same queue code, so a clean hand-off beats an
+    interruption.

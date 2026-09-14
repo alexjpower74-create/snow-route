@@ -399,3 +399,19 @@ style-src 'unsafe-inline'`; the upload route never accepts SVG.
     form and repaint Tonight with the API's message (End storm shows that storm's summary). A "Past storms" link is shown while a storm is on.
 37. **(sr2 M3c, review M3b-7) "Remove from tonight"** on a stop with no check-ins, behind an inline confirm, calling
     `DELETE /api/owner/storms/:id/stops/:client_id` (a 409 shows the API's message on that stop). Stops with check-ins show no Remove.
+38. **(sr2 M3d, review M3c-1/M3c-5) A tapped Undo is never lost.** The queue writes `attempted: true` to an item **before** its first POST
+    leaves. An `undone` item that was never attempted is deleted from the phone with no DELETE; an `undone` item that was attempted always
+    queues a DELETE, whichever sender finds it (this tab, a reload, another tab, with or without Web Locks). A DELETE answering 404 ("We
+    couldn't find that check-in.") means the Worker never stored it: the void is removed quietly, never shown in "Not accepted". The Undo
+    confirm says "This check-in has not reached the office yet. Delete it from this phone?" only for a never-attempted item, and "It may
+    already be at the office. Undo it?" for an attempted one.
+39. **(sr2 M3d, review M3c-2) No driver request waits forever.** Every driver call in `api.js` carries `AbortSignal.timeout(30000)`; a
+    timeout is a network failure (keep, back off). A tab that is not visible asks for the send lock with `{ ifAvailable: true }` and skips
+    this pass if another tab holds it, so a forgotten background tab never holds up the one on screen.
+40. **(sr2 M3d, review M3c-3) The owner's refresh never paints an older route.** A refreshed Storm is dropped if a save or drag started
+    while it was on its way, or if its `route_version` is lower than the one on screen.
+41. **(sr2 M3d, review M3c-4) The two-tab rule is proven on its own.** The two-tab test also runs with `navigator.locks` removed
+    (`addInitScript`), expecting one stored, non-voided push and no DELETE (two POSTs are allowed there); a negative control restores only
+    "missing after 200/201 means undone" and that no-locks run goes red. A response-lost spec (the Worker stores the POST, the page's
+    response is aborted, the driver taps Undo and confirms) expects a voided check-in in the database; a negative control drops the
+    `attempted` rule and it goes red.

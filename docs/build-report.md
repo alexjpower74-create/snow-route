@@ -108,6 +108,17 @@ API rows, the CSV passed through as a blob, trucks, clients, settings and exact 
 | M3b-7 | No way to take a stop off tonight's route | owner | API.md 37 |
 | M3b-8 | The yard's map error showed under the yard name box | owner | API.md 33 (sr1 M6) |
 
+**sr1 read sr2's M3c steps 1-2** (`0994459`: the two-tab fix and `route_version`). No path left that sends a DELETE the driver did not tap,
+the lock wraps the whole send loop, and consecutive edits on one screen always carry the right version. Five findings:
+
+| # | Defect | Who it hurts | Adopted as |
+|---|---|---|---|
+| M3c-1 | An Undo tapped after the POST reached the office but its answer was lost is deleted locally, and the push stays billed | owner, client, driver | API.md 38 |
+| M3c-2 | A tab whose request stalls on a dead link holds the send lock and blocks the tab on screen | driver | API.md 39 |
+| M3c-3 | The owner's 30 s refresh can paint an older route over a just-saved one, then the next edit is refused as stale | owner | API.md 40 |
+| M3c-4 | The two-tab control broke two defences at once, so the missing-means-undone rule alone was never proven; the response-lost path had no test | the lead's QA | API.md 41 |
+| M3c-5 | The Undo confirm said "has not reached the office" for check-ins usually in flight | driver | API.md 38 |
+
 QA procedure note: every negative control appends to the tracked `worker/tests/negative-control.log`, which leaves the QA worktree dirty
 and makes the next `rig qa --ref` fail its `git checkout --detach` (it happened once, at `690c417`; that run was discarded, not reported).
 The lead copies the log out to the session scratchpad and restores the file after each run, before re-pinning.
