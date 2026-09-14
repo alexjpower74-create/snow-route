@@ -345,6 +345,8 @@ test('the Worker stored the check-in but the answer is lost: Undo (after its que
 
 test('a check-in tried but never stored: Undo stores it and voids it at once (the check-in is re-sent first), so it never bills', async ({ page, request, context, seed }) => {
   const { storm, truck } = await driverAtT(page, context, request, seed)
+  const deletes = []
+  page.on('request', (r) => { if (r.method() === 'DELETE') deletes.push(r.url()) })
   await page.route('**/api/driver/checkins', (route) => route.abort('internetdisconnected'))
   await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo')
   await expect(page.locator('#sync-text')).toHaveText(/^No signal\. 1 check-in saved on this phone\./)
@@ -358,6 +360,7 @@ test('a check-in tried but never stored: Undo stores it and voids it at once (th
   await expect(page.locator('#sync-text')).toHaveText('All sent')
   await expect(page.locator('#not-accepted')).toHaveCount(0)
   await expect(page.locator('#stop-name')).toHaveText(truck.stops[0].name)
+  expect(deletes, 'the re-send with undo: true stored it voided, so no DELETE (clarification 52)').toEqual([])
 })
 
 test('a check-in POST that never answers gives up after 30 s as no signal, stays saved, and sends later @phone', async ({ page, request, context, seed }) => {
@@ -404,7 +407,10 @@ test('an Undo tapped while the check-in is on its way, sent by another tab witho
   const deletes = []
   tabB.on('response', (r) => { if (r.request().method() === 'DELETE') deletes.push(r.status()) })
   await tabB.goto(`/d/?k=${key}`)
-  await expect.poll(() => deletes, { message: "tab B's DELETE found the row", timeout: 30_000 }).toEqual([200])
+  // Tab A's POST never reached the office, so tab B's re-send (undo: true) stores the check-in already voided and needs no DELETE.
+  await expect.poll(async () => (await dbCheckins(request, storm.id)).map((r) => !!r.voided_at),
+    { message: "tab B's re-send stored it voided before tab A's POST arrived", timeout: 30_000 }).toEqual([true])
+  expect(deletes, 'no DELETE needed').toEqual([])
   release()
   await expect.poll(async () => (await dbCheckins(request, storm.id)).map((r) => !!r.voided_at), { timeout: 30_000 }).toEqual([true])
   await page.waitForTimeout(1500) // tab A's late POST answers duplicate and must change nothing
@@ -439,4 +445,39 @@ test("an item an older build saved without truck_id is matched to its truck thro
   const row = page.locator('#old-link li', { hasText: s2.name })
   await expect(row).toContainText("This photo belongs to another truck's link, so this link cannot send it.", { timeout: 30_000 })
   expect(writes, "never sent under the other truck's key").toEqual([])
+})
+
+test("the keys store re-keys an older build's item on the same truck: truck 1's new link sends the waiting photo", async ({ page, context, request, seed }) => {
+  const { token, storm, truck, key } = await driverAtT(page, context, request, seed)
+  const s2 = truck.stops[1]
+  const id = '88888888-8888-4888-8888-888888888888'
+  // A real check-in on the office for stop 2, its photo still to come (as an older build would have left it).
+  expect((await api(request, 'POST', '/api/driver/checkins', { headers: { 'X-Driver-Key': key },
+    data: { id, storm_id: storm.id, client_id: s2.client_id, kind: 'plowed', note: '', at: new Date(T).toISOString(), has_photo: true } })).status).toBe(201)
+  await page.goto('/')
+  await page.evaluate(({ key, id, stormId, clientId, label, at }) => new Promise((resolve, reject) => {
+    const open = indexedDB.open('snow-route', 1)
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const t = open.result.transaction('queue', 'readwrite')
+      t.objectStore('queue').put({ qid: id, seq: 1, created_at: at, key, op: 'checkin', state: 'photo', label, attempted: true,
+        body: { id, storm_id: stormId, client_id: clientId, kind: 'plowed', note: '', at, has_photo: true },
+        photo: { bytes: new Uint8Array([255, 216, 255, 217]).buffer, type: 'image/jpeg' }, error: null })
+      t.oncomplete = () => resolve(true)
+      t.onerror = () => reject(t.error)
+    }
+  }), { key, id, stormId: storm.id, clientId: s2.client_id, label: s2.name, at: new Date(T).toISOString() })
+
+  const reset = await api(request, 'POST', `/api/owner/trucks/${truck.id}/reset-link`, { token })
+  expect(reset.status).toBe(200)
+  const newKey = new URL(reset.body.driver_url).searchParams.get('k')
+  const puts = []
+  context.on('request', (r) => { if (r.method() === 'PUT') puts.push(r.headers()['x-driver-key']) })
+  // Truck 1's NEW link: its route overwrites truck 1's saved route, so only the keys store still knows the old key was truck 1.
+  await page.goto(`/d/?k=${newKey}`)
+  await expect.poll(async () => (await ownerStorm(request, token, storm.id)).trucks.find((t) => t.id === truck.id).stops
+    .find((s) => s.client_id === s2.client_id).checkin.photo, { message: 'the waiting photo was sent and stored', timeout: 30_000 }).toBe('stored')
+  expect(puts, 'sent under the new key').toContain(newKey)
+  await expect(page.locator('#old-link li', { hasText: "belongs to another truck's link" })).toHaveCount(0)
+  await expect(page.locator('#sync-text')).toHaveText('All sent')
 })
