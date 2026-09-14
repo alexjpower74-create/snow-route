@@ -245,3 +245,73 @@ M3 development runs on 2a9deca are marked that way.
 ### Verified
 `npm test`: **23 unit tests pass, 56 API tests pass (53 + 3 new), 0 fail, 0 skipped.** Negative controls on `ec5afb1`: **all ten RED**
 (a twoopt, b tiers, c idempotent, d time, e skipbill, f month, g csvguard, h voidbill, i stoprace, pinguard); no machine paths in the log.
+
+## Cross-review of sr2 M1 app code
+
+Read only, on 6df5a27 (sr2 M1 merged at 110f190): `app/public/api.js`, `app/public/ui.js`, `app/public/d/queue.js`,
+`app/public/d/driver.js`, `app/public/s/status.js`, against docs/API.md (clarifications 1–16) and `worker/src/index.js`. No code changed,
+no server run. Not re-reported: the 429 being filed as a refusal and the refused photo (clarification 11).
+
+### Findings (most harmful first)
+
+**R1. A dead driver key blocks every later check-in on the phone (high).** `app/public/d/queue.js:87` stops the whole send loop on a 401
+(`return failed('unauthorized')` → `flush()` breaks at `queue.js:134`), and `queue.js:125,133` always retries the **oldest** item first,
+whatever its `key`. What breaks: the owner taps "New link" for a truck while that phone still has check-ins queued under the old key
+(the case DECISIONS 18 is about). The driver opens the new link and keeps working, but every new check-in sits behind the old items,
+whose key the Worker now refuses at `worker/src/index.js:250`. Nothing from that phone reaches the server again, the new page shows
+the 401 text "This driver link doesn't work any more" on a link that does work (`driver.js:142-143` reads the sender's shared
+`problem`), and the old items are hidden from the new page (`driver.js:58`, `driver.js:129` filter on the current key). For whom: the
+driver (a night of plowing never syncs), then the owner (billing and status links miss those pushes) and clients (status stays "on
+the route"). Suggested direction (sr2 / lead to choose): skip items whose key got 401 and go on to the next item, and decide whether
+items under a dead key may be resent with the page's current key. The check-in id makes a resend safe, and the Worker accepts a
+check-in "whichever truck the stop is on now".
+
+**R2. A mangled status link shows "There's nothing here." instead of the bad-link text (medium).** `app/public/s/status.js:246-248` shows
+`e.message` for any 404. The Worker has two 404s: the status handler's text, and the router's generic "There's nothing here."
+(`worker/src/index.js:1022`), which answers any key outside `[A-Za-z0-9_-]{1,128}` (`index.js:987`). Messaging apps often glue
+punctuation or `%20`/`)` onto a pasted link, so `…/s/?k=abc123.` reaches the router 404. For whom: the client, who gets a dead-end
+message that doesn't say to ask the company for a new link. Two ways to fix: the app shows its own `BAD_LINK` text for every 404 on
+this page (sr2), or the Worker sends every `/api/status/*` path to the status handler (sr1; say if you want that instead).
+
+**R3. After a 404 the status page keeps asking on every return to the tab, and each ask counts toward the per-IP guard (low-medium).**
+`status.js:247` clears the 60 s timer on 404, but `status.js:257` still calls `check()` on every `visibilitychange`, and each unknown-key
+lookup takes a slot (`worker/src/index.js:553-558`, clarification 12: 30 per 10 min, then **the whole IP** gets 429, known keys included).
+For whom: every client behind the same public IP. That's one household's Wi-Fi, and on mobile data the carrier often shares one IP
+across many phones. One stale bad-link tab being switched to repeatedly can make good links answer "Too many wrong status links from
+here" for everyone behind that IP. Fix in the app: stop checking after a 404. **For the lead:** carrier-grade NAT makes a per-IP guard
+blunt for this page; worth a line in DEPLOY.md, or a softer rule (for example, block only unknown keys) if it bites.
+
+**R4. Undo on a check-in the server already refused throws away the refusal and queues an undo that can only fail (low-medium).**
+`app/public/d/driver.js:343-349`: `undo()` treats any item that isn't `send` as "on the server". An item in `rejected` (for example 409
+`already_plowed` because the other truck got there first, answered inside the 15 s Undo window) is removed from the phone at
+`driver.js:346`, and a `void` is queued. The Worker answers that DELETE 404 "We couldn't find that check-in."
+(`worker/src/index.js:933`), so "Not accepted" now shows an **Undo** with that text, and the real reason ("This stop is already marked
+plowed.") is gone. For whom: the driver and owner, who lose the one message that explains what happened. Fix: for a `rejected` item,
+Undo just removes it locally (or stays hidden), with no `void`.
+
+**R5. A queued check-in for a stop that moved to another truck vanishes from the screen (low).** `driver.js:59-60` skips any queued item
+whose `client_id` isn't in this truck's route (`if (!s) continue`). After the owner moves a stop (route PUT) and the phone reloads its
+route, a check-in still waiting under this key shows only as a count in the strip. The Worker still accepts it (API.md: "whichever
+truck the stop is on now"), so no data is lost, but the driver can't see or undo what's waiting. For whom: the driver. Fix: list such
+items in the stop list or a small "saved for other stops" row.
+
+### Checked and consistent (no action)
+- **Check-in body** (`driver.js:316-317`): `id, storm_id, client_id, kind, note, at, has_photo`, `reason` only on a skip; `note` trimmed
+  and cut to 120 before sending (the Worker counts code points, the app's `slice` counts UTF-16 units, so the app never exceeds the
+  limit); `at` from `toISOString()` passes the Worker's ISO check; `uuid()` fallback (`ui.js:120-127`) sets the v4 version and variant bits.
+- **Answers:** 201 and 200 `duplicate` both remove the item and use `data.stop` (`queue.js:103-113`); a phone-side undo while the POST was
+  in flight queues the `void` (`queue.js:105-109`); 409 `already_plowed`, 400 and 404 go to "Not accepted" with the server's `error`
+  (`queue.js:114`); 5xx and network errors keep the item (`queue.js:83-86`); a non-JSON 5xx body is handled (`api.js:45-48`). Undo `DELETE`
+  200 uses `data.stop` (`queue.js:89-92`); 409 "Too late to undo" goes to "Not accepted" (the Worker allows 15 min from `received_at`,
+  `index.js:935`; the app offers Undo for 15 s).
+- **Photo PUT** (`api.js:68`, `driver.js:357-373`): raw JPEG bytes with `content-type: image/jpeg`, at most 1600 px at quality 0.7, well
+  under 5 000 000 bytes; a photo that can't be read falls back to "Plowed, no photo".
+- **Fields read:** Stop `position, name, address, notes, priority, priority_label, opens_at, type_label, status, checkin.{id, kind,
+  reason_text, at_label, photo}`; route `company.{name, sample, timezone}, truck.{id, name}, storm.id`; status `client.{address,
+  type_label}, last.{at_label, time_label, photo_url, photo_waiting}, tonight.{state, stop_number, stops_done, reason_text}, server_now`.
+  All are in the Worker's answers with the same names and types.
+- **Labels (clarification 1):** `ui.js:90-92` builds `hour:minute dayPeriod` from `formatToParts`, so a queued check-in reads "6:42 AM"
+  with a plain space, the same as the Worker's `at_label`, in the company's zone (`driver.js:49`). `status.js:207` takes the day from
+  `at_label` ("Mon Jan 12, 6:42 AM" → "Mon Jan 12"), which matches the Worker's full label.
+- **Headers:** `X-Driver-Key` on every driver call (`api.js:58`); JSON calls send `content-type: application/json`; the Worker needs no
+  other header. The photo `<img>` carries `referrerpolicy="no-referrer"` (`status.js:210`).
