@@ -1,0 +1,14 @@
+{
+  "name": "snow-route-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

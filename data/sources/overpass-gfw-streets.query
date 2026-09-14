@@ -1,0 +1,1 @@
+[out:json][timeout:60];area["name"="Grand Falls-Windsor"]["boundary"="administrative"]->.a;way(area.a)["highway"~"^(residential|tertiary|secondary|primary|unclassified)$"]["name"];out tags center;
