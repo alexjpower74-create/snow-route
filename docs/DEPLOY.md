@@ -50,6 +50,12 @@ If this is sold to many contractors, switch to a tile provider (MapTiler, Stadia
   links answer "Too many wrong status links" for ten minutes. The app stops retrying after a bad link (API.md 18), which keeps this
   rare for one contractor's clients. If it ever bites, loosen the rule (count per key prefix, or raise the limit) rather than drop it.
 
+## Optional: drop the development mock
+
+`app/public/api.mock.js` and `app/public/mock-data.js` let the driver and status pages be shown with no Worker (`?mock=1`). They hold
+SAMPLE data only and switch on only with that URL flag (DECISIONS.md 22). To leave them out of a deploy, delete both files before
+`wrangler deploy`; nothing else references them unless `?mock=1` is used.
+
 ## Where to change things
 
 - Prices and HST: `worker/src/billing.js` (HST 15%, half-up per row).

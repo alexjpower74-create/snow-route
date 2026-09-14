@@ -66,4 +66,12 @@ Optional custom domain.
 
 - `PLAN.md` is the build contract, `docs/API.md` the API contract with numbered clarifications, `DECISIONS.md` every call made overnight.
 - `docs/build-report.md` has the QA history and every negative control; each slice's own report is beside it.
-- Known gaps: _filled in at the end._
+- Known gaps (settled so far; the final list is in `docs/build-report.md`):
+  - **No address search.** The owner places each pin by tapping the map (no geocoding service tonight, DECISIONS.md 14).
+  - **Route order is straight-line distance**, not road time; business opening times are shown, not used to reorder.
+  - **The driver's Undo lasts 15 minutes.** After that only a future owner-side edit could fix a wrong check-in.
+  - **One deployment per contractor.** Hosting many contractors from one Worker is a later change.
+  - **Map tiles** are OpenStreetMap's standard tiles, fine for one contractor's owner screens; many contractors need a tile provider.
+  - **The status-link guard is per IP**, which is blunt behind a mobile carrier's shared IP (DEPLOY.md).
+  - **WebKit offline test:** Playwright's WebKit cannot read a chosen photo while set offline, so on WebKit the test fails every `/api`
+    request instead and skips the offline reload step (DECISIONS.md 35). Chromium covers the true offline path.
