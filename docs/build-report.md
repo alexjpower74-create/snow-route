@@ -23,6 +23,7 @@ reasoning and every attempt.
 | sr2 M3b | `318e64e` | (Worker as `a3c0a1b`) | (as `a3c0a1b`) | app: the four above plus billing: all five red, each after its unbroken pass | **122 / 0 / 0** |
 | sr2 M3c (+ sr1 M6) | `2213dc3` | 26 / 0 / 0 | 63 / 0 / 0 | app: the five above plus twotabs, crosstruck, hst: all eight red, each after its unbroken pass | **158 / 0 / 0** |
 | sr2 M3d | `aa04bba` | (Worker as `caadcad`) | (as `caadcad`) | app controls (a–j) run in the final QA: port 7606 was in use by sr2's own control run (DECISIONS 53) | **176 / 0 / 0** |
+| sr2 M3e (+ sr1 M8) | `50c7984` | (Worker as `3c306e7`) | (as `3c306e7`) | app controls (a–k) run in the final QA (sr2 needed 7606 for M3f) | **188 / 0 / 0** |
 
 Counts are passed / failed / skipped.
 
