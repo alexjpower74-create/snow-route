@@ -1312,3 +1312,461 @@ Running 1 test using 1 worker
   1 failed
     [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table 
 
+== 2026-09-14T10:51:49.442Z queue: queue.js removes the item from IndexedDB before sending it, so it is gone whatever the server says
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: 2 check-ins saved on 7606, copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped (1.7s) |   1 passed (6.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#stop-name')
+    Expected: "SAMPLE Clinic walkway"
+    Received: "Pat (SAMPLE)"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#stop-name') with timeout 10000ms
+      - waiting for locator('#stop-name')
+        24 × locator resolved to <h1 id="stop-name" class="stop-name">Pat (SAMPLE)</h1>
+           - unexpected value "Pat (SAMPLE)"
+
+
+      47 |   if (photo) await choosePhoto(page, page.locator('#plowed'), 'Plowed (no signal)')
+      48 |   else await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo (no signal)')
+    > 49 |   await expect(page.locator('#stop-name')).toHaveText(s2.name)
+         |                                            ^
+      50 |   await expect(page.locator('#skip')).toBeEnabled()
+      51 |   await tap(page, page.locator('#skip'), 'Skip this stop (no signal)')
+      52 |   await tap(page, page.getByRole('button', { name: 'Car in the way', exact: true }), 'Car in the way')
+        at twoCheckinsOffline (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:49:44)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:61:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+
+== 2026-09-14T10:52:10.761Z time: queue.js sets body.at to the phone clock at send time
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: 2 check-ins saved on 7606, copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped (1.7s) |   1 passed (6.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+    Error: Pat (SAMPLE): at is the time the driver tapped, not the sync time
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-09-14T09:00:00.000Z"
+    Received: "2026-09-14T09:40:00.000Z"
+
+      86 |     const row = rows.find((r) => r.client_id === stop.client_id)
+      87 |     expect(row?.kind, `${stop.name} is ${kind}`).toBe(kind)
+    > 88 |     expect(row.at, `${stop.name}: at is the time the driver tapped, not the sync time`).toBe(iso(T))
+         |                                                                                         ^
+      89 |     expect(row.at_adjusted).toBe(0)
+      90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
+      91 |   }
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/offline.spec.mjs:88:89
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+
+== 2026-09-14T10:52:23.378Z overlay: a transparent, full-size element sits on top of the Plowed button
+   spec: playwright test targets.spec.mjs --project chromium-390 -g every driver button on 7606, copy in app/.negative/overlay
+   unbroken copy:   ✓  1 [chromium-390] › tests/targets.spec.mjs:13:1 › every driver button is at least 56 px and hit-tests to itself at 390 @phone (1.9s) |   1 passed (6.4s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/targets.spec.mjs:13:1 › every driver button is at least 56 px and hit-tests to itself at 390 @phone 
+
+    Error: Plowed: hit-tests to itself
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: ""
+    Received: "<div class=\"negative-overlay\" aria-hidden=\"true\"></div>"
+
+       8 |   expect(box.height, `${label}: at least 56 px tall`).toBeGreaterThanOrEqual(56)
+       9 |   expect(box.width, `${label}: at least 56 px wide`).toBeGreaterThanOrEqual(56)
+    > 10 |   expect(hit, `${label}: hit-tests to itself`).toBe('')
+         |                                                ^
+      11 | }
+      12 |
+      13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
+        at bigAndOnTop (/home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:10:48)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/targets.spec.mjs:20:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/targets.spec.mjs:13:1 › every driver button is at least 56 px and hit-tests to itself at 390 @phone 
+
+
+== 2026-09-14T10:52:34.995Z relink: queue.js stops the whole queue on a 401 (no dead key, no re-keying), as in M1
+   spec: playwright test queue.spec.mjs --project chromium-390 -g a truck link reset on 7606, copy in app/.negative/relink
+   unbroken copy:   ✓  1 [chromium-390] › tests/queue.spec.mjs:27:1 › a truck link reset while check-ins wait: the new link sends them, with the time the driver tapped (1.7s) |   1 passed (6.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/queue.spec.mjs:27:1 › a truck link reset while check-ins wait: the new link sends them, with the time the driver tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#sync-text')
+    Expected: "All sent"
+    Received: "This driver link doesn't work any more. Ask the owner for a new one. 2 items still saved on this phone."
+    Timeout:  30000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#sync-text') with timeout 30000ms
+      - waiting for locator('#sync-text')
+        - locator resolved to <span id="sync-text" class="strip-text">Sending 2 check-ins…</span>
+        - unexpected value "Sending 2 check-ins…"
+        63 × locator resolved to <span id="sync-text" class="strip-text">This driver link doesn't work any more. Ask the o…</span>
+           - unexpected value "This driver link doesn't work any more. Ask the owner for a new one. 2 items still saved on this phone."
+
+
+      68 |
+      69 |   release()
+    > 70 |   await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
+         |                                            ^
+      71 |   await expect(oldLink).toHaveCount(0)
+      72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
+      73 |
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:70:44
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/queue.spec.mjs:27:1 › a truck link reset while check-ins wait: the new link sends them, with the time the driver tapped 
+
+
+== 2026-09-14T10:53:18.435Z billing: owner.js shows pushes as the number of storm stops for the client, not the API row
+   spec: playwright test billing.spec.mjs --project chromium-390 on 7606, copy in app/.negative/billing
+   unbroken copy:   ✓  1 [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table (3.5s) |   1 passed (8.0s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table 
+
+    Error: Taylor (SAMPLE): pushes
+
+    expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#billing-table tbody tr[data-client-id="10"]').locator('[data-col="pushes"]')
+    Expected: "0"
+    Received: "1"
+    Timeout:  10000ms
+
+    Call log:
+      - Taylor (SAMPLE): pushes locator('#billing-table tbody tr[data-client-id="10"]').locator('[data-col="pushes"]') with timeout 10000ms
+      - waiting for locator('#billing-table tbody tr[data-client-id="10"]').locator('[data-col="pushes"]')
+        24 × locator resolved to <td class="cell-num" data-col="pushes">1</td>
+           - unexpected value "1"
+
+
+      100 |     await expect(tr.locator('.row-name')).toHaveText(r.name)
+      101 |     await expect(tr.locator('[data-col="billing"]')).toHaveText(r.billing_label)
+    > 102 |     await expect(tr.locator('[data-col="pushes"]'), `${r.name}: pushes`).toHaveText(String(r.pushes))
+          |                                                                          ^
+      103 |     await expect(tr.locator('[data-col="dates"]')).toHaveText(r.dates.map(dayLabel).join(', ') || '—')
+      104 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
+      105 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:102:74
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+== 2026-09-14T10:53:45.462Z twotabs: queue.js infers "undone" from a missing item after a 200/201 and sends without navigator.locks
+   spec: playwright test queue.spec.mjs --project chromium-390 -g two open tabs --grep-invert without Web Locks on 7606, copy in app/.negative/twotabs
+   unbroken copy:   ✓  1 [chromium-390] › tests/queue.spec.mjs:158:1 › two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent (3.9s) |   1 passed (8.4s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/queue.spec.mjs:158:1 › two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent 
+
+    Error: the push was not voided
+
+    expect(received).toBeNull()
+
+    Received: "2026-09-14T09:00:00.000Z"
+
+      195 |   const rows = await dbCheckins(request, storm.id)
+      196 |   expect(rows, 'one check-in stored').toHaveLength(1)
+    > 197 |   expect(rows[0].voided_at, 'the push was not voided').toBeNull()
+          |                                                        ^
+      198 |   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
+      199 |   if (locks) expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
+      200 |   else expect(posts.length, 'without the lock both tabs may send it').toBeLessThanOrEqual(2)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:197:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/queue-two-open-tabs-of-the-3c8b5-oided-and-no-DELETE-is-sent-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/queue.spec.mjs:158:1 › two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent 
+
+
+== 2026-09-14T10:54:02.475Z crosstruck: queue.js re-keys photos and undos across trucks (no truck comparison)
+   spec: playwright test queue.spec.mjs --project chromium-390 -g truck 1's link on 7606, copy in app/.negative/crosstruck
+   unbroken copy:   ✓  1 [chromium-390] › tests/queue.spec.mjs:204:1 › a photo and an undo saved under truck 1's link, that link reset, truck 2's link opened: both are listed as another truck's and nothing is sent under truck 2's key (2.5s) |   1 passed (7.1s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/queue.spec.mjs:204:1 › a photo and an undo saved under truck 1's link, that link reset, truck 2's link opened: both are listed as another truck's and nothing is sent under truck 2's key 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('#old-link').locator('li')
+    Expected: 2
+    Received: 0
+    Timeout:  30000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('#old-link').locator('li') with timeout 30000ms
+      - waiting for locator('#old-link').locator('li')
+        - locator resolved to 0 elements
+        - unexpected value "0"
+        - locator resolved to 1 element
+        - unexpected value "1"
+        62 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      241 |   await expect(page.locator('#stop-name')).toHaveText(other.stops[0].name)
+      242 |   const old = page.locator('#old-link')
+    > 243 |   await expect(old.locator('li')).toHaveCount(2, { timeout: 30_000 })
+          |                                   ^
+      244 |   await expect(old.locator('li', { hasText: s2.name })).toContainText("This photo belongs to another truck's link, so this link cannot send it.")
+      245 |   await expect(old.locator('li', { hasText: s1.name })).toContainText("This undo belongs to another truck's link, so this link cannot send it.")
+      246 |   await page.waitForTimeout(1500)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:243:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-a-photo-and-an-undo--37bc2-is-sent-under-truck-2-s-key-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/queue-a-photo-and-an-undo--37bc2-is-sent-under-truck-2-s-key-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/queue-a-photo-and-an-undo--37bc2-is-sent-under-truck-2-s-key-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/queue-a-photo-and-an-undo--37bc2-is-sent-under-truck-2-s-key-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/queue.spec.mjs:204:1 › a photo and an undo saved under truck 1's link, that link reset, truck 2's link opened: both are listed as another truck's and nothing is sent under truck 2's key 
+
+== 2026-09-14T10:54:45.322Z hst: owner.js shows HST as Math.floor(amount * 0.15) computed on the page, not the API row
+   spec: playwright test billing.spec.mjs --project chromium-390 on 7606, copy in app/.negative/hst
+   unbroken copy:   ✓  1 [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table (3.5s) |   1 passed (8.1s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#billing-table tbody tr[data-client-id="1"]').locator('[data-col="hst"]')
+    Expected: "$5.33"
+    Received: "$5.32"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#billing-table tbody tr[data-client-id="1"]').locator('[data-col="hst"]') with timeout 10000ms
+      - waiting for locator('#billing-table tbody tr[data-client-id="1"]').locator('[data-col="hst"]')
+        24 × locator resolved to <td data-col="hst" class="cell-num">$5.32</td>
+           - unexpected value "$5.32"
+
+
+      104 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
+      105 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
+    > 106 |     await expect(tr.locator('[data-col="hst"]')).toHaveText(money(r.hst_cents))
+          |                                                  ^
+      107 |     await expect(tr.locator('[data-col="total"]')).toHaveText(money(r.total_cents))
+      108 |   }
+      109 |   await expect(owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`), 'the skipped seasonal client: no push').toHaveText('0')
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/billing.spec.mjs:106:50
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table 
+
+== 2026-09-14T10:55:13.583Z attempted: queue.js deletes an undone item without a DELETE even when its POST was attempted
+   spec: playwright test queue.spec.mjs --project chromium-390 -g answer is lost on 7606, copy in app/.negative/attempted
+   unbroken copy:   ✓  1 [chromium-390] › tests/queue.spec.mjs:314:1 › the Worker stored the check-in but the answer is lost: Undo (after its question) still voids it (1.1s) |   1 passed (5.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/queue.spec.mjs:314:1 › the Worker stored the check-in but the answer is lost: Undo (after its question) still voids it 
+
+    Error: the tapped Undo reached the Worker: the push is voided
+
+    the tapped Undo reached the Worker: the push is voided
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+    Call Log:
+    - Timeout 30000ms exceeded while waiting on the predicate
+
+      331 |   await tap(page, page.locator('#undo-delete'), 'Undo it')
+      332 |   await expect.poll(async () => (await dbCheckins(request, storm.id))[0]?.voided_at ?? null,
+    > 333 |     { message: 'the tapped Undo reached the Worker: the push is voided', timeout: 30_000 }).not.toBeNull()
+          |                                                                                                 ^
+      334 |   await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
+      335 |   expect(await dbCheckins(request, storm.id)).toHaveLength(1)
+      336 | })
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:333:97
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-the-Worker-stored-th-c7c7a-its-question-still-voids-it-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/queue-the-Worker-stored-th-c7c7a-its-question-still-voids-it-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/queue-the-Worker-stored-th-c7c7a-its-question-still-voids-it-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/queue-the-Worker-stored-th-c7c7a-its-question-still-voids-it-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/queue.spec.mjs:314:1 › the Worker stored the check-in but the answer is lost: Undo (after its question) still voids it 
+
+
+== 2026-09-14T10:55:55.961Z missingundo: queue.js reads a check-in missing after 200/201 as undone (only that rule; the lock code is untouched)
+   spec: playwright test queue.spec.mjs --project chromium-390 -g without Web Locks on 7606, copy in app/.negative/missingundo
+   unbroken copy:   ✓  1 [chromium-390] › tests/queue.spec.mjs:158:1 › two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent (without Web Locks) (4.1s) |   1 passed (9.9s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/queue.spec.mjs:158:1 › two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent (without Web Locks) 
+
+    Error: the push was not voided
+
+    expect(received).toBeNull()
+
+    Received: "2026-09-14T09:00:00.000Z"
+
+      195 |   const rows = await dbCheckins(request, storm.id)
+      196 |   expect(rows, 'one check-in stored').toHaveLength(1)
+    > 197 |   expect(rows[0].voided_at, 'the push was not voided').toBeNull()
+          |                                                        ^
+      198 |   expect(deletes, 'nobody tapped Undo, so no DELETE').toEqual([])
+      199 |   if (locks) expect(posts.length, 'the Web Lock let one tab send at a time').toBe(1)
+      200 |   else expect(posts.length, 'without the lock both tabs may send it').toBeLessThanOrEqual(2)
+        at /home/alexander/Projects/Snow Route/.worktrees/sr2/app/tests/queue.spec.mjs:197:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-two-open-tabs-of-the-d8add--is-sent-without-Web-Locks--chromium-390/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-two-open-tabs-of-the-d8add--is-sent-without-Web-Locks--chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/queue-two-open-tabs-of-the-d8add--is-sent-without-Web-Locks--chromium-390/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/queue-two-open-tabs-of-the-d8add--is-sent-without-Web-Locks--chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/queue-two-open-tabs-of-the-d8add--is-sent-without-Web-Locks--chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/queue.spec.mjs:158:1 › two open tabs of the same driver link: one check-in ends as one stored push, never voided, and no DELETE is sent (without Web Locks) 
+
+
