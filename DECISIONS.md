@@ -48,3 +48,15 @@ Alexander was asleep for this build; every real call is written here with its re
     would be a lie on screen.
 17. **Crew shape.** Two slices (the rules allow at most two): sr1 Worker + D1 + R2 + routing + check-ins + billing, sr2 the four page
     groups + Playwright, in three milestones because the owner's storm editing and billing screens need sr1's second milestone.
+
+## 2026-09-14, lead (after sr1 M1, QA at `8863e14`)
+
+18. **Deactivating a truck or a client does not kill its link; "New link" does** (API.md clarification 4). A truck taken off the
+    list may still have check-ins waiting on its phone, and locking it out would lose real work. The kill switch is explicit.
+19. **The phone's queue treats a refusal differently from a failure** (API.md clarification 5). A 400/404/409 will never succeed on
+    retry, so the item moves to a visible "Not accepted" list with the server's words; a 401, 5xx, 429 or no network keeps it queued.
+    Nothing is dropped without the driver seeing it.
+20. **sr1's extra test-only routes are adopted** (end a storm directly, list raw check-in rows). Tests count rows in the database
+    instead of trusting a view that could hide a duplicate. Both answer 404 without `TEST_MODE`, checked before the database is touched.
+21. **At most one active storm is enforced by a unique partial index** (sr1's addition), for the same reason as the check-ins: two
+    Start taps at once must give one storm and one refusal, not two storms.
