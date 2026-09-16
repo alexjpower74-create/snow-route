@@ -3919,3 +3919,606 @@ test at tests/api.test.mjs:1437:1
     diff: 'simple'
   }
 verdict: RED as expected. "undo flag: a new id is stored already voided" fail when the undo flag is ignored and the re-send stores a live push.
+
+=== d1fbcb5 negative:twoopt 2026-09-16T04:22:43.922Z ===
+control (unbroken copy): "2-opt local optimum", "crossing" pass
+break: src/route.js: "return twoOpt(start, nearestNeighbour(start, stops))"  ->  "return nearestNeighbour(start, stops)"
+✖ 2-opt local optimum: no single reversal of a returned tier path saves more than 0.5 m (50 seeded instances) (1.801546ms)
+✖ crossing: nearest neighbour crosses itself, the built route does not, and the order is exactly 2, 3, 5, 4, 1 (0.72771ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.485979
+
+✖ failing tests:
+
+test at tests/route.test.mjs:67:1
+✖ 2-opt local optimum: no single reversal of a returned tier path saves more than 0.5 m (50 seeded instances) (1.801546ms)
+  AssertionError [ERR_ASSERTION]: instance 5 tier 2: reversing 0..1 saves 363.46 m
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-twoopt/tests/route.test.mjs:76:18)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/route.test.mjs:112:1
+✖ crossing: nearest neighbour crosses itself, the built route does not, and the order is exactly 2, 3, 5, 4, 1 (0.72771ms)
+  AssertionError [ERR_ASSERTION]: built route crosses: 2,4,1,3,5
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-twoopt/tests/route.test.mjs:117:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+verdict: RED as expected. "2-opt local optimum" and "crossing" fail when a tier is ordered by nearest neighbour alone.
+
+=== d1fbcb5 negative:tiers 2026-09-16T04:22:44.191Z ===
+control (unbroken copy): "tiers" pass
+break: src/route.js: "for (const s of stops) tiers[tierOf(s.priority)].push(s)"  ->  "for (const s of stops) tiers[2].push(s)"
+✖ tiers: every medical stop before every commuter/business stop before every other stop (50 seeded instances) (1.652818ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64.450953
+
+✖ failing tests:
+
+test at tests/route.test.mjs:59:1
+✖ tiers: every medical stop before every commuter/business stop before every other stop (50 seeded instances) (1.652818ms)
+  AssertionError [ERR_ASSERTION]: instance 1: tiers 2,1,1
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-tiers/tests/route.test.mjs:62:51)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+verdict: RED as expected. "tiers" fail when priority is ignored when ordering.
+
+=== d1fbcb5 negative:idempotent 2026-09-16T04:22:44.445Z ===
+control (unbroken copy): "check-ins: the same id again" pass
+break: migrations/0001_init.sql: "  id TEXT PRIMARY KEY,\n  storm_id INTEGER NOT NULL,"  ->  "  id TEXT NOT NULL,\n  storm_id INTEGER NOT NULL,"
+break: src/index.js: " ON CONFLICT(id) DO NOTHING"  ->  ""
+✖ check-ins: the same id again answers 200 duplicate and still exactly one check-in (180.829136ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 247.836695
+
+✖ failing tests:
+
+test at tests/api.test.mjs:335:1
+✖ check-ins: the same id again answers 200 duplicate and still exactly one check-in (180.829136ms)
+  AssertionError [ERR_ASSERTION]: skipped resend: {"checkin":{"id":"762d7fd4-b587-4245-bb1c-badd60931455","storm_id":1,"client_id":1,"truck_id":1,"kind":"skipped","reason":"car","reason_text":"Car in the way","note":"","at":"2026-01-12T08:35:00.000Z","at_label":"5:05 AM","at_adjusted":false,"received_at":"2026-01-12T08:36:00.000Z","photo":"none","photo_url":null,"voided":false},"stop":{"client_id":1,"truck_id":1,"position":2,"name":"Pat (SAMPLE)","address":"Cromer Avenue, Grand Falls-Windsor, NL","lat":48.94481,"lng":-55.65477,"type":"driveway","type_label":"Driveway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Oxygen delivery comes early. Clear right to the step.","status":"skipped","checkin":{"id":"762d7fd4-b587-4245-bb1c-badd60931455","storm_id":1,"client_id":1,"truck_id":1,"kind":"skipped","reason":"car","reason_text":"Car in the way","note":"","at":"2026-01-12T08:35:00.000Z","at_label":"5:05 AM","at_adjusted":false,"received_at":"2026-01-12T08:55:00.000Z","photo":"none","photo_url":null,"voided":false}}}
+  
+  201 !== 200
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-idempotent/tests/api.test.mjs:343:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 201,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: the same id again" fail when check-ins.id is not a primary key and the insert is a plain INSERT.
+
+=== d1fbcb5 negative:time 2026-09-16T04:22:50.999Z ===
+control (unbroken copy): "check-ins: original time kept" pass
+break: src/index.js: "const at = inWindow ? iso(input.at) : iso(ctx.now)"  ->  "const at = iso(ctx.now)"
+✖ check-ins: original time kept (T synced 45 min later), outside the window adjusted (128.382562ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 194.863698
+
+✖ failing tests:
+
+test at tests/api.test.mjs:417:1
+✖ check-ins: original time kept (T synced 45 min later), outside the window adjusted (128.382562ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '2026-01-12T09:50:00.000Z'
+  - '2026-01-12T09:05:00.000Z'
+                   ^
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-time/tests/api.test.mjs:425:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '2026-01-12T09:50:00.000Z',
+    expected: '2026-01-12T09:05:00.000Z',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: original time kept" fail when a check-in is stamped with the time it synced.
+
+=== d1fbcb5 negative:skipbill 2026-09-16T04:22:57.513Z ===
+control (unbroken copy): "billing: a skipped stop never bills" pass
+break: src/billing.js: "  if (checkin.kind !== 'plowed') return false\n"  ->  ""
+✖ billing: a skipped stop never bills (166.604388ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 237.816669
+
+✖ failing tests:
+
+test at tests/api.test.mjs:960:1
+✖ billing: a skipped stop never bills (166.604388ms)
+  AssertionError [ERR_ASSERTION]: the skipped client billed: {"client_id":5,"name":"Jordan (SAMPLE)","address":"Beaumont Avenue, Grand Falls-Windsor, NL","billing":"per_push","billing_label":"Per push","price_cents":4000,"pushes":1,"dates":["2026-01-05"],"amount_cents":4000,"hst_cents":600,"total_cents":4600}
+  + actual - expected
+  
+  + {
+  +   address: 'Beaumont Avenue, Grand Falls-Windsor, NL',
+  +   amount_cents: 4000,
+  +   billing: 'per_push',
+  +   billing_label: 'Per push',
+  +   client_id: 5,
+  +   dates: [
+  +     '2026-01-05'
+  +   ],
+  +   hst_cents: 600,
+  +   name: 'Jordan (SAMPLE)',
+  +   price_cents: 4000,
+  +   pushes: 1,
+  +   total_cents: 4600
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-skipbill/tests/api.test.mjs:970:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { client_id: 5, name: 'Jordan (SAMPLE)', address: 'Beaumont Avenue, Grand Falls-Windsor, NL', billing: 'per_push', billing_label: 'Per push', price_cents: 4000, pushes: 1, dates: [ '2026-01-05' ], amount_cents: 4000, hst_cents: 600, total_cents: 4600 },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing: a skipped stop never bills" fail when billing counts skipped check-ins as pushes.
+
+=== d1fbcb5 negative:month 2026-09-16T04:23:04.170Z ===
+control (unbroken copy): "billing: NL month boundary" pass
+break: src/billing.js: "  const bounds = monthBounds(month)\n"  ->  "  const bounds = { start: `${month}-01T00:00:00.000Z`, end: new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 1)).toISOString() }\n"
+✖ billing: NL month boundary (2026-02-01T03:00:00Z is Jan 31 11:30 PM NST and bills in January) (124.006061ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 190.406908
+
+✖ failing tests:
+
+test at tests/api.test.mjs:991:1
+✖ billing: NL month boundary (2026-02-01T03:00:00Z is Jan 31 11:30 PM NST and bills in January) (124.006061ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   undefined,
+  +   undefined
+  -   1,
+  -   [
+  -     '2026-01-31'
+  -   ]
+    ]
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-month/tests/api.test.mjs:999:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ undefined, undefined ],
+    expected: [ 1, [ '2026-01-31' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing: NL month boundary" fail when a month runs from UTC midnight to UTC midnight.
+
+=== d1fbcb5 negative:csvguard 2026-09-16T04:23:10.749Z ===
+control (unbroken copy): "billing CSV" pass
+break: src/billing.js: "  if (/^[=+\\-@\\t\\r]/.test(s)) s = `'${s}`\n"  ->  ""
+✖ billing CSV: header, CRLF, quoting, formula guard, filename (158.212861ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 225.17744
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1008:1
+✖ billing CSV: header, CRLF, quoting, formula guard, filename (158.212861ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00'
+  - `'=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00`
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-csvguard/tests/api.test.mjs:1025:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00',
+    expected: `'=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00`,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing CSV" fail when a cell starting with = is written as is.
+
+=== d1fbcb5 negative:voidbill 2026-09-16T04:23:17.125Z ===
+control (unbroken copy): "billing: a voided check-in never bills" pass
+break: src/billing.js: "  if (checkin.voided_at) return false\n"  ->  ""
+✖ billing: a voided check-in never bills (127.698282ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 192.205243
+
+✖ failing tests:
+
+test at tests/api.test.mjs:977:1
+✖ billing: a voided check-in never bills (127.698282ms)
+  AssertionError [ERR_ASSERTION]: the voided check-in billed: {"client_id":4,"name":"Chris (SAMPLE)","address":"Scott Avenue, Grand Falls-Windsor, NL","billing":"per_push","billing_label":"Per push","price_cents":3500,"pushes":1,"dates":["2026-01-05"],"amount_cents":3500,"hst_cents":525,"total_cents":4025}
+  + actual - expected
+  
+  + {
+  +   address: 'Scott Avenue, Grand Falls-Windsor, NL',
+  +   amount_cents: 3500,
+  +   billing: 'per_push',
+  +   billing_label: 'Per push',
+  +   client_id: 4,
+  +   dates: [
+  +     '2026-01-05'
+  +   ],
+  +   hst_cents: 525,
+  +   name: 'Chris (SAMPLE)',
+  +   price_cents: 3500,
+  +   pushes: 1,
+  +   total_cents: 4025
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-voidbill/tests/api.test.mjs:986:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { client_id: 4, name: 'Chris (SAMPLE)', address: 'Scott Avenue, Grand Falls-Windsor, NL', billing: 'per_push', billing_label: 'Per push', price_cents: 3500, pushes: 1, dates: [ '2026-01-05' ], amount_cents: 3500, hst_cents: 525, total_cents: 4025 },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "billing: a voided check-in never bills" fail when billing counts an undone check-in.
+
+=== d1fbcb5 negative:stoprace 2026-09-16T04:23:23.466Z ===
+setup (both runs): src/index.js: "  // TIME-RULE:"  ->  "  await scheduler.wait(25) // NEGATIVE CONTROL ONLY: widen the gap between the check-in's read and its write\n  // TIME-RULE:"
+control (unbroken copy): "stop race" pass
+break: src/index.js: "  stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))\n"  ->  ""
+STOPRACE orphans=5 outcomes=500/200,500/200,500/200,500/200,404/200,500/200,201/409,201/409,201/409,201/409
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (300.409127ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 366.099423
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1160:1
+✖ stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop (300.409127ms)
+  AssertionError [ERR_ASSERTION]: 5 check-ins landed on removed stops
+  
+  5 !== 0
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-stoprace/tests/api.test.mjs:1179:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 5,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+check: check-ins on removed stops, same 25 ms gap: with the guard 0, without it 5 (of 10 pairs)
+verdict: RED as expected. "stop race" fail when the check-in batch no longer re-checks that the stop is still on the route.
+
+=== d1fbcb5 negative:pinguard 2026-09-16T04:23:30.091Z ===
+control (unbroken copy): "PIN change: wrong current PINs count toward the sign-in guard" pass
+break: src/index.js: "  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)\n  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')\n  if (!(await verifyPin(typeof body.current"  ->  "  const attempt = 0\n  if (!(await verifyPin(typeof body.current"
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (195.076155ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 260.628412
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1187:1
+✖ PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP (195.076155ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  204 !== 429
+  
+      at expectError (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:39:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-pinguard/tests/api.test.mjs:1195:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 204,
+    expected: 429,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "PIN change: wrong current PINs count toward the sign-in guard" fail when a wrong current PIN on PUT /api/owner/pin is not counted.
+
+=== d1fbcb5 negative:statusroute 2026-09-16T04:23:36.604Z ===
+control (unbroken copy): "status link: a mangled key" pass
+break: src/index.js: "  ['GET', /^\\/api\\/status\\/(.*)$/, 'public', clientStatus],"  ->  "  ['GET', /^\\/api\\/status\\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus],"
+✖ status link: a mangled key answers the status 404 text and counts toward the unknown-key guard (64.961056ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 151.695718
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1211:1
+✖ status link: a mangled key answers the status 404 text and counts toward the unknown-key guard (64.961056ms)
+  AssertionError [ERR_ASSERTION]: key "Sh4B5lZDv63Vy_eJhGvlaIiy."
+  + actual - expected
+  
+  + "There's nothing here."
+  - "This status link doesn't work. Ask your snow clearing company for a new one."
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-statusroute/tests/api.test.mjs:1221:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "There's nothing here.",
+    expected: "This status link doesn't work. Ask your snow clearing company for a new one.",
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "status link: a mangled key" fail when the router only sends key-shaped paths to the status handler.
+
+=== d1fbcb5 negative:plowednote 2026-09-16T04:23:42.894Z ===
+control (unbroken copy): "check-ins: a plowed check-in stores no note and no reason" pass
+break: src/index.js: "const note = plowed || body.note === undefined"  ->  "const note = body.note === undefined"
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (113.291075ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 178.120473
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1233:1
+✖ check-ins: a plowed check-in stores no note and no reason, whatever the body sends (113.291075ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'Left a note' !== ''
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-plowednote/tests/api.test.mjs:1241:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Left a note',
+    expected: '',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "check-ins: a plowed check-in stores no note and no reason" fail when a plowed check-in keeps the body's note.
+
+=== d1fbcb5 negative:routeversion 2026-09-16T04:23:49.214Z ===
+control (unbroken copy): "route version: a stale version with the same stop set", "route version: two PUTs racing with the same version" pass
+break: src/index.js: "    db.prepare(ROUTE_VERSION_GUARD_SQL).bind(stormId, body.route_version),\n"  ->  ""
+✖ route version: a stale version with the same stop set answers 409 route changed, and the first edit stands (136.501183ms)
+ROUTERACE round=0 statuses=200/200
+✖ route version: two PUTs racing with the same version give exactly one 200 and one 409 (86.409607ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 291.96217
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1309:1
+✖ route version: a stale version with the same stop set answers 409 route changed, and the first edit stands (136.501183ms)
+  AssertionError [ERR_ASSERTION]: {"id":1,"name":"Storm of Mon Jan 12","status":"active","started_at":"2026-01-12T08:05:00.000Z","started_label":"Mon Jan 12, 4:35 AM","ended_at":null,"ended_label":null,"order_note":"Order is by distance, not road time.","route_version":3,"counts":{"stops":24,"plowed":0,"skipped":0,"pending":24},"trucks":[{"id":1,"name":"Truck 1 (SAMPLE)","stops":[{"client_id":1,"truck_id":1,"position":1,"name":"Pat (SAMPLE)","address":"Cromer Avenue, Grand Falls-Windsor, NL","lat":48.94481,"lng":-55.65477,"type":"driveway","type_label":"Driveway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Oxygen delivery comes early. Clear right to the step.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Pat (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=__jYrNef95xYcCk6NFOw6z_P"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Pat (SAMPLE), we're out clearing snow tonight. You're stop 1 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=__jYrNef95xYcCk6NFOw6z_P"}]},{"client_id":5,"truck_id":1,"position":2,"name":"Jordan (SAMPLE)","address":"Beaumont Avenue, Grand Falls-Windsor, NL","lat":48.93155,"lng":-55.65862,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Two cars. Push the bank to the right side.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jordan (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=oYg2Jk3LjOiL_nLTZyTQeMbb"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jordan (SAMPLE), we're out clearing snow tonight. You're stop 2 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=oYg2Jk3LjOiL_nLTZyTQeMbb"}]},{"client_id":6,"truck_id":1,"position":3,"name":"SAMPLE Pharmacy lot","address":"High Street, Grand Falls-Windsor, NL","lat":48.92757,"lng":-55.65615,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"08:00","notes":"Clear the accessible spots first.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Pharmacy lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=ZAgNzNEf6dgpd1BGhHh1qfiD"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Pharmacy lot, we're out clearing snow tonight. You're stop 3 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=ZAgNzNEf6dgpd1BGhHh1qfiD"}]},{"client_id":4,"truck_id":1,"position":4,"name":"Chris (SAMPLE)","address":"Scott Avenue, Grand Falls-Windsor, NL","lat":48.92928,"lng":-55.63159,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Chris (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=gyzBcgNwkCtJEBrM5lnrHwaR"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Chris (SAMPLE), we're out clearing snow tonight. You're stop 4 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=gyzBcgNwkCtJEBrM5lnrHwaR"}]},{"client_id":23,"truck_id":1,"position":5,"name":"Blair (SAMPLE)","address":"Goodyear Avenue, Grand Falls-Windsor, NL","lat":48.93442,"lng":-55.64052,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Blair (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=xcJAQPPrsHcH209HCu1N0nY0"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Blair (SAMPLE), we're out clearing snow tonight. You're stop 5 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=xcJAQPPrsHcH209HCu1N0nY0"}]},{"client_id":10,"truck_id":1,"position":6,"name":"Taylor (SAMPLE)","address":"Memorial Avenue, Grand Falls-Windsor, NL","lat":48.93434,"lng":-55.65274,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Boat trailer parked at the end. Go around it.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Taylor (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=E1THVbXJtWKk1e8QlyKaR4dk"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Taylor (SAMPLE), we're out clearing snow tonight. You're stop 6 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=E1THVbXJtWKk1e8QlyKaR4dk"}]},{"client_id":12,"truck_id":1,"position":7,"name":"Jamie (SAMPLE)","address":"Monchy Road, Grand Falls-Windsor, NL","lat":48.93149,"lng":-55.65731,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jamie (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=WxsMJ8Xf0KanJfwQlQ8Ja5n9"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jamie (SAMPLE), we're out clearing snow tonight. You're stop 7 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=WxsMJ8Xf0KanJfwQlQ8Ja5n9"}]},{"client_id":9,"truck_id":1,"position":8,"name":"Morgan (SAMPLE)","address":"Carmelite Road, Grand Falls-Windsor, NL","lat":48.93063,"lng":-55.66288,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Morgan (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=uXVcVAc9CBgq6r7PTp3HwXxu"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Morgan (SAMPLE), we're out clearing snow tonight. You're stop 8 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=uXVcVAc9CBgq6r7PTp3HwXxu"}]},{"client_id":17,"truck_id":1,"position":9,"name":"Terry (SAMPLE)","address":"Exploits Avenue, Grand Falls-Windsor, NL","lat":48.93177,"lng":-55.66301,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Terry (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=E2bh1eUrvwCAk1__S6wI8ICB"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Terry (SAMPLE), we're out clearing snow tonight. You're stop 9 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=E2bh1eUrvwCAk1__S6wI8ICB"}]},{"client_id":20,"truck_id":1,"position":10,"name":"Dana (SAMPLE)","address":"Riverview Road, Grand Falls-Windsor, NL","lat":48.9333,"lng":-55.66394,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Dana (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=F4YG9hVW_clioAUal6ZgK16c"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Dana (SAMPLE), we're out clearing snow tonight. You're stop 10 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=F4YG9hVW_clioAUal6ZgK16c"}]},{"client_id":14,"truck_id":1,"position":11,"name":"Drew (SAMPLE)","address":"Sunset Drive, Grand Falls-Windsor, NL","lat":48.9425,"lng":-55.66821,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Drew (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=0GMz4pYRDhlYGFxDffcD0-wF"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Drew (SAMPLE), we're out clearing snow tonight. You're stop 11 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=0GMz4pYRDhlYGFxDffcD0-wF"}]}]},{"id":2,"name":"Truck 2 (SAMPLE)","stops":[{"client_id":8,"truck_id":2,"position":1,"name":"Casey (SAMPLE)","address":"Duggan Street, Grand Falls-Windsor, NL","lat":48.94781,"lng":-55.66025,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Walkway to the side door only. Wheelchair ramp.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Casey (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your walkway was last cleared here: http://127.0.0.1:7605/s/?k=IGCvGNH9kJQkWAdBtz0ggwJV"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Casey (SAMPLE), we're out clearing snow tonight. You're stop 1 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=IGCvGNH9kJQkWAdBtz0ggwJV"}]},{"client_id":11,"truck_id":2,"position":2,"name":"SAMPLE Diner lot","address":"Main Street, Grand Falls-Windsor, NL","lat":48.94918,"lng":-55.66244,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"06:00","notes":"Opens at 6. Pile snow at the back corner, not by the dumpster.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Diner lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=LSTqmRCne5X3VFWTTSbULc2d"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Diner lot, we're out clearing snow tonight. You're stop 2 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=LSTqmRCne5X3VFWTTSbULc2d"}]},{"client_id":21,"truck_id":2,"position":3,"name":"Jesse (SAMPLE)","address":"Smallwood Drive, Grand Falls-Windsor, NL","lat":48.95572,"lng":-55.65517,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Plow before 6 if you can.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jesse (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=8QsJwVH9ZGEKn85VaJq36JCA"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jesse (SAMPLE), we're out clearing snow tonight. You're stop 3 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=8QsJwVH9ZGEKn85VaJq36JCA"}]},{"client_id":19,"truck_id":2,"position":4,"name":"SAMPLE Hardware lot","address":"Queensway, Grand Falls-Windsor, NL","lat":48.95753,"lng":-55.64876,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"07:30","notes":"Keep the loading door clear.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Hardware lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=Xag_ro_DMkFTf4Utnh4c0uqd"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Hardware lot, we're out clearing snow tonight. You're stop 4 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=Xag_ro_DMkFTf4Utnh4c0uqd"}]},{"client_id":2,"truck_id":2,"position":5,"name":"Lee (SAMPLE)","address":"Hardy Avenue, Grand Falls-Windsor, NL","lat":48.95392,"lng":-55.63153,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Leaves for work at 6:15.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Lee (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=vf77u8lFCSaVigZ4yoD5mCiu"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Lee (SAMPLE), we're out clearing snow tonight. You're stop 5 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=vf77u8lFCSaVigZ4yoD5mCiu"}]},{"client_id":13,"truck_id":2,"position":6,"name":"Alex (SAMPLE)","address":"Pinsent Drive, Grand Falls-Windsor, NL","lat":48.94536,"lng":-55.65066,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Nurse, leaves at 6:30.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Alex (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=9FfjEbCcKKc7PUSgwBFPo2ym"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Alex (SAMPLE), we're out clearing snow tonight. You're stop 6 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=9FfjEbCcKKc7PUSgwBFPo2ym"}]},{"client_id":3,"truck_id":2,"position":7,"name":"Sam (SAMPLE)","address":"Harris Avenue, Grand Falls-Windsor, NL","lat":48.94155,"lng":-55.6461,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Gate on left, don't pile by the hydrant.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Sam (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=1faq_k5m6gTD4X-wVl2srDnq"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop 7 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=1faq_k5m6gTD4X-wVl2srDnq"}]},{"client_id":7,"truck_id":2,"position":8,"name":"Robin (SAMPLE)","address":"Bayley Street, Grand Falls-Windsor, NL","lat":48.95124,"lng":-55.64305,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Steep. Sand at the bottom if icy.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Robin (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=qe9BPfaulLTOaX059oXSm5t7"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Robin (SAMPLE), we're out clearing snow tonight. You're stop 8 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=qe9BPfaulLTOaX059oXSm5t7"}]},{"client_id":22,"truck_id":2,"position":9,"name":"Frankie (SAMPLE)","address":"Sapling Street, Grand Falls-Windsor, NL","lat":48.95689,"lng":-55.65745,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Gravel driveway. Blade up a little.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Frankie (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=JedjZ8WCEHcnjFkI_ZFx-6jV"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Frankie (SAMPLE), we're out clearing snow tonight. You're stop 9 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=JedjZ8WCEHcnjFkI_ZFx-6jV"}]},{"client_id":18,"truck_id":2,"position":10,"name":"Shawn (SAMPLE)","address":"Park Street, Grand Falls-Windsor, NL","lat":48.96014,"lng":-55.66219,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Dog in the yard. Stay in the truck.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Shawn (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=kCAjvt2JJcf_pOaS7SY_TP6T"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Shawn (SAMPLE), we're out clearing snow tonight. You're stop 10 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=kCAjvt2JJcf_pOaS7SY_TP6T"}]},{"client_id":15,"truck_id":2,"position":11,"name":"Kerry (SAMPLE)","address":"Elizabeth Avenue, Grand Falls-Windsor, NL","lat":48.95029,"lng":-55.6709,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Mailbox on the right is close to the edge.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Kerry (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=GXTFHvAWJf3OJAC7woQpFwlI"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Kerry (SAMPLE), we're out clearing snow tonight. You're stop 11 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=GXTFHvAWJf3OJAC7woQpFwlI"}]},{"client_id":24,"truck_id":2,"position":12,"name":"SAMPLE Church lot","address":"Kenmore Drive, Grand Falls-Windsor, NL","lat":48.94982,"lng":-55.67022,"type":"lot","type_label":"Parking lot","priority":"none","priority_label":"None","opens_at":null,"notes":"Only needed Saturday night and Sunday.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Church lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=7vPt2nsHmklPTRLxUhh7qiij"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Church lot, we're out clearing snow tonight. You're stop 12 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=7vPt2nsHmklPTRLxUhh7qiij"}]},{"client_id":16,"truck_id":2,"position":13,"name":"SAMPLE Clinic walkway","address":"Church Road, Grand Falls-Windsor, NL","lat":48.93009,"lng":-55.65973,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Front walkway and the ramp. Salt the ramp.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Clinic walkway, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your walkway was last cleared here: http://127.0.0.1:7605/s/?k=aU45oet46DNHQsBEO0BMmZFO"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Clinic walkway, we're out clearing snow tonight. You're stop 13 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=aU45oet46DNHQsBEO0BMmZFO"}]}]}]}
+  
+  200 !== 409
+  
+      at expectError (file://<repo>/worker/.negative/negative-routeversion/tests/api.test.mjs:39:10)
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-routeversion/tests/api.test.mjs:1317:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/api.test.mjs:1357:1
+✖ route version: two PUTs racing with the same version give exactly one 200 and one 409 (86.409607ms)
+  AssertionError [ERR_ASSERTION]: round 0: {"id":1,"name":"Storm of Mon Jan 12","status":"active","started_at":"2026-01-12T08:05:00.000Z","started_label":"Mon Jan 12, 4:35 AM","ended_at":null,"ended_label":null,"order_note":"Order is by distance, not road time.","route_version":2,"counts":{"stops":24,"plowed":0,"skipped":0,"pending":24},"trucks":[{"id":1,"name":"Truck 1 (SAMPLE)","stops":[{"client_id":14,"truck_id":1,"position":1,"name":"Drew (SAMPLE)","address":"Sunset Drive, Grand Falls-Windsor, NL","lat":48.9425,"lng":-55.66821,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Drew (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=3uS-9WlbqoD5eiJXeyPDFSyj"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Drew (SAMPLE), we're out clearing snow tonight. You're stop 1 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=3uS-9WlbqoD5eiJXeyPDFSyj"}]},{"client_id":20,"truck_id":1,"position":2,"name":"Dana (SAMPLE)","address":"Riverview Road, Grand Falls-Windsor, NL","lat":48.9333,"lng":-55.66394,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Dana (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=XAShFwQmBXNmOQcMiISv5d4l"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Dana (SAMPLE), we're out clearing snow tonight. You're stop 2 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=XAShFwQmBXNmOQcMiISv5d4l"}]},{"client_id":17,"truck_id":1,"position":3,"name":"Terry (SAMPLE)","address":"Exploits Avenue, Grand Falls-Windsor, NL","lat":48.93177,"lng":-55.66301,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Terry (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=n5Qq5xSsa5jW0EfVIuS9UBjr"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Terry (SAMPLE), we're out clearing snow tonight. You're stop 3 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=n5Qq5xSsa5jW0EfVIuS9UBjr"}]},{"client_id":9,"truck_id":1,"position":4,"name":"Morgan (SAMPLE)","address":"Carmelite Road, Grand Falls-Windsor, NL","lat":48.93063,"lng":-55.66288,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Morgan (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=0IRrMEt_hgd5QKXPeT3oRYwX"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Morgan (SAMPLE), we're out clearing snow tonight. You're stop 4 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=0IRrMEt_hgd5QKXPeT3oRYwX"}]},{"client_id":12,"truck_id":1,"position":5,"name":"Jamie (SAMPLE)","address":"Monchy Road, Grand Falls-Windsor, NL","lat":48.93149,"lng":-55.65731,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jamie (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=Us0Rbm7nyb4rr0I7sc7Ry9FR"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jamie (SAMPLE), we're out clearing snow tonight. You're stop 5 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=Us0Rbm7nyb4rr0I7sc7Ry9FR"}]},{"client_id":10,"truck_id":1,"position":6,"name":"Taylor (SAMPLE)","address":"Memorial Avenue, Grand Falls-Windsor, NL","lat":48.93434,"lng":-55.65274,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Boat trailer parked at the end. Go around it.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Taylor (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=imEUyKYl5eEOUTUHkqu-00-C"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Taylor (SAMPLE), we're out clearing snow tonight. You're stop 6 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=imEUyKYl5eEOUTUHkqu-00-C"}]},{"client_id":23,"truck_id":1,"position":7,"name":"Blair (SAMPLE)","address":"Goodyear Avenue, Grand Falls-Windsor, NL","lat":48.93442,"lng":-55.64052,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Blair (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=BGfgXIQneYiAwh4Sz_Mqe8Kg"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Blair (SAMPLE), we're out clearing snow tonight. You're stop 7 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=BGfgXIQneYiAwh4Sz_Mqe8Kg"}]},{"client_id":4,"truck_id":1,"position":8,"name":"Chris (SAMPLE)","address":"Scott Avenue, Grand Falls-Windsor, NL","lat":48.92928,"lng":-55.63159,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Chris (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=mZmgNkw0-HH-4qIIj9pGIvmP"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Chris (SAMPLE), we're out clearing snow tonight. You're stop 8 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=mZmgNkw0-HH-4qIIj9pGIvmP"}]},{"client_id":6,"truck_id":1,"position":9,"name":"SAMPLE Pharmacy lot","address":"High Street, Grand Falls-Windsor, NL","lat":48.92757,"lng":-55.65615,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"08:00","notes":"Clear the accessible spots first.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Pharmacy lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=mHJPGMS1HDugi6mOyt7UDrjG"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Pharmacy lot, we're out clearing snow tonight. You're stop 9 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=mHJPGMS1HDugi6mOyt7UDrjG"}]},{"client_id":5,"truck_id":1,"position":10,"name":"Jordan (SAMPLE)","address":"Beaumont Avenue, Grand Falls-Windsor, NL","lat":48.93155,"lng":-55.65862,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Two cars. Push the bank to the right side.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jordan (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=d3E6WtZMXzJ83Vc1PHerpU2r"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jordan (SAMPLE), we're out clearing snow tonight. You're stop 10 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=d3E6WtZMXzJ83Vc1PHerpU2r"}]},{"client_id":1,"truck_id":1,"position":11,"name":"Pat (SAMPLE)","address":"Cromer Avenue, Grand Falls-Windsor, NL","lat":48.94481,"lng":-55.65477,"type":"driveway","type_label":"Driveway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Oxygen delivery comes early. Clear right to the step.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Pat (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=l0E2Jrmp-zIv_tFSxNnOUu84"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Pat (SAMPLE), we're out clearing snow tonight. You're stop 11 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=l0E2Jrmp-zIv_tFSxNnOUu84"}]},{"client_id":16,"truck_id":1,"position":12,"name":"SAMPLE Clinic walkway","address":"Church Road, Grand Falls-Windsor, NL","lat":48.93009,"lng":-55.65973,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Front walkway and the ramp. Salt the ramp.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Clinic walkway, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your walkway was last cleared here: http://127.0.0.1:7605/s/?k=M5t7fd_SRne293B301NQhkKp"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Clinic walkway, we're out clearing snow tonight. You're stop 12 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=M5t7fd_SRne293B301NQhkKp"}]}]},{"id":2,"name":"Truck 2 (SAMPLE)","stops":[{"client_id":8,"truck_id":2,"position":1,"name":"Casey (SAMPLE)","address":"Duggan Street, Grand Falls-Windsor, NL","lat":48.94781,"lng":-55.66025,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Walkway to the side door only. Wheelchair ramp.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Casey (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your walkway was last cleared here: http://127.0.0.1:7605/s/?k=ljWYWjq5QRM4-37Cfwcbu3y8"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Casey (SAMPLE), we're out clearing snow tonight. You're stop 1 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=ljWYWjq5QRM4-37Cfwcbu3y8"}]},{"client_id":11,"truck_id":2,"position":2,"name":"SAMPLE Diner lot","address":"Main Street, Grand Falls-Windsor, NL","lat":48.94918,"lng":-55.66244,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"06:00","notes":"Opens at 6. Pile snow at the back corner, not by the dumpster.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Diner lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=I3vlU2L-kcNWGKy1H7nO73fJ"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Diner lot, we're out clearing snow tonight. You're stop 2 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=I3vlU2L-kcNWGKy1H7nO73fJ"}]},{"client_id":21,"truck_id":2,"position":3,"name":"Jesse (SAMPLE)","address":"Smallwood Drive, Grand Falls-Windsor, NL","lat":48.95572,"lng":-55.65517,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Plow before 6 if you can.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jesse (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=S-GxzGlvfSZ5x9FFgAiGsU5v"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jesse (SAMPLE), we're out clearing snow tonight. You're stop 3 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=S-GxzGlvfSZ5x9FFgAiGsU5v"}]},{"client_id":19,"truck_id":2,"position":4,"name":"SAMPLE Hardware lot","address":"Queensway, Grand Falls-Windsor, NL","lat":48.95753,"lng":-55.64876,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"07:30","notes":"Keep the loading door clear.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Hardware lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=EFAU9HMEtpIkMiTJ3uvY-pH5"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Hardware lot, we're out clearing snow tonight. You're stop 4 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=EFAU9HMEtpIkMiTJ3uvY-pH5"}]},{"client_id":2,"truck_id":2,"position":5,"name":"Lee (SAMPLE)","address":"Hardy Avenue, Grand Falls-Windsor, NL","lat":48.95392,"lng":-55.63153,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Leaves for work at 6:15.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Lee (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=bCp-XABlisIaIOa4FimdOI_D"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Lee (SAMPLE), we're out clearing snow tonight. You're stop 5 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=bCp-XABlisIaIOa4FimdOI_D"}]},{"client_id":13,"truck_id":2,"position":6,"name":"Alex (SAMPLE)","address":"Pinsent Drive, Grand Falls-Windsor, NL","lat":48.94536,"lng":-55.65066,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Nurse, leaves at 6:30.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Alex (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=b8vcAhhHiB6FD2EPtnLIHdHx"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Alex (SAMPLE), we're out clearing snow tonight. You're stop 6 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=b8vcAhhHiB6FD2EPtnLIHdHx"}]},{"client_id":3,"truck_id":2,"position":7,"name":"Sam (SAMPLE)","address":"Harris Avenue, Grand Falls-Windsor, NL","lat":48.94155,"lng":-55.6461,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Gate on left, don't pile by the hydrant.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Sam (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=hcpGZV2yb2c8zPusdlJUU3jw"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop 7 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=hcpGZV2yb2c8zPusdlJUU3jw"}]},{"client_id":7,"truck_id":2,"position":8,"name":"Robin (SAMPLE)","address":"Bayley Street, Grand Falls-Windsor, NL","lat":48.95124,"lng":-55.64305,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Steep. Sand at the bottom if icy.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Robin (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=u0okCcpuypB0E8wQlPQOx1VG"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Robin (SAMPLE), we're out clearing snow tonight. You're stop 8 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=u0okCcpuypB0E8wQlPQOx1VG"}]},{"client_id":22,"truck_id":2,"position":9,"name":"Frankie (SAMPLE)","address":"Sapling Street, Grand Falls-Windsor, NL","lat":48.95689,"lng":-55.65745,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Gravel driveway. Blade up a little.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Frankie (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=3BRwYWTyuQw5iOeF-FQPCo74"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Frankie (SAMPLE), we're out clearing snow tonight. You're stop 9 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=3BRwYWTyuQw5iOeF-FQPCo74"}]},{"client_id":18,"truck_id":2,"position":10,"name":"Shawn (SAMPLE)","address":"Park Street, Grand Falls-Windsor, NL","lat":48.96014,"lng":-55.66219,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Dog in the yard. Stay in the truck.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Shawn (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=E4E4ayyKe9Bm4paAg268OGsq"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Shawn (SAMPLE), we're out clearing snow tonight. You're stop 10 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=E4E4ayyKe9Bm4paAg268OGsq"}]},{"client_id":15,"truck_id":2,"position":11,"name":"Kerry (SAMPLE)","address":"Elizabeth Avenue, Grand Falls-Windsor, NL","lat":48.95029,"lng":-55.6709,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Mailbox on the right is close to the edge.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Kerry (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=KMkus5sfVZDbn_dnoNlQRWwJ"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Kerry (SAMPLE), we're out clearing snow tonight. You're stop 11 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=KMkus5sfVZDbn_dnoNlQRWwJ"}]},{"client_id":24,"truck_id":2,"position":12,"name":"SAMPLE Church lot","address":"Kenmore Drive, Grand Falls-Windsor, NL","lat":48.94982,"lng":-55.67022,"type":"lot","type_label":"Parking lot","priority":"none","priority_label":"None","opens_at":null,"notes":"Only needed Saturday night and Sunday.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Church lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=NWUhpHrH_fyS9ki7V5wrt2vs"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Church lot, we're out clearing snow tonight. You're stop 12 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=NWUhpHrH_fyS9ki7V5wrt2vs"}]}]}]} | {"id":1,"name":"Storm of Mon Jan 12","status":"active","started_at":"2026-01-12T08:05:00.000Z","started_label":"Mon Jan 12, 4:35 AM","ended_at":null,"ended_label":null,"order_note":"Order is by distance, not road time.","route_version":3,"counts":{"stops":24,"plowed":0,"skipped":0,"pending":24},"trucks":[{"id":1,"name":"Truck 1 (SAMPLE)","stops":[{"client_id":16,"truck_id":1,"position":1,"name":"SAMPLE Clinic walkway","address":"Church Road, Grand Falls-Windsor, NL","lat":48.93009,"lng":-55.65973,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Front walkway and the ramp. Salt the ramp.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Clinic walkway, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your walkway was last cleared here: http://127.0.0.1:7605/s/?k=M5t7fd_SRne293B301NQhkKp"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Clinic walkway, we're out clearing snow tonight. You're stop 1 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=M5t7fd_SRne293B301NQhkKp"}]},{"client_id":1,"truck_id":1,"position":2,"name":"Pat (SAMPLE)","address":"Cromer Avenue, Grand Falls-Windsor, NL","lat":48.94481,"lng":-55.65477,"type":"driveway","type_label":"Driveway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Oxygen delivery comes early. Clear right to the step.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Pat (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=l0E2Jrmp-zIv_tFSxNnOUu84"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Pat (SAMPLE), we're out clearing snow tonight. You're stop 2 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=l0E2Jrmp-zIv_tFSxNnOUu84"}]},{"client_id":5,"truck_id":1,"position":3,"name":"Jordan (SAMPLE)","address":"Beaumont Avenue, Grand Falls-Windsor, NL","lat":48.93155,"lng":-55.65862,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Two cars. Push the bank to the right side.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jordan (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=d3E6WtZMXzJ83Vc1PHerpU2r"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jordan (SAMPLE), we're out clearing snow tonight. You're stop 3 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=d3E6WtZMXzJ83Vc1PHerpU2r"}]},{"client_id":6,"truck_id":1,"position":4,"name":"SAMPLE Pharmacy lot","address":"High Street, Grand Falls-Windsor, NL","lat":48.92757,"lng":-55.65615,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"08:00","notes":"Clear the accessible spots first.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Pharmacy lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=mHJPGMS1HDugi6mOyt7UDrjG"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Pharmacy lot, we're out clearing snow tonight. You're stop 4 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=mHJPGMS1HDugi6mOyt7UDrjG"}]},{"client_id":4,"truck_id":1,"position":5,"name":"Chris (SAMPLE)","address":"Scott Avenue, Grand Falls-Windsor, NL","lat":48.92928,"lng":-55.63159,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Chris (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=mZmgNkw0-HH-4qIIj9pGIvmP"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Chris (SAMPLE), we're out clearing snow tonight. You're stop 5 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=mZmgNkw0-HH-4qIIj9pGIvmP"}]},{"client_id":23,"truck_id":1,"position":6,"name":"Blair (SAMPLE)","address":"Goodyear Avenue, Grand Falls-Windsor, NL","lat":48.93442,"lng":-55.64052,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Blair (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=BGfgXIQneYiAwh4Sz_Mqe8Kg"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Blair (SAMPLE), we're out clearing snow tonight. You're stop 6 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=BGfgXIQneYiAwh4Sz_Mqe8Kg"}]},{"client_id":10,"truck_id":1,"position":7,"name":"Taylor (SAMPLE)","address":"Memorial Avenue, Grand Falls-Windsor, NL","lat":48.93434,"lng":-55.65274,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Boat trailer parked at the end. Go around it.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Taylor (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=imEUyKYl5eEOUTUHkqu-00-C"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Taylor (SAMPLE), we're out clearing snow tonight. You're stop 7 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=imEUyKYl5eEOUTUHkqu-00-C"}]},{"client_id":12,"truck_id":1,"position":8,"name":"Jamie (SAMPLE)","address":"Monchy Road, Grand Falls-Windsor, NL","lat":48.93149,"lng":-55.65731,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jamie (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=Us0Rbm7nyb4rr0I7sc7Ry9FR"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jamie (SAMPLE), we're out clearing snow tonight. You're stop 8 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=Us0Rbm7nyb4rr0I7sc7Ry9FR"}]},{"client_id":9,"truck_id":1,"position":9,"name":"Morgan (SAMPLE)","address":"Carmelite Road, Grand Falls-Windsor, NL","lat":48.93063,"lng":-55.66288,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Morgan (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=0IRrMEt_hgd5QKXPeT3oRYwX"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Morgan (SAMPLE), we're out clearing snow tonight. You're stop 9 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=0IRrMEt_hgd5QKXPeT3oRYwX"}]},{"client_id":17,"truck_id":1,"position":10,"name":"Terry (SAMPLE)","address":"Exploits Avenue, Grand Falls-Windsor, NL","lat":48.93177,"lng":-55.66301,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Terry (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=n5Qq5xSsa5jW0EfVIuS9UBjr"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Terry (SAMPLE), we're out clearing snow tonight. You're stop 10 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=n5Qq5xSsa5jW0EfVIuS9UBjr"}]},{"client_id":20,"truck_id":1,"position":11,"name":"Dana (SAMPLE)","address":"Riverview Road, Grand Falls-Windsor, NL","lat":48.9333,"lng":-55.66394,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Dana (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=XAShFwQmBXNmOQcMiISv5d4l"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Dana (SAMPLE), we're out clearing snow tonight. You're stop 11 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=XAShFwQmBXNmOQcMiISv5d4l"}]},{"client_id":14,"truck_id":1,"position":12,"name":"Drew (SAMPLE)","address":"Sunset Drive, Grand Falls-Windsor, NL","lat":48.9425,"lng":-55.66821,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Drew (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=3uS-9WlbqoD5eiJXeyPDFSyj"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Drew (SAMPLE), we're out clearing snow tonight. You're stop 12 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=3uS-9WlbqoD5eiJXeyPDFSyj"}]}]},{"id":2,"name":"Truck 2 (SAMPLE)","stops":[{"client_id":24,"truck_id":2,"position":1,"name":"SAMPLE Church lot","address":"Kenmore Drive, Grand Falls-Windsor, NL","lat":48.94982,"lng":-55.67022,"type":"lot","type_label":"Parking lot","priority":"none","priority_label":"None","opens_at":null,"notes":"Only needed Saturday night and Sunday.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Church lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=NWUhpHrH_fyS9ki7V5wrt2vs"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Church lot, we're out clearing snow tonight. You're stop 1 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=NWUhpHrH_fyS9ki7V5wrt2vs"}]},{"client_id":15,"truck_id":2,"position":2,"name":"Kerry (SAMPLE)","address":"Elizabeth Avenue, Grand Falls-Windsor, NL","lat":48.95029,"lng":-55.6709,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Mailbox on the right is close to the edge.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Kerry (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=KMkus5sfVZDbn_dnoNlQRWwJ"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Kerry (SAMPLE), we're out clearing snow tonight. You're stop 2 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=KMkus5sfVZDbn_dnoNlQRWwJ"}]},{"client_id":18,"truck_id":2,"position":3,"name":"Shawn (SAMPLE)","address":"Park Street, Grand Falls-Windsor, NL","lat":48.96014,"lng":-55.66219,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Dog in the yard. Stay in the truck.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Shawn (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=E4E4ayyKe9Bm4paAg268OGsq"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Shawn (SAMPLE), we're out clearing snow tonight. You're stop 3 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=E4E4ayyKe9Bm4paAg268OGsq"}]},{"client_id":22,"truck_id":2,"position":4,"name":"Frankie (SAMPLE)","address":"Sapling Street, Grand Falls-Windsor, NL","lat":48.95689,"lng":-55.65745,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Gravel driveway. Blade up a little.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Frankie (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=3BRwYWTyuQw5iOeF-FQPCo74"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Frankie (SAMPLE), we're out clearing snow tonight. You're stop 4 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=3BRwYWTyuQw5iOeF-FQPCo74"}]},{"client_id":7,"truck_id":2,"position":5,"name":"Robin (SAMPLE)","address":"Bayley Street, Grand Falls-Windsor, NL","lat":48.95124,"lng":-55.64305,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Steep. Sand at the bottom if icy.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Robin (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=u0okCcpuypB0E8wQlPQOx1VG"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Robin (SAMPLE), we're out clearing snow tonight. You're stop 5 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=u0okCcpuypB0E8wQlPQOx1VG"}]},{"client_id":3,"truck_id":2,"position":6,"name":"Sam (SAMPLE)","address":"Harris Avenue, Grand Falls-Windsor, NL","lat":48.94155,"lng":-55.6461,"type":"driveway","type_label":"Driveway","priority":"none","priority_label":"None","opens_at":null,"notes":"Gate on left, don't pile by the hydrant.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Sam (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=hcpGZV2yb2c8zPusdlJUU3jw"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop 6 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=hcpGZV2yb2c8zPusdlJUU3jw"}]},{"client_id":13,"truck_id":2,"position":7,"name":"Alex (SAMPLE)","address":"Pinsent Drive, Grand Falls-Windsor, NL","lat":48.94536,"lng":-55.65066,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Nurse, leaves at 6:30.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Alex (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=b8vcAhhHiB6FD2EPtnLIHdHx"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Alex (SAMPLE), we're out clearing snow tonight. You're stop 7 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=b8vcAhhHiB6FD2EPtnLIHdHx"}]},{"client_id":2,"truck_id":2,"position":8,"name":"Lee (SAMPLE)","address":"Hardy Avenue, Grand Falls-Windsor, NL","lat":48.95392,"lng":-55.63153,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Leaves for work at 6:15.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Lee (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=bCp-XABlisIaIOa4FimdOI_D"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Lee (SAMPLE), we're out clearing snow tonight. You're stop 8 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=bCp-XABlisIaIOa4FimdOI_D"}]},{"client_id":19,"truck_id":2,"position":9,"name":"SAMPLE Hardware lot","address":"Queensway, Grand Falls-Windsor, NL","lat":48.95753,"lng":-55.64876,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"07:30","notes":"Keep the loading door clear.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Hardware lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=EFAU9HMEtpIkMiTJ3uvY-pH5"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Hardware lot, we're out clearing snow tonight. You're stop 9 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=EFAU9HMEtpIkMiTJ3uvY-pH5"}]},{"client_id":21,"truck_id":2,"position":10,"name":"Jesse (SAMPLE)","address":"Smallwood Drive, Grand Falls-Windsor, NL","lat":48.95572,"lng":-55.65517,"type":"driveway","type_label":"Driveway","priority":"commuter","priority_label":"Early commuter","opens_at":null,"notes":"Plow before 6 if you can.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Jesse (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your driveway was last cleared here: http://127.0.0.1:7605/s/?k=S-GxzGlvfSZ5x9FFgAiGsU5v"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Jesse (SAMPLE), we're out clearing snow tonight. You're stop 10 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=S-GxzGlvfSZ5x9FFgAiGsU5v"}]},{"client_id":11,"truck_id":2,"position":11,"name":"SAMPLE Diner lot","address":"Main Street, Grand Falls-Windsor, NL","lat":48.94918,"lng":-55.66244,"type":"lot","type_label":"Parking lot","priority":"business","priority_label":"Business opening","opens_at":"06:00","notes":"Opens at 6. Pile snow at the back corner, not by the dumpster.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi SAMPLE Diner lot, this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your parking lot was last cleared here: http://127.0.0.1:7605/s/?k=I3vlU2L-kcNWGKy1H7nO73fJ"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi SAMPLE Diner lot, we're out clearing snow tonight. You're stop 11 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=I3vlU2L-kcNWGKy1H7nO73fJ"}]},{"client_id":8,"truck_id":2,"position":12,"name":"Casey (SAMPLE)","address":"Duggan Street, Grand Falls-Windsor, NL","lat":48.94781,"lng":-55.66025,"type":"walkway","type_label":"Walkway","priority":"medical","priority_label":"Medical","opens_at":null,"notes":"Walkway to the side door only. Wheelchair ramp.","status":"pending","checkin":null,"removable":true,"messages":[{"kind":"status_link","label":"Copy status link text","text":"Hi Casey (SAMPLE), this is SAMPLE Snow Clearing — Grand Falls-Windsor (demo). You can check when your walkway was last cleared here: http://127.0.0.1:7605/s/?k=ljWYWjq5QRM4-37Cfwcbu3y8"},{"kind":"on_route","label":"Copy \"on the route\" text","text":"Hi Casey (SAMPLE), we're out clearing snow tonight. You're stop 12 on the route. This link shows the time and a photo once it's done: http://127.0.0.1:7605/s/?k=ljWYWjq5QRM4-37Cfwcbu3y8"}]}]}]}
+  + actual - expected
+  
+    [
+      200,
+  +   200
+  -   409
+    ]
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-routeversion/tests/api.test.mjs:1367:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 200, 200 ],
+    expected: [ 200, 409 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "route version: a stale version with the same stop set" and "route version: two PUTs racing with the same version" fail when the route PUT no longer checks the version inside its write batch.
+
+=== d1fbcb5 negative:removable 2026-09-16T04:23:55.815Z ===
+control (unbroken copy): "removable: a fresh stop is removable" pass
+break: src/index.js: "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1').bind(stormId)"  ->  "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1 AND voided_at IS NULL').bind(stormId)"
+✖ removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE answers 409 (179.667982ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 248.321768
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1381:1
+✖ removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE answers 409 (179.667982ms)
+  AssertionError [ERR_ASSERTION]: undone: an undone check-in is still a record, so not removable
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-removable/tests/api.test.mjs:1405:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "removable: a fresh stop is removable" fail when removable ignores voided check-ins.
+
+=== d1fbcb5 negative:undoflag 2026-09-16T04:24:02.457Z ===
+control (unbroken copy): "undo flag: a new id is stored already voided" pass
+break: src/index.js: "has_photo: body.has_photo, undo: body.undo === true }"  ->  "has_photo: body.has_photo, undo: false }"
+✖ undo flag: a new id is stored already voided: 201 voided, the stop stays pending, no push billed, no status last, removable false (130.198508ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 201.31604
+
+✖ failing tests:
+
+test at tests/api.test.mjs:1439:1
+✖ undo flag: a new id is stored already voided: 201 voided, the stop stays pending, no push billed, no status last, removable false (130.198508ms)
+  AssertionError [ERR_ASSERTION]: stored already voided
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative-undoflag/tests/api.test.mjs:1449:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "undo flag: a new id is stored already voided" fail when the undo flag is ignored and the re-send stores a live push.
