@@ -11,11 +11,11 @@ import { SAMPLE } from '../src/sample-data.js'
 
 const BASE = process.env.BASE || `http://127.0.0.1:${process.env.PORT || 7602}`
 const START = '2026-01-12T08:05:00.000Z' // Mon Jan 12, 4:35 AM NST
-const at = minutes => new Date(Date.parse(START) + minutes * 60000).toISOString()
+const at = (minutes) => new Date(Date.parse(START) + minutes * 60000).toISOString()
 const COMPANY = 'SAMPLE Snow Clearing — Grand Falls-Windsor (demo)'
 const YARD = { label: 'SAMPLE yard, Mill Road', lat: 48.92729, lng: -55.66127 }
 
-async function api (method, path, { body, token, key, now = START, ip = '10.0.0.1', headers = {}, raw } = {}) {
+async function api(method, path, { body, token, key, now = START, ip = '10.0.0.1', headers = {}, raw } = {}) {
   const res = await fetch(BASE + path, {
     method,
     headers: {
@@ -24,56 +24,69 @@ async function api (method, path, { body, token, key, now = START, ip = '10.0.0.
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(key ? { 'X-Driver-Key': key } : {}),
-      ...headers
+      ...headers,
     },
-    body: raw !== undefined ? raw : body !== undefined ? JSON.stringify(body) : undefined
+    body: raw !== undefined ? raw : body !== undefined ? JSON.stringify(body) : undefined,
   })
   const buf = Buffer.from(await res.arrayBuffer())
   const text = buf.toString('utf8')
   let json
-  try { json = JSON.parse(text) } catch {}
+  try {
+    json = JSON.parse(text)
+  } catch {}
   return { status: res.status, body: json, text, buf, headers: res.headers }
 }
 
-function expectError (r, status, code, field) {
+function expectError(r, status, code, field) {
   assert.equal(r.status, status, r.text)
   assert.equal(r.body.code, code, r.text)
   assert.equal(typeof r.body.error, 'string')
   if (field !== undefined) assert.equal(r.body.field, field, r.text)
 }
 
-async function reset () {
+async function reset() {
   const r = await api('POST', '/api/test/reset')
   assert.equal(r.status, 200, r.text)
   return r.body
 }
 
-async function signin () {
+async function signin() {
   const r = await api('POST', '/api/owner/signin', { body: { pin: '2468' } })
   assert.equal(r.status, 200, r.text)
   return r.body.token
 }
 
 /** Reset, sign in, start a storm with every client and both trucks. */
-async function stormSetup () {
+async function stormSetup() {
   const seed = await reset()
   const token = await signin()
-  const r = await api('POST', '/api/owner/storms', { token, body: { client_ids: seed.clients.map(c => c.id), truck_ids: seed.trucks.map(t => t.id) } })
+  const r = await api('POST', '/api/owner/storms', {
+    token,
+    body: { client_ids: seed.clients.map((c) => c.id), truck_ids: seed.trucks.map((t) => t.id) },
+  })
   assert.equal(r.status, 201, r.text)
   const storm = r.body
-  const keyOf = truckId => seed.trucks.find(t => t.id === truckId).driver_key
+  const keyOf = (truckId) => seed.trucks.find((t) => t.id === truckId).driver_key
   return { seed, token, storm, keyOf }
 }
 
 const checkin = (storm, stop, over = {}) => ({
-  id: randomUUID(), storm_id: storm.id, client_id: stop.client_id, kind: 'plowed', reason: null, note: '', at: at(30), has_photo: false, ...over
+  id: randomUUID(),
+  storm_id: storm.id,
+  client_id: stop.client_id,
+  kind: 'plowed',
+  reason: null,
+  note: '',
+  at: at(30),
+  has_photo: false,
+  ...over,
 })
 const post = (key, body, now = at(31)) => api('POST', '/api/driver/checkins', { key, body, now })
-const stopsOf = storm => storm.trucks.flatMap(t => t.stops)
+const stopsOf = (storm) => storm.trucks.flatMap((t) => t.stops)
 const ownerStop = async (token, stormId, clientId) =>
-  stopsOf((await api('GET', `/api/owner/storms/${stormId}`, { token })).body).find(s => s.client_id === clientId)
+  stopsOf((await api('GET', `/api/owner/storms/${stormId}`, { token })).body).find((s) => s.client_id === clientId)
 const storedRows = async (stormId, clientId) =>
-  (await api('GET', `/api/test/checkins?storm_id=${stormId}`)).body.checkins.filter(k => k.client_id === clientId)
+  (await api('GET', `/api/test/checkins?storm_id=${stormId}`)).body.checkins.filter((k) => k.client_id === clientId)
 
 // ---------------------------------------------------------------- company and sign-in
 
@@ -81,7 +94,14 @@ test('company shape', async () => {
   await reset()
   const r = await api('GET', '/api/company')
   assert.equal(r.status, 200)
-  assert.deepEqual(r.body, { name: COMPANY, sample: true, timezone: 'America/St_Johns', hst_rate: 0.15, yard: YARD, map_style_url: 'https://tiles.openfreemap.org/styles/positron' })
+  assert.deepEqual(r.body, {
+    name: COMPANY,
+    sample: true,
+    timezone: 'America/St_Johns',
+    hst_rate: 0.15,
+    yard: YARD,
+    map_style_url: 'https://tiles.openfreemap.org/styles/positron',
+  })
 })
 
 test('sign-in: wrong PIN 401 with field pin, right PIN gives a token, no token 401, sign-out ends it', async () => {
@@ -112,10 +132,13 @@ test('clients: 25 SAMPLE clients, sorted by name, full shape', async () => {
   const { clients } = r.body
   assert.equal(clients.length, 25)
   for (const c of clients) assert.match(c.name, /SAMPLE/)
-  const names = clients.map(c => c.name)
-  assert.deepEqual(names, [...names].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })))
-  const sam = clients.find(c => c.name === 'Sam (SAMPLE)')
-  const samSeed = seed.clients.find(c => c.ref === 'sample-03')
+  const names = clients.map((c) => c.name)
+  assert.deepEqual(
+    names,
+    [...names].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })),
+  )
+  const sam = clients.find((c) => c.name === 'Sam (SAMPLE)')
+  const samSeed = seed.clients.find((c) => c.ref === 'sample-03')
   assert.deepEqual(sam, {
     id: samSeed.id,
     name: 'Sam (SAMPLE)',
@@ -134,17 +157,29 @@ test('clients: 25 SAMPLE clients, sorted by name, full shape', async () => {
     active: true,
     status_url: `${BASE}/s/?k=${samSeed.status_key}`,
     last_plowed_at: null,
-    last_plowed_label: null
+    last_plowed_label: null,
   })
   assert.equal(samSeed.status_url, sam.status_url)
   assert.ok(samSeed.status_key.length >= 22)
   const trucks = (await api('GET', '/api/owner/trucks', { token })).body.trucks
-  assert.deepEqual(trucks, seed.trucks.map(t => ({ id: t.id, name: t.name, active: true, driver_url: `${BASE}/d/?k=${t.driver_key}` })))
+  assert.deepEqual(
+    trucks,
+    seed.trucks.map((t) => ({ id: t.id, name: t.name, active: true, driver_url: `${BASE}/d/?k=${t.driver_key}` })),
+  )
 })
 
 const GOOD_CLIENT = {
-  name: '  Kim (SAMPLE)  ', address: 'Lincoln Road, Grand Falls-Windsor, NL', lat: 48.9401, lng: -55.6602,
-  type: 'lot', priority: 'business', opens_at: '07:30', notes: 'Back door.', billing: 'per_push', price_cents: 6000, truck_id: null
+  name: '  Kim (SAMPLE)  ',
+  address: 'Lincoln Road, Grand Falls-Windsor, NL',
+  lat: 48.9401,
+  lng: -55.6602,
+  type: 'lot',
+  priority: 'business',
+  opens_at: '07:30',
+  notes: 'Back door.',
+  billing: 'per_push',
+  price_cents: 6000,
+  truck_id: null,
 }
 
 const VALIDATION = [
@@ -163,7 +198,7 @@ const VALIDATION = [
   ['notes', { notes: 'x'.repeat(301) }, 'Keep the notes under 300 characters.'],
   ['price_cents', { price_cents: 12.5 }, 'Type a price in dollars and cents.'],
   ['price_cents', { price_cents: 10000001 }, 'Type a price in dollars and cents.'],
-  ['truck_id', { truck_id: 999 }, 'Pick one of your trucks.']
+  ['truck_id', { truck_id: 999 }, 'Pick one of your trucks.'],
 ]
 
 for (const [field, over, message] of VALIDATION) {
@@ -223,31 +258,67 @@ test('storm start: 201, every client once, medical first per truck, the route ru
   assert.equal(storm.order_note, 'Order is by distance, not road time.')
   assert.equal(storm.route_version, 1)
   assert.deepEqual(storm.counts, { stops: 25, plowed: 0, skipped: 0, pending: 25 })
-  assert.deepEqual(storm.trucks.map(t => [t.id, t.name]), seed.trucks.map(t => [t.id, t.name]))
-  assert.deepEqual(stopsOf(storm).map(s => s.client_id).sort((a, b) => a - b), seed.clients.map(c => c.id).sort((a, b) => a - b))
+  assert.deepEqual(
+    storm.trucks.map((t) => [t.id, t.name]),
+    seed.trucks.map((t) => [t.id, t.name]),
+  )
+  assert.deepEqual(
+    stopsOf(storm)
+      .map((s) => s.client_id)
+      .sort((a, b) => a - b),
+    seed.clients.map((c) => c.id).sort((a, b) => a - b),
+  )
 
   // The order is exactly what route.js builds from the same data (every SAMPLE client has a truck, so each keeps it).
-  const byRef = Object.fromEntries(seed.clients.map(c => [c.ref, c.id]))
-  const input = SAMPLE.clients.map(c => ({ client_id: byRef[c.ref], lat: c.lat, lng: c.lng, priority: c.priority, truck_id: seed.trucks[c.truck - 1].id }))
-  const expected = buildRoute(YARD, input, seed.trucks.map(t => t.id))
+  const byRef = Object.fromEntries(seed.clients.map((c) => [c.ref, c.id]))
+  const input = SAMPLE.clients.map((c) => ({
+    client_id: byRef[c.ref],
+    lat: c.lat,
+    lng: c.lng,
+    priority: c.priority,
+    truck_id: seed.trucks[c.truck - 1].id,
+  }))
+  const expected = buildRoute(
+    YARD,
+    input,
+    seed.trucks.map((t) => t.id),
+  )
   for (const t of storm.trucks) {
-    const priorities = t.stops.map(s => tierOf(s.priority))
+    const priorities = t.stops.map((s) => tierOf(s.priority))
     assert.equal(t.stops[0].priority, 'medical', `${t.name} starts with a medical stop`)
     for (let i = 1; i < priorities.length; i++) assert.ok(priorities[i - 1] <= priorities[i], `${t.name}: ${priorities}`)
-    assert.deepEqual(t.stops.map(s => s.position), t.stops.map((_, i) => i + 1))
-    assert.deepEqual(t.stops.map(s => s.client_id), expected.find(e => e.truck_id === t.id).stops.map(s => s.client_id))
+    assert.deepEqual(
+      t.stops.map((s) => s.position),
+      t.stops.map((_, i) => i + 1),
+    )
+    assert.deepEqual(
+      t.stops.map((s) => s.client_id),
+      expected.find((e) => e.truck_id === t.id).stops.map((s) => s.client_id),
+    )
     for (const s of t.stops) {
       assert.equal(s.status, 'pending')
       assert.equal(s.checkin, null)
-      assert.deepEqual(s.messages.map(m => m.kind), ['status_link', 'on_route'])
+      assert.deepEqual(
+        s.messages.map((m) => m.kind),
+        ['status_link', 'on_route'],
+      )
     }
   }
-  const sam = stopsOf(storm).find(s => s.name === 'Sam (SAMPLE)')
-  const samKey = seed.clients.find(c => c.ref === 'sample-03').status_url
-  assert.equal(sam.messages[1].text, `Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop ${sam.position} on the route. This link shows the time and a photo once it's done: ${samKey}`)
-  assert.equal(sam.messages[0].text, `Hi Sam (SAMPLE), this is ${COMPANY}. You can check when your driveway was last cleared here: ${samKey}`)
+  const sam = stopsOf(storm).find((s) => s.name === 'Sam (SAMPLE)')
+  const samKey = seed.clients.find((c) => c.ref === 'sample-03').status_url
+  assert.equal(
+    sam.messages[1].text,
+    `Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop ${sam.position} on the route. This link shows the time and a photo once it's done: ${samKey}`,
+  )
+  assert.equal(
+    sam.messages[0].text,
+    `Hi Sam (SAMPLE), this is ${COMPANY}. You can check when your driveway was last cleared here: ${samKey}`,
+  )
 
-  const again = await api('POST', '/api/owner/storms', { token, body: { client_ids: [seed.clients[0].id], truck_ids: [seed.trucks[0].id] } })
+  const again = await api('POST', '/api/owner/storms', {
+    token,
+    body: { client_ids: [seed.clients[0].id], truck_ids: [seed.trucks[0].id] },
+  })
   expectError(again, 409, 'bad_state')
   assert.equal(again.body.error, 'A storm is already on. End it before starting another.')
 
@@ -260,11 +331,16 @@ test('storm start: 201, every client once, medical first per truck, the route ru
 test('storm start: refusals', async () => {
   const seed = await reset()
   const token = await signin()
-  const t = seed.trucks.map(x => x.id)
-  const c = seed.clients.map(x => x.id)
+  const t = seed.trucks.map((x) => x.id)
+  const c = seed.clients.map((x) => x.id)
   assert.deepEqual((await api('GET', '/api/owner/storms/current', { token })).body, { storm: null })
   expectError(await api('POST', '/api/owner/storms', { token, body: { client_ids: [], truck_ids: t } }), 400, 'bad_request', 'client_ids')
-  expectError(await api('POST', '/api/owner/storms', { token, body: { client_ids: [c[0], 9999], truck_ids: t } }), 400, 'bad_request', 'client_ids')
+  expectError(
+    await api('POST', '/api/owner/storms', { token, body: { client_ids: [c[0], 9999], truck_ids: t } }),
+    400,
+    'bad_request',
+    'client_ids',
+  )
   expectError(await api('POST', '/api/owner/storms', { token, body: { client_ids: c, truck_ids: [] } }), 400, 'bad_request', 'truck_ids')
   expectError(await api('POST', '/api/owner/storms', { token, body: { client_ids: c, truck_ids: [77] } }), 400, 'bad_request', 'truck_ids')
   // One truck out: the other truck's clients are placed on it.
@@ -292,9 +368,13 @@ test('driver route: bad key 401, good key shows only its truck in order, no mess
     assert.deepEqual(r.body.truck, { id: truck.id, name: truck.name })
     assert.deepEqual(r.body.storm, { id: storm.id, name: storm.name, status: 'active', started_at: START })
     assert.equal(r.body.server_now, at(10))
-    assert.deepEqual(r.body.stops, truck.stops.map(({ messages, removable, ...s }) => s))
-    assert.ok(r.body.stops.every(s => s.truck_id === truck.id))
-    for (const word of ['messages', 'removable', 'price', 'billing', 'status_url', 'k=']) assert.ok(!r.text.includes(word), `driver route contains ${word}`)
+    assert.deepEqual(
+      r.body.stops,
+      truck.stops.map(({ messages, removable, ...s }) => s),
+    )
+    assert.ok(r.body.stops.every((s) => s.truck_id === truck.id))
+    for (const word of ['messages', 'removable', 'price', 'billing', 'status_url', 'k='])
+      assert.ok(!r.text.includes(word), `driver route contains ${word}`)
   }
   void seed
 })
@@ -317,8 +397,21 @@ test('check-ins: plowed 201 and the stop is plowed', async () => {
   const r = await post(keyOf(truck.id), body, at(33))
   assert.equal(r.status, 201, r.text)
   assert.deepEqual(r.body.checkin, {
-    id: body.id, storm_id: storm.id, client_id: stop.client_id, truck_id: truck.id, kind: 'plowed', reason: null, reason_text: null,
-    note: '', at: at(30), at_label: '5:05 AM', at_adjusted: false, received_at: at(33), photo: 'none', photo_url: null, voided: false
+    id: body.id,
+    storm_id: storm.id,
+    client_id: stop.client_id,
+    truck_id: truck.id,
+    kind: 'plowed',
+    reason: null,
+    reason_text: null,
+    note: '',
+    at: at(30),
+    at_label: '5:05 AM',
+    at_adjusted: false,
+    received_at: at(33),
+    photo: 'none',
+    photo_url: null,
+    voided: false,
   })
   assert.equal(r.body.duplicate, undefined)
   assert.equal(r.body.stop.status, 'plowed')
@@ -326,7 +419,10 @@ test('check-ins: plowed 201 and the stop is plowed', async () => {
   const owner = await ownerStop(token, storm.id, stop.client_id)
   assert.equal(owner.status, 'plowed')
   assert.equal(owner.checkin.id, body.id)
-  assert.deepEqual(owner.messages.map(m => m.kind), ['status_link', 'plowed'])
+  assert.deepEqual(
+    owner.messages.map((m) => m.kind),
+    ['status_link', 'plowed'],
+  )
   assert.match(owner.messages[1].text, /^Hi .+, your (driveway|parking lot|walkway) was cleared at 5:05 AM\. See it here: http/)
   const counts = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.counts
   assert.deepEqual(counts, { stops: 25, plowed: 1, skipped: 0, pending: 24 })
@@ -335,7 +431,10 @@ test('check-ins: plowed 201 and the stop is plowed', async () => {
 test('check-ins: the same id again answers 200 duplicate and still exactly one check-in', async () => {
   const { token, storm, keyOf } = await stormSetup()
   const truck = storm.trucks[0]
-  for (const [stop, over] of [[truck.stops[0], {}], [truck.stops[1], { kind: 'skipped', reason: 'car' }]]) {
+  for (const [stop, over] of [
+    [truck.stops[0], {}],
+    [truck.stops[1], { kind: 'skipped', reason: 'car' }],
+  ]) {
     const body = checkin(storm, stop, over)
     const first = await post(keyOf(truck.id), body)
     assert.equal(first.status, 201, first.text)
@@ -400,7 +499,10 @@ test('check-ins: skip then plowed ends plowed; plowed then skip is 409', async (
   assert.equal(skip.body.stop.status, 'skipped')
   assert.equal(skip.body.checkin.reason_text, 'Other: Truck blocking')
   const skipOwner = await ownerStop(token, storm.id, a.client_id)
-  assert.equal(skipOwner.messages[1].text, `Hi ${a.name}, we couldn't clear your ${a.type_label.toLowerCase()} tonight: other: Truck blocking. We'll be in touch about it.`)
+  assert.equal(
+    skipOwner.messages[1].text,
+    `Hi ${a.name}, we couldn't clear your ${a.type_label.toLowerCase()} tonight: other: Truck blocking. We'll be in touch about it.`,
+  )
   const plowed = await post(key, checkin(storm, a, { at: at(40) }), at(41))
   assert.equal(plowed.status, 201, plowed.text)
   assert.equal(plowed.body.stop.status, 'plowed')
@@ -456,7 +558,11 @@ test('check-ins: accepted after the storm ended (ended through the test-only hel
 
 // ---------------------------------------------------------------- photos
 
-const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('SAMPLE placeholder photo bytes'), Buffer.from([0xff, 0xd9])])
+const JPEG = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.from('SAMPLE placeholder photo bytes'),
+  Buffer.from([0xff, 0xd9]),
+])
 
 test('photos: jpeg stored and served back byte for byte; 415, 413 and another truck 404', async () => {
   const { storm, keyOf } = await stormSetup()
@@ -467,7 +573,8 @@ test('photos: jpeg stored and served back byte for byte; 415, 413 and another tr
   assert.equal(created.body.checkin.photo, 'waiting')
   assert.equal(created.body.checkin.photo_url, null)
 
-  const put = (bytes, type, k = key, id = body.id) => api('PUT', `/api/driver/checkins/${id}/photo`, { key: k, raw: bytes, headers: { 'content-type': type } })
+  const put = (bytes, type, k = key, id = body.id) =>
+    api('PUT', `/api/driver/checkins/${id}/photo`, { key: k, raw: bytes, headers: { 'content-type': type } })
   const stored = await put(JPEG, 'image/jpeg')
   assert.equal(stored.status, 200, stored.text)
   assert.equal(stored.body.checkin.photo, 'stored')
@@ -496,9 +603,9 @@ test('status link: waiting with the right stop number, then plowed with time and
   const { seed, storm, keyOf } = await stormSetup()
   const truck = storm.trucks[1]
   const stop = truck.stops[3]
-  const client = seed.clients.find(c => c.id === stop.client_id)
+  const client = seed.clients.find((c) => c.id === stop.client_id)
   const key = keyOf(truck.id)
-  const notes = SAMPLE.clients.find(c => c.ref === client.ref).notes
+  const notes = SAMPLE.clients.find((c) => c.ref === client.ref).notes
 
   // Two stops done ahead of it (one skipped).
   await post(key, checkin(storm, truck.stops[0]))
@@ -512,8 +619,15 @@ test('status link: waiting with the right stop number, then plowed with time and
     company: { name: COMPANY, sample: true },
     client: { name: stop.name, address: stop.address, type: stop.type, type_label: stop.type_label },
     last: null,
-    tonight: { storm_name: 'Storm of Mon Jan 12', state: 'waiting', stop_number: 4, stops_on_route: truck.stops.length, stops_done: 2, reason_text: null },
-    server_now: at(35)
+    tonight: {
+      storm_name: 'Storm of Mon Jan 12',
+      state: 'waiting',
+      stop_number: 4,
+      stops_on_route: truck.stops.length,
+      stops_done: 2,
+      reason_text: null,
+    },
+    server_now: at(35),
   })
 
   const body = checkin(storm, stop, { has_photo: true, at: at(62) })
@@ -523,15 +637,20 @@ test('status link: waiting with the right stop number, then plowed with time and
   assert.equal(plowed.body.tonight.state, 'plowed')
   assert.equal(plowed.body.tonight.stops_done, 3)
   assert.deepEqual(plowed.body.last, {
-    at: at(62), at_label: 'Mon Jan 12, 5:37 AM', time_label: '5:37 AM', photo_url: photo.body.checkin.photo_url, photo_waiting: false
+    at: at(62),
+    at_label: 'Mon Jan 12, 5:37 AM',
+    time_label: '5:37 AM',
+    photo_url: photo.body.checkin.photo_url,
+    photo_waiting: false,
   })
 
   for (const r of [waiting, plowed]) {
     if (notes) assert.ok(!r.text.includes(notes), 'status JSON contains the notes')
-    for (const word of ['notes', 'price', 'billing', 'truck', 'driver', 'messages']) assert.ok(!r.text.includes(word), `status JSON contains ${word}`)
+    for (const word of ['notes', 'price', 'billing', 'truck', 'driver', 'messages'])
+      assert.ok(!r.text.includes(word), `status JSON contains ${word}`)
   }
 
-  const skipped = seed.clients.find(c => c.id === truck.stops[1].client_id)
+  const skipped = seed.clients.find((c) => c.id === truck.stops[1].client_id)
   const s = await api('GET', `/api/status/${skipped.status_key}`)
   assert.equal(s.body.tonight.state, 'skipped')
   assert.equal(s.body.tonight.reason_text, 'Gate locked')
@@ -556,38 +675,42 @@ test('unknown API route answers 404 JSON', async () => {
 
 const JAN = '2026-01'
 const plus = (iso, minutes) => new Date(Date.parse(iso) + minutes * 60000).toISOString()
-const seedClient = (seed, ref) => seed.clients.find(c => c.ref === ref)
+const seedClient = (seed, ref) => seed.clients.find((c) => c.ref === ref)
 
-async function ownerClient (token, id) {
-  return (await api('GET', '/api/owner/clients?include_inactive=1', { token })).body.clients.find(c => c.id === id)
+async function ownerClient(token, id) {
+  return (await api('GET', '/api/owner/clients?include_inactive=1', { token })).body.clients.find((c) => c.id === id)
 }
-async function editClient (token, id, over) {
+async function editClient(token, id, over) {
   const r = await api('PUT', `/api/owner/clients/${id}`, { token, body: { ...(await ownerClient(token, id)), ...over } })
   assert.equal(r.status, 200, r.text)
   return r.body
 }
 /** Start a storm at `start` with these clients and both trucks. */
-async function startAt (token, seed, start, clientIds) {
-  const r = await api('POST', '/api/owner/storms', { token, now: start, body: { client_ids: clientIds, truck_ids: seed.trucks.map(t => t.id) } })
+async function startAt(token, seed, start, clientIds) {
+  const r = await api('POST', '/api/owner/storms', {
+    token,
+    now: start,
+    body: { client_ids: clientIds, truck_ids: seed.trucks.map((t) => t.id) },
+  })
   assert.equal(r.status, 201, r.text)
   return r.body
 }
 /** A check-in for a client on whatever truck its stop is on, sent one minute after `at`. */
-async function checkinAt (seed, storm, clientId, atIso, over = {}) {
-  const stop = stopsOf(storm).find(s => s.client_id === clientId)
-  const key = seed.trucks.find(t => t.id === stop.truck_id).driver_key
+async function checkinAt(seed, storm, clientId, atIso, over = {}) {
+  const stop = stopsOf(storm).find((s) => s.client_id === clientId)
+  const key = seed.trucks.find((t) => t.id === stop.truck_id).driver_key
   const body = checkin(storm, stop, { at: atIso, ...over })
   const r = await post(key, body, plus(atIso, 1))
   assert.equal(r.status, 201, r.text)
   return { ...r.body, key }
 }
-async function endAt (token, stormId, now) {
+async function endAt(token, stormId, now) {
   const r = await api('POST', `/api/owner/storms/${stormId}/end`, { token, now })
   assert.equal(r.status, 200, r.text)
   return r.body
 }
 const billing = async (token, month, now) => (await api('GET', `/api/owner/billing${month ? `?month=${month}` : ''}`, { token, now })).body
-const rowOf = (report, clientId) => report.rows.find(r => r.client_id === clientId)
+const rowOf = (report, clientId) => report.rows.find((r) => r.client_id === clientId)
 
 // ---------------------------------------------------------------- PIN and company
 
@@ -614,13 +737,35 @@ test('company: owner GET and PUT, validation, sample follows the name', async ()
   assert.deepEqual((await api('GET', '/api/owner/company', { token })).body, (await api('GET', '/api/company')).body)
   const yard = { label: 'Demo yard, Lincoln Road', lat: 48.95, lng: -55.66 }
   expectError(await api('PUT', '/api/owner/company', { token, body: { name: ' ', yard } }), 400, 'bad_request', 'name')
-  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, label: '' } } }), 400, 'bad_request', 'yard.label')
-  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, lat: 30 } } }), 400, 'bad_request', 'yard.pin')
-  expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { label: 'Demo yard' } } }), 400, 'bad_request', 'yard.pin')
+  expectError(
+    await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, label: '' } } }),
+    400,
+    'bad_request',
+    'yard.label',
+  )
+  expectError(
+    await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { ...yard, lat: 30 } } }),
+    400,
+    'bad_request',
+    'yard.pin',
+  )
+  expectError(
+    await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing', yard: { label: 'Demo yard' } } }),
+    400,
+    'bad_request',
+    'yard.pin',
+  )
   expectError(await api('PUT', '/api/owner/company', { token, body: { name: 'Demo Snow Clearing' } }), 400, 'bad_request', 'yard.label')
   const r = await api('PUT', '/api/owner/company', { token, body: { name: ' Demo Snow Clearing ', yard } })
   assert.equal(r.status, 200, r.text)
-  assert.deepEqual(r.body, { name: 'Demo Snow Clearing', sample: false, timezone: 'America/St_Johns', hst_rate: 0.15, yard, map_style_url: 'https://tiles.openfreemap.org/styles/positron' })
+  assert.deepEqual(r.body, {
+    name: 'Demo Snow Clearing',
+    sample: false,
+    timezone: 'America/St_Johns',
+    hst_rate: 0.15,
+    yard,
+    map_style_url: 'https://tiles.openfreemap.org/styles/positron',
+  })
   assert.deepEqual((await api('GET', '/api/company')).body, r.body)
   expectError(await api('PUT', '/api/owner/company', { body: { name: 'x', yard } }), 401, 'unauthorized')
 })
@@ -631,31 +776,43 @@ test('messages: exact text for each kind, on stops and on the client', async () 
   const { seed, token, storm, keyOf } = await stormSetup()
   const sam = seedClient(seed, 'sample-03') // driveway, truck 2
   const diner = seedClient(seed, 'sample-11') // parking lot, truck 2
-  const intro = c => `Hi ${c.name}, this is ${COMPANY}. You can check when your`
+  const intro = (c) => `Hi ${c.name}, this is ${COMPANY}. You can check when your`
   let r = await api('GET', `/api/owner/clients/${sam.id}/messages`, { token })
-  assert.deepEqual(r.body, { messages: [{ kind: 'status_link', label: 'Copy status link text', text: `${intro(sam)} driveway was last cleared here: ${sam.status_url}` }] })
+  assert.deepEqual(r.body, {
+    messages: [
+      { kind: 'status_link', label: 'Copy status link text', text: `${intro(sam)} driveway was last cleared here: ${sam.status_url}` },
+    ],
+  })
 
-  const samStop = stopsOf(storm).find(s => s.client_id === sam.id)
+  const samStop = stopsOf(storm).find((s) => s.client_id === sam.id)
   assert.deepEqual(samStop.messages[1], {
-    kind: 'on_route', label: 'Copy "on the route" text',
-    text: `Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop ${samStop.position} on the route. This link shows the time and a photo once it's done: ${sam.status_url}`
+    kind: 'on_route',
+    label: 'Copy "on the route" text',
+    text: `Hi Sam (SAMPLE), we're out clearing snow tonight. You're stop ${samStop.position} on the route. This link shows the time and a photo once it's done: ${sam.status_url}`,
   })
   await post(keyOf(samStop.truck_id), checkin(storm, samStop, { at: '2026-01-12T10:12:00.000Z' }), '2026-01-12T10:13:00.000Z')
   const plowedText = `Hi Sam (SAMPLE), your driveway was cleared at 6:42 AM. See it here: ${sam.status_url}`
   r = await api('GET', `/api/owner/clients/${sam.id}/messages`, { token })
-  assert.deepEqual(r.body.messages.map(m => m.kind), ['status_link', 'plowed'])
+  assert.deepEqual(
+    r.body.messages.map((m) => m.kind),
+    ['status_link', 'plowed'],
+  )
   assert.deepEqual(r.body.messages[1], { kind: 'plowed', label: 'Copy "done" text', text: plowedText })
   assert.deepEqual((await ownerStop(token, storm.id, sam.id)).messages[1].text, plowedText)
 
-  const dinerStop = stopsOf(storm).find(s => s.client_id === diner.id)
+  const dinerStop = stopsOf(storm).find((s) => s.client_id === diner.id)
   await post(keyOf(dinerStop.truck_id), checkin(storm, dinerStop, { kind: 'skipped', reason: 'cancelled' }))
   const dinerMessages = (await ownerStop(token, storm.id, diner.id)).messages
   assert.equal(dinerMessages[0].text, `${intro(diner)} parking lot was last cleared here: ${diner.status_url}`)
   assert.deepEqual(dinerMessages[1], {
-    kind: 'skipped', label: 'Copy "skipped" text',
-    text: "Hi SAMPLE Diner lot, we couldn't clear your parking lot tonight: client cancelled. We'll be in touch about it."
+    kind: 'skipped',
+    label: 'Copy "skipped" text',
+    text: "Hi SAMPLE Diner lot, we couldn't clear your parking lot tonight: client cancelled. We'll be in touch about it.",
   })
-  assert.deepEqual((await api('GET', `/api/owner/clients/${diner.id}/messages`, { token })).body.messages.map(m => m.kind), ['status_link'])
+  assert.deepEqual(
+    (await api('GET', `/api/owner/clients/${diner.id}/messages`, { token })).body.messages.map((m) => m.kind),
+    ['status_link'],
+  )
   expectError(await api('GET', '/api/owner/clients/9999/messages', { token }), 404, 'not_found')
 })
 
@@ -693,9 +850,17 @@ test('trucks: POST, PUT, validation, order, reset-link makes the old driver key 
   assert.equal(put.status, 200, put.text)
   assert.deepEqual(put.body, { id: t1.id, name: 'Plow A (SAMPLE)', active: false, driver_url: t1.driver_url })
   const list = (await api('GET', '/api/owner/trucks', { token })).body.trucks
-  assert.deepEqual(list.map(t => t.name), ['Truck 2 (SAMPLE)', 'Truck 3 (SAMPLE)', 'Plow A (SAMPLE)'])
+  assert.deepEqual(
+    list.map((t) => t.name),
+    ['Truck 2 (SAMPLE)', 'Truck 3 (SAMPLE)', 'Plow A (SAMPLE)'],
+  )
   // An inactive truck can't go out, but its link still works (clarification 4).
-  expectError(await api('POST', '/api/owner/storms', { token, body: { client_ids: [seed.clients[0].id], truck_ids: [t1.id] } }), 400, 'bad_request', 'truck_ids')
+  expectError(
+    await api('POST', '/api/owner/storms', { token, body: { client_ids: [seed.clients[0].id], truck_ids: [t1.id] } }),
+    400,
+    'bad_request',
+    'truck_ids',
+  )
   assert.equal((await api('GET', '/api/driver/route', { key: t1.driver_key })).status, 200)
 
   const reset2 = await api('POST', `/api/owner/trucks/${t2.id}/reset-link`, { token })
@@ -711,7 +876,7 @@ test('trucks: POST, PUT, validation, order, reset-link makes the old driver key 
 test('storms list: newest first, counts match the storm view', async () => {
   const seed = await reset()
   const token = await signin()
-  const ids = seed.clients.map(c => c.id)
+  const ids = seed.clients.map((c) => c.id)
   const a = await startAt(token, seed, START, ids)
   await checkinAt(seed, a, ids[0], at(20))
   await checkinAt(seed, a, ids[1], at(25), { kind: 'skipped', reason: 'car' })
@@ -719,7 +884,13 @@ test('storms list: newest first, counts match the storm view', async () => {
   const b = await startAt(token, seed, at(24 * 60), ids.slice(0, 5))
   const r = await api('GET', '/api/owner/storms', { token })
   assert.equal(r.status, 200)
-  assert.deepEqual(r.body.storms.map(s => [s.id, s.status]), [[b.id, 'active'], [a.id, 'ended']])
+  assert.deepEqual(
+    r.body.storms.map((s) => [s.id, s.status]),
+    [
+      [b.id, 'active'],
+      [a.id, 'ended'],
+    ],
+  )
   for (const s of r.body.storms) {
     const view = (await api('GET', `/api/owner/storms/${s.id}`, { token })).body
     const { trucks, order_note: _n, route_version: _v, ...rest } = view
@@ -729,22 +900,30 @@ test('storms list: newest first, counts match the storm view', async () => {
   assert.equal(r.body.storms[1].ended_label, 'Mon Jan 12, 7:55 AM')
 })
 
-test('route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a moved stop shows on the other driver\'s route', async () => {
+test("route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a moved stop shows on the other driver's route", async () => {
   const { token, storm, keyOf } = await stormSetup()
   const [t1, t2] = storm.trucks
-  const lists = () => [{ truck_id: t1.id, client_ids: t1.stops.map(s => s.client_id) }, { truck_id: t2.id, client_ids: t2.stops.map(s => s.client_id) }]
+  const lists = () => [
+    { truck_id: t1.id, client_ids: t1.stops.map((s) => s.client_id) },
+    { truck_id: t2.id, client_ids: t2.stops.map((s) => s.client_id) },
+  ]
   const versionNow = async () => (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.route_version
-  const putRoute = async (trucks, now) => api('PUT', `/api/owner/storms/${storm.id}/route`, { token, body: { trucks, route_version: await versionNow() }, now })
+  const putRoute = async (trucks, now) =>
+    api('PUT', `/api/owner/storms/${storm.id}/route`, { token, body: { trucks, route_version: await versionNow() }, now })
 
-  const missing = lists(); missing[0].client_ids.pop()
+  const missing = lists()
+  missing[0].client_ids.pop()
   expectError(await putRoute(missing), 400, 'bad_request', 'trucks')
-  const duplicate = lists(); duplicate[1].client_ids.push(duplicate[0].client_ids[0])
+  const duplicate = lists()
+  duplicate[1].client_ids.push(duplicate[0].client_ids[0])
   expectError(await putRoute(duplicate), 400, 'bad_request', 'trucks')
   expectError(await putRoute([...lists(), { truck_id: 999, client_ids: [] }]), 400, 'bad_request', 'trucks')
-  const foreign = lists(); foreign[1].truck_id = 999
+  const foreign = lists()
+  foreign[1].truck_id = 999
   expectError(await putRoute(foreign), 400, 'bad_request', 'trucks')
   expectError(await putRoute([lists()[0]]), 400, 'bad_request', 'trucks')
-  const twice = lists(); twice[1].truck_id = t1.id
+  const twice = lists()
+  twice[1].truck_id = t1.id
   expectError(await putRoute(twice), 400, 'bad_request', 'trucks')
   expectError(await putRoute('nope'), 400, 'bad_request', 'trucks')
 
@@ -752,23 +931,36 @@ test('route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a
   const moved = t1.stops[2]
   await post(keyOf(t1.id), checkin(storm, moved))
   const good = lists()
-  good[0].client_ids = good[0].client_ids.filter(c => c !== moved.client_id).reverse()
+  good[0].client_ids = good[0].client_ids.filter((c) => c !== moved.client_id).reverse()
   good[1].client_ids.push(moved.client_id)
   const r = await putRoute(good, at(40))
   assert.equal(r.status, 200, r.text)
-  assert.deepEqual(r.body.trucks.map(t => t.stops.map(s => s.client_id)), good.map(g => g.client_ids))
-  for (const t of r.body.trucks) assert.deepEqual(t.stops.map(s => s.position), t.stops.map((_, i) => i + 1))
+  assert.deepEqual(
+    r.body.trucks.map((t) => t.stops.map((s) => s.client_id)),
+    good.map((g) => g.client_ids),
+  )
+  for (const t of r.body.trucks)
+    assert.deepEqual(
+      t.stops.map((s) => s.position),
+      t.stops.map((_, i) => i + 1),
+    )
   const d2 = (await api('GET', '/api/driver/route', { key: keyOf(t2.id) })).body.stops
   assert.equal(d2.at(-1).client_id, moved.client_id)
   assert.equal(d2.at(-1).position, t2.stops.length + 1)
   assert.equal(d2.at(-1).status, 'plowed')
   assert.equal(d2.at(-1).checkin.truck_id, t1.id)
   const d1 = (await api('GET', '/api/driver/route', { key: keyOf(t1.id) })).body.stops
-  assert.ok(!d1.some(s => s.client_id === moved.client_id))
-  assert.deepEqual(d1.map(s => s.client_id), good[0].client_ids)
+  assert.ok(!d1.some((s) => s.client_id === moved.client_id))
+  assert.deepEqual(
+    d1.map((s) => s.client_id),
+    good[0].client_ids,
+  )
 
   // An empty list for a truck is allowed.
-  const empty = [{ truck_id: t1.id, client_ids: [] }, { truck_id: t2.id, client_ids: [...good[0].client_ids, ...good[1].client_ids] }]
+  const empty = [
+    { truck_id: t1.id, client_ids: [] },
+    { truck_id: t2.id, client_ids: [...good[0].client_ids, ...good[1].client_ids] },
+  ]
   assert.equal((await putRoute(empty)).status, 200)
 
   await endAt(token, storm.id, at(100))
@@ -779,12 +971,12 @@ test('route PUT: refuses a missing stop, a duplicate stop and a foreign truck; a
 test('stops: POST appends and refuses, DELETE only a stop with no check-ins and renumbers, ended storm 409', async () => {
   const seed = await reset()
   const token = await signin()
-  const [c1, c2, c3, c4, c5] = seed.clients.map(c => c.id)
+  const [c1, c2, c3, c4, c5] = seed.clients.map((c) => c.id)
   const t1 = seed.trucks[0].id
   const t2 = seed.trucks[1].id
   const r0 = await api('POST', '/api/owner/storms', { token, body: { client_ids: [c1, c2, c3], truck_ids: [t1] } })
   const storm = r0.body
-  const addStop = body => api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body })
+  const addStop = (body) => api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body })
 
   expectError(await addStop({ client_id: c4, truck_id: t2 }), 400, 'bad_request', 'truck_id')
   expectError(await addStop({ client_id: c1, truck_id: t1 }), 400, 'bad_request', 'client_id')
@@ -794,18 +986,24 @@ test('stops: POST appends and refuses, DELETE only a stop with no check-ins and 
   const added = await addStop({ client_id: c4, truck_id: t1 })
   assert.equal(added.status, 200, added.text)
   assert.deepEqual(added.body.trucks[0].stops.at(-1).client_id, c4)
-  assert.deepEqual(added.body.trucks[0].stops.map(s => s.position), [1, 2, 3, 4])
+  assert.deepEqual(
+    added.body.trucks[0].stops.map((s) => s.position),
+    [1, 2, 3, 4],
+  )
   assert.equal(added.body.counts.stops, 4)
 
   const [first, second] = added.body.trucks[0].stops
   await post(seed.trucks[0].driver_key, checkin(storm, first))
-  const del = id => api('DELETE', `/api/owner/storms/${storm.id}/stops/${id}`, { token })
+  const del = (id) => api('DELETE', `/api/owner/storms/${storm.id}/stops/${id}`, { token })
   expectError(await del(first.client_id), 409, 'bad_state')
   expectError(await del(c5), 404, 'not_found')
   const removed = await del(second.client_id)
   assert.equal(removed.status, 200, removed.text)
-  assert.ok(!stopsOf(removed.body).some(s => s.client_id === second.client_id))
-  assert.deepEqual(removed.body.trucks[0].stops.map(s => s.position), [1, 2, 3])
+  assert.ok(!stopsOf(removed.body).some((s) => s.client_id === second.client_id))
+  assert.deepEqual(
+    removed.body.trucks[0].stops.map((s) => s.position),
+    [1, 2, 3],
+  )
 
   // Even a voided check-in keeps the stop.
   const third = removed.body.trucks[0].stops[1]
@@ -850,11 +1048,11 @@ test('end and summary: counts, skipped with reason, not_reached, per-truck first
     plowed: 2,
     billable_pushes: 2,
     skipped: [{ client_id: t1.stops[1].client_id, name: t1.stops[1].name, reason_text: 'Gate locked', at_label: '5:05 AM' }],
-    not_reached: pending.map(s => ({ client_id: s.client_id, name: s.name })),
+    not_reached: pending.map((s) => ({ client_id: s.client_id, name: s.name })),
     trucks: [
       { id: t1.id, name: t1.name, plowed: 2, skipped: 1, pending: t1.stops.length - 3, first_label: '4:55 AM', last_label: '5:25 AM' },
-      { id: t2.id, name: t2.name, plowed: 0, skipped: 0, pending: t2.stops.length, first_label: null, last_label: null }
-    ]
+      { id: t2.id, name: t2.name, plowed: 0, skipped: 0, pending: t2.stops.length, first_label: null, last_label: null },
+    ],
   })
   assert.deepEqual((await api('GET', `/api/owner/storms/${storm.id}/summary`, { token })).body, ended.body.summary)
   expectError(await api('POST', `/api/owner/storms/${storm.id}/end`, { token }), 409, 'bad_state')
@@ -862,7 +1060,10 @@ test('end and summary: counts, skipped with reason, not_reached, per-truck first
   expectError(await api('GET', '/api/owner/storms/999/summary', { token }), 404, 'not_found')
   assert.equal((await api('GET', '/api/driver/route', { key })).body.storm, null)
   // A new storm can start now.
-  assert.equal((await api('POST', '/api/owner/storms', { token, body: { client_ids: [t2.stops[0].client_id], truck_ids: [t2.id] } })).status, 201)
+  assert.equal(
+    (await api('POST', '/api/owner/storms', { token, body: { client_ids: [t2.stops[0].client_id], truck_ids: [t2.id] } })).status,
+    201,
+  )
 })
 
 // ---------------------------------------------------------------- undo
@@ -891,7 +1092,10 @@ test('undo: within 15 min voided, stop pending again and no billing; after 16 mi
 
   assert.equal((await ownerStop(token, storm.id, stop.client_id)).status, 'pending')
   assert.equal(rowOf(await billing(token, JAN), stop.client_id)?.pushes ?? 0, 0)
-  assert.equal((await api('GET', `/api/status/${seed.clients.find(c => c.id === stop.client_id).status_key}`, { now: at(50) })).body.last, null)
+  assert.equal(
+    (await api('GET', `/api/status/${seed.clients.find((c) => c.id === stop.client_id).status_key}`, { now: at(50) })).body.last,
+    null,
+  )
   expectError(await api('GET', new URL(photo.body.checkin.photo_url).pathname), 404, 'not_found')
   assert.equal((await ownerClient(token, stop.client_id)).last_plowed_at, null)
 
@@ -931,28 +1135,51 @@ test('billing: per-push amounts, HST half up, totals are row sums, seasonal rows
   assert.equal(r.month, JAN)
   assert.equal(r.label, 'January 2026')
   assert.equal(r.hst_rate, 0.15)
-  assert.equal(r.seasonal_note, 'Seasonal contracts are billed on the contract, not by the push. Their pushes are counted here for your records.')
+  assert.equal(
+    r.seasonal_note,
+    'Seasonal contracts are billed on the contract, not by the push. Their pushes are counted here for your records.',
+  )
   const chrisClient = await ownerClient(token, chris)
   assert.deepEqual(rowOf(r, chris), {
-    client_id: chris, name: 'Chris (SAMPLE)', address: chrisClient.address, billing: 'per_push', billing_label: 'Per push', price_cents: 3550,
-    pushes: 3, dates: ['2026-01-05', '2026-01-12', '2026-01-19'], amount_cents: 10650, hst_cents: 1598, total_cents: 12248
+    client_id: chris,
+    name: 'Chris (SAMPLE)',
+    address: chrisClient.address,
+    billing: 'per_push',
+    billing_label: 'Per push',
+    price_cents: 3550,
+    pushes: 3,
+    dates: ['2026-01-05', '2026-01-12', '2026-01-19'],
+    amount_cents: 10650,
+    hst_cents: 1598,
+    total_cents: 12248,
   })
   assert.deepEqual([rowOf(r, robin).amount_cents, rowOf(r, robin).hst_cents, rowOf(r, robin).total_cents], [3550, 533, 4083])
   const samRow = rowOf(r, sam)
-  assert.deepEqual([samRow.billing_label, samRow.pushes, samRow.dates, samRow.amount_cents, samRow.hst_cents, samRow.total_cents, samRow.price_cents],
-    ['Seasonal contract', 2, ['2026-01-05', '2026-01-12'], 0, 0, 0, 55000])
+  assert.deepEqual(
+    [samRow.billing_label, samRow.pushes, samRow.dates, samRow.amount_cents, samRow.hst_cents, samRow.total_cents, samRow.price_cents],
+    ['Seasonal contract', 2, ['2026-01-05', '2026-01-12'], 0, 0, 0, 55000],
+  )
   assert.deepEqual([rowOf(r, taylor).pushes, rowOf(r, taylor).total_cents], [0, 0])
   assert.equal(rowOf(r, kerry), undefined, 'inactive seasonal client with no pushes is not listed')
-  const activeSeasonal = SAMPLE.clients.filter(c => c.billing === 'seasonal' && c.ref !== 'sample-15').length
+  const activeSeasonal = SAMPLE.clients.filter((c) => c.billing === 'seasonal' && c.ref !== 'sample-15').length
   assert.equal(r.rows.length, activeSeasonal + 2)
-  const names = r.rows.map(x => x.name.toLowerCase())
+  const names = r.rows.map((x) => x.name.toLowerCase())
   assert.deepEqual(names, [...names].sort())
-  const sum = key => r.rows.reduce((t, x) => t + x[key], 0)
-  assert.deepEqual(r.totals, { pushes: sum('pushes'), subtotal_cents: sum('amount_cents'), hst_cents: sum('hst_cents'), total_cents: sum('total_cents') })
+  const sum = (key) => r.rows.reduce((t, x) => t + x[key], 0)
+  assert.deepEqual(r.totals, {
+    pushes: sum('pushes'),
+    subtotal_cents: sum('amount_cents'),
+    hst_cents: sum('hst_cents'),
+    total_cents: sum('total_cents'),
+  })
   assert.deepEqual(r.totals, { pushes: 6, subtotal_cents: 14200, hst_cents: 2131, total_cents: 16331 })
 
   const csv = await api('GET', `/api/owner/billing.csv?month=${JAN}`, { token })
-  assert.ok(csv.text.split('\r\n').includes(`Chris (SAMPLE),"${chrisClient.address}",Per push,3,2026-01-05; 2026-01-12; 2026-01-19,35.50,106.50,15.98,122.48`))
+  assert.ok(
+    csv.text
+      .split('\r\n')
+      .includes(`Chris (SAMPLE),"${chrisClient.address}",Per push,3,2026-01-05; 2026-01-12; 2026-01-19,35.50,106.50,15.98,122.48`),
+  )
   assert.equal(csv.text.split('\r\n').at(-2), 'Total,,,6,,,142.00,21.31,163.31')
   assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [JAN] })
 })
@@ -1022,7 +1249,7 @@ test('billing CSV: header, CRLF, quoting, formula guard, filename', async () => 
   assert.ok(!r.text.replace(/\r\n/g, '').includes('\n'), 'bare LF')
   const lines = r.text.slice(0, -2).split('\r\n')
   assert.equal(lines[0], 'Client,Address,Billing,Pushes,Push dates,Price,Amount,HST 15%,Total')
-  assert.equal(lines[1], "'=SUM(A1),\"Memorial Avenue, Grand Falls-Windsor, NL\",Seasonal contract,0,,600.00,0.00,0.00,0.00")
+  assert.equal(lines[1], '\'=SUM(A1),"Memorial Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,600.00,0.00,0.00,0.00')
   assert.ok(lines.includes('Chris (SAMPLE),"Scott Avenue, Grand Falls-Windsor, NL",Per push,1,2026-01-05,35.00,35.00,5.25,40.25'))
   assert.ok(lines.includes('"Doe, ""Jo"" (SAMPLE)","Harris Avenue, Grand Falls-Windsor, NL",Seasonal contract,0,,550.00,0.00,0.00,0.00'))
   assert.equal(lines.at(-1), 'Total,,,1,,,35.00,5.25,40.25')
@@ -1099,10 +1326,13 @@ test('demo seed: two ended storms, an active one with 10 plowed and 2 skipped, p
   assert.deepEqual(current.counts, { stops: 25, plowed: 10, skipped: 2, pending: 13 })
   let waiting = 0
   for (const t of current.trucks) {
-    assert.deepEqual(t.stops.slice(0, 5).map(s => s.status), ['plowed', 'plowed', 'plowed', 'plowed', 'plowed'])
+    assert.deepEqual(
+      t.stops.slice(0, 5).map((s) => s.status),
+      ['plowed', 'plowed', 'plowed', 'plowed', 'plowed'],
+    )
     assert.equal(t.stops[5].status, 'skipped')
     assert.equal(t.stops[5].checkin.reason_text, 'Gate locked')
-    assert.ok(t.stops.slice(6).every(s => s.status === 'pending'))
+    assert.ok(t.stops.slice(6).every((s) => s.status === 'pending'))
     for (const s of t.stops.slice(0, 5)) {
       assert.ok(s.checkin.at < NOW)
       if (s.checkin.photo === 'waiting') waiting++
@@ -1120,17 +1350,26 @@ test('demo seed: two ended storms, an active one with 10 plowed and 2 skipped, p
   assert.match(photo.text, /Photo taken \d{1,2}:\d{2} (AM|PM)/, 'the placeholder says when the photo was taken')
 
   const storms = (await api('GET', '/api/owner/storms', { token })).body.storms
-  assert.deepEqual(storms.map(s => s.status), ['active', 'ended', 'ended'])
-  assert.deepEqual(storms.slice(1).map(s => s.started_at), [plus(NOW, -6 * 24 * 60), plus(NOW, -13 * 24 * 60)])
+  assert.deepEqual(
+    storms.map((s) => s.status),
+    ['active', 'ended', 'ended'],
+  )
+  assert.deepEqual(
+    storms.slice(1).map((s) => s.started_at),
+    [plus(NOW, -6 * 24 * 60), plus(NOW, -13 * 24 * 60)],
+  )
   for (const s of storms.slice(1)) {
     const summary = (await api('GET', `/api/owner/storms/${s.id}/summary`, { token })).body
     assert.equal(summary.plowed, 24)
-    assert.deepEqual(summary.skipped.map(x => x.reason_text), ['Car in the way'])
+    assert.deepEqual(
+      summary.skipped.map((x) => x.reason_text),
+      ['Car in the way'],
+    )
     assert.deepEqual(summary.not_reached, [])
   }
   const bill = await billing(token, null, NOW)
   assert.equal(bill.month, JAN)
-  assert.ok(bill.rows.some(x => x.pushes > 0))
+  assert.ok(bill.rows.some((x) => x.pushes > 0))
   assert.equal(bill.totals.pushes, 58)
   assert.ok(bill.totals.total_cents > 0)
   assert.deepEqual((await api('GET', '/api/owner/billing/months', { token })).body, { months: [JAN] })
@@ -1154,34 +1393,43 @@ test('stops: a check-in after the removal answers 404; a removal after the check
   const refused = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${kept.client_id}`, { token })
   expectError(refused, 409, 'bad_state')
   assert.equal(refused.body.error, 'This stop has check-ins, so it stays on the route.')
-  assert.ok(stopsOf((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body).some(s => s.client_id === kept.client_id))
+  assert.ok(stopsOf((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body).some((s) => s.client_id === kept.client_id))
 })
 
 test('stop race: 10 check-ins racing removals of the same stops, one of each pair wins and no check-in lands on a removed stop', async () => {
   const seed = await reset()
   const token = await signin()
   const truck = seed.trucks[0]
-  const started = await api('POST', '/api/owner/storms', { token, body: { client_ids: seed.clients.map(c => c.id), truck_ids: [truck.id] } })
+  const started = await api('POST', '/api/owner/storms', {
+    token,
+    body: { client_ids: seed.clients.map((c) => c.id), truck_ids: [truck.id] },
+  })
   assert.equal(started.status, 201, started.text)
   const storm = started.body
   const targets = storm.trucks[0].stops.slice(0, 10)
-  const pairs = await Promise.all(targets.map(async stop => {
-    const sent = post(truck.driver_key, checkin(storm, stop))
-    await new Promise(resolve => setTimeout(resolve, 5))
-    const removal = api('DELETE', `/api/owner/storms/${storm.id}/stops/${stop.client_id}`, { token })
-    return { client_id: stop.client_id, checkin: (await sent).status, removal: (await removal).status }
-  }))
+  const pairs = await Promise.all(
+    targets.map(async (stop) => {
+      const sent = post(truck.driver_key, checkin(storm, stop))
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      const removal = api('DELETE', `/api/owner/storms/${storm.id}/stops/${stop.client_id}`, { token })
+      return { client_id: stop.client_id, checkin: (await sent).status, removal: (await removal).status }
+    }),
+  )
   const view = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
-  const onRoute = new Set(stopsOf(view).map(s => s.client_id))
+  const onRoute = new Set(stopsOf(view).map((s) => s.client_id))
   const rows = (await api('GET', `/api/test/checkins?storm_id=${storm.id}`)).body.checkins
-  const orphans = rows.filter(k => !onRoute.has(k.client_id)).length
-  console.log(`STOPRACE orphans=${orphans} outcomes=${pairs.map(p => `${p.checkin}/${p.removal}`).join(',')}`)
+  const orphans = rows.filter((k) => !onRoute.has(k.client_id)).length
+  console.log(`STOPRACE orphans=${orphans} outcomes=${pairs.map((p) => `${p.checkin}/${p.removal}`).join(',')}`)
   assert.equal(orphans, 0, `${orphans} check-ins landed on removed stops`)
   for (const p of pairs) {
     const oneWinner = (p.checkin === 201 && p.removal === 409) || (p.checkin === 404 && p.removal === 200)
     assert.ok(oneWinner, `client ${p.client_id}: check-in ${p.checkin}, removal ${p.removal}`)
   }
-  for (const t of view.trucks) assert.deepEqual(t.stops.map(s => s.position), t.stops.map((_, i) => i + 1))
+  for (const t of view.trucks)
+    assert.deepEqual(
+      t.stops.map((s) => s.position),
+      t.stops.map((_, i) => i + 1),
+    )
 })
 
 test('PIN change: wrong current PINs count toward the sign-in guard, then 429 even for the right PIN, per IP', async () => {
@@ -1262,17 +1510,23 @@ test('check-ins: a plowed check-in stores no note and no reason, whatever the bo
 // ================================================================ M6
 
 const ROUTE_CHANGED = 'The route changed while you were editing it. Reload and try again.'
-const listsOf = storm => storm.trucks.map(t => ({ truck_id: t.id, client_ids: t.stops.map(s => s.client_id) }))
+const listsOf = (storm) => storm.trucks.map((t) => ({ truck_id: t.id, client_ids: t.stops.map((s) => s.client_id) }))
 const putRouteAs = (token, stormId, trucks, routeVersion) =>
-  api('PUT', `/api/owner/storms/${stormId}/route`, { token, body: routeVersion === undefined ? { trucks } : { trucks, route_version: routeVersion } })
-const reversedFirst = lists => lists.map((l, i) => (i === 0 ? { ...l, client_ids: [...l.client_ids].reverse() } : l))
+  api('PUT', `/api/owner/storms/${stormId}/route`, {
+    token,
+    body: routeVersion === undefined ? { trucks } : { trucks, route_version: routeVersion },
+  })
+const reversedFirst = (lists) => lists.map((l, i) => (i === 0 ? { ...l, client_ids: [...l.client_ids].reverse() } : l))
 
 /** A storm with every client except the last one, so a stop can be added. */
-async function partialStorm () {
+async function partialStorm() {
   const seed = await reset()
   const token = await signin()
   const spare = seed.clients.at(-1)
-  const r = await api('POST', '/api/owner/storms', { token, body: { client_ids: seed.clients.slice(0, -1).map(c => c.id), truck_ids: seed.trucks.map(t => t.id) } })
+  const r = await api('POST', '/api/owner/storms', {
+    token,
+    body: { client_ids: seed.clients.slice(0, -1).map((c) => c.id), truck_ids: seed.trucks.map((t) => t.id) },
+  })
   assert.equal(r.status, 201, r.text)
   return { seed, token, storm: r.body, spare }
 }
@@ -1287,7 +1541,10 @@ test('route version: every owner Storm carries it; route PUT, stop add and stop 
   assert.equal(put.status, 200, put.text)
   assert.equal(put.body.route_version, 2)
 
-  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: spare.id, truck_id: seed.trucks[0].id } })
+  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, {
+    token,
+    body: { client_id: spare.id, truck_id: seed.trucks[0].id },
+  })
   assert.equal(added.status, 200, added.text)
   assert.equal(added.body.route_version, 3)
 
@@ -1300,7 +1557,15 @@ test('route version: every owner Storm carries it; route PUT, stop add and stop 
   const dup = listsOf(current)
   dup[1].client_ids.push(dup[0].client_ids[0])
   expectError(await putRouteAs(token, storm.id, dup, 4), 400, 'bad_request', 'trucks')
-  expectError(await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: dup[0].client_ids[0], truck_id: seed.trucks[0].id } }), 400, 'bad_request', 'client_id')
+  expectError(
+    await api('POST', `/api/owner/storms/${storm.id}/stops`, {
+      token,
+      body: { client_id: dup[0].client_ids[0], truck_id: seed.trucks[0].id },
+    }),
+    400,
+    'bad_request',
+    'client_id',
+  )
   assert.equal(await version(), 4)
   // The driver route and the storms list are not part of the change.
   assert.equal((await api('GET', '/api/driver/route', { key: seed.trucks[0].driver_key })).body.storm.route_version, undefined)
@@ -1324,7 +1589,10 @@ test('route version: a stale version with the same stop set answers 409 route ch
 test('route version: a stale version after a stop was added answers 409, not 400; the same lists with the current version answer 400 trucks', async () => {
   const { seed, token, storm, spare } = await partialStorm()
   const old = listsOf(storm)
-  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: spare.id, truck_id: seed.trucks[1].id } })
+  const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, {
+    token,
+    body: { client_id: spare.id, truck_id: seed.trucks[1].id },
+  })
   assert.equal(added.status, 200)
   const stale = await putRouteAs(token, storm.id, reversedFirst(old), 1)
   expectError(stale, 409, 'bad_state')
@@ -1381,9 +1649,9 @@ test('route version: two PUTs racing with the same version give exactly one 200 
 test('removable: a fresh stop is removable; after a plowed check-in it is not; after that check-in is undone it still is not, and the DELETE answers 409', async () => {
   const { seed, token, storm, spare } = await partialStorm()
   const truck = storm.trucks[0]
-  const key = seed.trucks.find(t => t.id === truck.id).driver_key
+  const key = seed.trucks.find((t) => t.id === truck.id).driver_key
   const [a, b] = truck.stops
-  const ownerStopOf = async clientId => ownerStop(token, storm.id, clientId)
+  const ownerStopOf = async (clientId) => ownerStop(token, storm.id, clientId)
 
   // Every owner Storm answer carries removable on every stop; a fresh storm has no check-ins.
   for (const s of stopsOf(storm)) assert.equal(s.removable, true, `${s.name} on the storm start answer`)
@@ -1413,10 +1681,10 @@ test('removable: a fresh stop is removable; after a plowed check-in it is not; a
   assert.equal((await ownerStopOf(b.client_id)).removable, false)
 
   // Carried on the route PUT, stop add, stop remove and end answers.
-  let current = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
+  const current = (await api('GET', `/api/owner/storms/${storm.id}`, { token })).body
   const put = await putRouteAs(token, storm.id, reversedFirst(listsOf(current)), current.route_version)
   assert.equal(put.status, 200, put.text)
-  const flags = view => Object.fromEntries(stopsOf(view).map(s => [s.client_id, s.removable]))
+  const flags = (view) => Object.fromEntries(stopsOf(view).map((s) => [s.client_id, s.removable]))
   assert.equal(flags(put.body)[a.client_id], false)
   const added = await api('POST', `/api/owner/storms/${storm.id}/stops`, { token, body: { client_id: spare.id, truck_id: truck.id } })
   assert.equal(added.status, 200, added.text)
@@ -1424,11 +1692,11 @@ test('removable: a fresh stop is removable; after a plowed check-in it is not; a
   assert.equal(flags(added.body)[a.client_id], false)
   const removed = await api('DELETE', `/api/owner/storms/${storm.id}/stops/${spare.id}`, { token })
   assert.equal(removed.status, 200, removed.text)
-  assert.ok(stopsOf(removed.body).every(s => typeof s.removable === 'boolean'))
+  assert.ok(stopsOf(removed.body).every((s) => typeof s.removable === 'boolean'))
   const ended = await api('POST', `/api/owner/storms/${storm.id}/end`, { token })
   assert.equal(ended.status, 200, ended.text)
   assert.equal(flags(ended.body.storm)[a.client_id], false)
-  assert.ok(stopsOf(ended.body.storm).every(s => typeof s.removable === 'boolean'))
+  assert.ok(stopsOf(ended.body.storm).every((s) => typeof s.removable === 'boolean'))
   // Summaries and the status page are not stop views for the owner's edit screen.
   const summary = await api('GET', `/api/owner/storms/${storm.id}/summary`, { token })
   assert.ok(!summary.text.includes('removable'))
@@ -1440,7 +1708,7 @@ test('undo flag: a new id is stored already voided: 201 voided, the stop stays p
   const { seed, token, storm, keyOf } = await stormSetup()
   const truck = storm.trucks[0]
   const stop = truck.stops[0]
-  const client = seed.clients.find(c => c.id === stop.client_id)
+  const client = seed.clients.find((c) => c.id === stop.client_id)
   const body = { ...checkin(storm, stop, { at: at(30) }), undo: true }
   const r = await post(keyOf(truck.id), body, at(31))
   assert.equal(r.status, 201, r.text)
@@ -1458,7 +1726,12 @@ test('undo flag: a new id is stored already voided: 201 voided, the stop stays p
   const owner = await ownerStop(token, storm.id, stop.client_id)
   assert.equal(owner.status, 'pending')
   assert.equal(owner.removable, false, 'a check-in row exists')
-  assert.deepEqual((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.counts, { stops: 25, plowed: 0, skipped: 0, pending: 25 })
+  assert.deepEqual((await api('GET', `/api/owner/storms/${storm.id}`, { token })).body.counts, {
+    stops: 25,
+    plowed: 0,
+    skipped: 0,
+    pending: 25,
+  })
   const bill = await billing(token, JAN)
   assert.equal(rowOf(bill, stop.client_id)?.pushes ?? 0, 0, 'never bills')
   assert.equal(bill.totals.pushes, 0)
@@ -1514,7 +1787,7 @@ test('undo flag: undo true on a skip for a plowed stop answers 201 voided and th
   assert.equal(skip.body.stop.checkin.id, plowed.id)
   const rows = await storedRows(storm.id, stop.client_id)
   assert.equal(rows.length, 2)
-  assert.equal(rows.filter(k => k.voided_at === null).length, 1, 'only the plowed row is live')
+  assert.equal(rows.filter((k) => k.voided_at === null).length, 1, 'only the plowed row is live')
   assert.equal(rowOf(await billing(token, JAN), stop.client_id).pushes, 1)
   // A plowed undo for a stop another check-in already plowed is also stored voided (never a second live plowed row).
   const second = await post(key, { ...checkin(storm, stop, { at: at(34) }), undo: true }, at(35))

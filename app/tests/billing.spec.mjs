@@ -19,36 +19,77 @@ function parseCsv(text) {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     if (quoted) {
-      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++ } else if (ch === '"') quoted = false
+      if (ch === '"' && text[i + 1] === '"') {
+        cell += '"'
+        i++
+      } else if (ch === '"') quoted = false
       else cell += ch
     } else if (ch === '"') quoted = true
-    else if (ch === ',') { row.push(cell); cell = '' } else if (ch === '\r' && text[i + 1] === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; i++ } else cell += ch
+    else if (ch === ',') {
+      row.push(cell)
+      cell = ''
+    } else if (ch === '\r' && text[i + 1] === '\n') {
+      row.push(cell)
+      rows.push(row)
+      row = []
+      cell = ''
+      i++
+    } else cell += ch
   }
-  if (cell || row.length) { row.push(cell); rows.push(row) }
+  if (cell || row.length) {
+    row.push(cell)
+    rows.push(row)
+  }
   return rows
 }
 
-test('billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table', async ({ page, context, request, seed }) => {
+test('billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table', async ({
+  page,
+  context,
+  request,
+  seed,
+}) => {
   const token = await ownerToken(request)
   const clients = (await api(request, 'GET', '/api/owner/clients', { token })).body.clients
   const byName = (n) => clients.find((c) => c.name === n)
   const pat = byName('Pat (SAMPLE)')
   const clinic = byName('SAMPLE Clinic walkway')
   const taylor = byName('Taylor (SAMPLE)')
-  expect([pat.billing, clinic.billing, taylor.billing], 'two per-push clients and one seasonal').toEqual(['per_push', 'per_push', 'seasonal'])
+  expect([pat.billing, clinic.billing, taylor.billing], 'two per-push clients and one seasonal').toEqual([
+    'per_push',
+    'per_push',
+    'seasonal',
+  ])
   // Two per-push clients at $35.50 (clarifications 34 and 46): each row's HST is 3550 × 15 / 100 = 532.5 → 533 (half up), so the rows
   // sum to 1066, while 15% of the $71.00 subtotal would be 1065: the totals can only pass as the sum of the rows. (In JavaScript
   // 3550 * 0.15 is exactly 532.5, so Math.round gives 533 too; control (h) truncates instead.)
   for (const c of [pat, clinic]) {
-    const repriced = await api(request, 'PUT', `/api/owner/clients/${c.id}`, { token, data: {
-      name: c.name, address: c.address, lat: c.lat, lng: c.lng, type: c.type, priority: c.priority, opens_at: c.opens_at,
-      notes: c.notes, billing: c.billing, price_cents: 3550, truck_id: c.truck_id, active: true } })
+    const repriced = await api(request, 'PUT', `/api/owner/clients/${c.id}`, {
+      token,
+      data: {
+        name: c.name,
+        address: c.address,
+        lat: c.lat,
+        lng: c.lng,
+        type: c.type,
+        priority: c.priority,
+        opens_at: c.opens_at,
+        notes: c.notes,
+        billing: c.billing,
+        price_cents: 3550,
+        truck_id: c.truck_id,
+        active: true,
+      },
+    })
     expect(repriced.status).toBe(200)
     c.price_cents = 3550
   }
   expect(hstOf(3550), 'the rule written out').toBe(533)
   const truck = seed.trucks[0]
-  const started = await api(request, 'POST', '/api/owner/storms', { token, data: { client_ids: [pat.id, clinic.id, taylor.id], truck_ids: [truck.id] } })
+  const started = await api(request, 'POST', '/api/owner/storms', {
+    token,
+    data: { client_ids: [pat.id, clinic.id, taylor.id], truck_ids: [truck.id] },
+  })
   expect(started.status).toBe(201)
   // Both medical stops first, the nearer to the yard leading (API.md ordering: nearest neighbour from the yard; with two stops 2-opt
   // cannot do better), and the seasonal client last. Worked out from the yard here, not hard-coded, so moving a SAMPLE point
@@ -60,7 +101,10 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
     return 2 * 6371000 * Math.asin(Math.sqrt(h))
   }
   const [first, second] = [pat, clinic].sort((a, b) => metres(yard, a) - metres(yard, b))
-  expect(started.body.trucks[0].stops.map((s) => s.client_id), 'medical stops first, nearer the yard leading, the seasonal client last').toEqual([first.id, second.id, taylor.id])
+  expect(
+    started.body.trucks[0].stops.map((s) => s.client_id),
+    'medical stops first, nearer the yard leading, the seasonal client last',
+  ).toEqual([first.id, second.id, taylor.id])
 
   // The driver works the route on the phone.
   await page.goto(`/d/?k=${truck.driver_key}`)
@@ -96,7 +140,12 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
     expect(row, `${client.name} is a billing row`).toBeTruthy()
     const amount = client.billing === 'seasonal' ? 0 : pushes * client.price_cents
     const hst = client.billing === 'seasonal' ? 0 : hstOf(amount)
-    expect([row.pushes, row.amount_cents, row.hst_cents, row.total_cents], `${client.name}: pushes, amount, HST, total`).toEqual([pushes, amount, hst, amount + hst])
+    expect([row.pushes, row.amount_cents, row.hst_cents, row.total_cents], `${client.name}: pushes, amount, HST, total`).toEqual([
+      pushes,
+      amount,
+      hst,
+      amount + hst,
+    ])
     return row
   }
   expectRow(pat, 1)
@@ -122,8 +171,15 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
     await expect(tr.locator('[data-col="hst"]')).toHaveText(money(r.hst_cents))
     await expect(tr.locator('[data-col="total"]')).toHaveText(money(r.total_cents))
   }
-  await expect(owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`), 'the skipped seasonal client: no push').toHaveText('0')
-  for (const c of [pat, clinic]) await expect(owner.locator(`#billing-table tbody tr[data-client-id="${c.id}"] [data-col="hst"]`), 'HST on $35.50, rounded half up').toHaveText('$5.33')
+  await expect(
+    owner.locator(`#billing-table tbody tr[data-client-id="${taylor.id}"] [data-col="pushes"]`),
+    'the skipped seasonal client: no push',
+  ).toHaveText('0')
+  for (const c of [pat, clinic])
+    await expect(
+      owner.locator(`#billing-table tbody tr[data-client-id="${c.id}"] [data-col="hst"]`),
+      'HST on $35.50, rounded half up',
+    ).toHaveText('$5.33')
   await expect(owner.locator('#billing-totals [data-col="hst"]')).toHaveText('$10.66')
   const totals = owner.locator('#billing-totals')
   await expect(totals.locator('[data-col="pushes"]')).toHaveText('2')
@@ -147,16 +203,37 @@ test('billing: two pushes with amounts and HST, the skipped seasonal client with
   expect(csv[0]).toEqual(['Client', 'Address', 'Billing', 'Pushes', 'Push dates', 'Price', 'Amount', 'HST 15%', 'Total'])
   const body = csv.slice(1, -1)
   expect(body).toHaveLength(bill.rows.length)
-  const cells = await owner.locator('#billing-table tbody tr').evaluateAll((trs) => trs.map((tr) => ({
-    name: tr.querySelector('.row-name').textContent, pushes: tr.querySelector('[data-col="pushes"]').textContent,
-    amount: tr.querySelector('[data-col="amount"]').textContent, hst: tr.querySelector('[data-col="hst"]').textContent,
-    total: tr.querySelector('[data-col="total"]').textContent, billing: tr.querySelector('[data-col="billing"]').textContent,
-  })))
+  const cells = await owner.locator('#billing-table tbody tr').evaluateAll((trs) =>
+    trs.map((tr) => ({
+      name: tr.querySelector('.row-name').textContent,
+      pushes: tr.querySelector('[data-col="pushes"]').textContent,
+      amount: tr.querySelector('[data-col="amount"]').textContent,
+      hst: tr.querySelector('[data-col="hst"]').textContent,
+      total: tr.querySelector('[data-col="total"]').textContent,
+      billing: tr.querySelector('[data-col="billing"]').textContent,
+    })),
+  )
   const dollars = (s) => s.replace(/[$,]/g, '')
   body.forEach((line, i) => {
     const c = cells[i]
-    expect([line[0], line[2], line[3], line[6], line[7], line[8]], `CSV row ${i + 1} matches the table row`).toEqual(
-      [c.name, c.billing, c.pushes, dollars(c.amount), dollars(c.hst), dollars(c.total)])
+    expect([line[0], line[2], line[3], line[6], line[7], line[8]], `CSV row ${i + 1} matches the table row`).toEqual([
+      c.name,
+      c.billing,
+      c.pushes,
+      dollars(c.amount),
+      dollars(c.hst),
+      dollars(c.total),
+    ])
   })
-  expect(csv.at(-1)).toEqual(['Total', '', '', '2', '', '', plain(bill.totals.subtotal_cents), plain(bill.totals.hst_cents), plain(bill.totals.total_cents)])
+  expect(csv.at(-1)).toEqual([
+    'Total',
+    '',
+    '',
+    '2',
+    '',
+    '',
+    plain(bill.totals.subtotal_cents),
+    plain(bill.totals.hst_cents),
+    plain(bill.totals.total_cents),
+  ])
 })

@@ -31,14 +31,17 @@ test('text cells: formula guard for = + - @ tab CR, then RFC 4180 quoting', () =
 })
 
 test('isPush: plowed, not voided, inside the NL month', () => {
-  const k = over => ({ client_id: 1, kind: 'plowed', at: '2026-01-15T12:00:00.000Z', voided_at: null, ...over })
+  const k = (over) => ({ client_id: 1, kind: 'plowed', at: '2026-01-15T12:00:00.000Z', voided_at: null, ...over })
   assert.equal(isPush(k(), '2026-01'), true)
   assert.equal(isPush(k({ kind: 'skipped' }), '2026-01'), false)
   assert.equal(isPush(k({ voided_at: '2026-01-15T12:05:00.000Z' }), '2026-01'), false)
   assert.equal(isPush(k({ at: '2026-02-01T03:00:00.000Z' }), '2026-01'), true) // Jan 31 11:30 PM NST
   assert.equal(isPush(k({ at: '2026-02-01T03:00:00.000Z' }), '2026-02'), false)
   assert.equal(isPush(k({ at: '2026-02-01T03:30:00.000Z' }), '2026-02'), true) // midnight NST
-  assert.deepEqual(billingMonths([k(), k({ at: '2025-12-02T12:00:00.000Z' }), k({ kind: 'skipped', at: '2026-03-02T12:00:00.000Z' })]), ['2026-01', '2025-12'])
+  assert.deepEqual(billingMonths([k(), k({ at: '2025-12-02T12:00:00.000Z' }), k({ kind: 'skipped', at: '2026-03-02T12:00:00.000Z' })]), [
+    '2026-01',
+    '2025-12',
+  ])
 })
 
 test('report rows, totals as row sums, and the CSV text', () => {
@@ -47,25 +50,39 @@ test('report rows, totals as row sums, and the CSV text', () => {
     { id: 2, name: 'amy (SAMPLE)', address: 'B Street', billing: 'per_push', price_cents: 3550, active: 1 },
     { id: 3, name: 'Season (SAMPLE)', address: 'C Street', billing: 'seasonal', price_cents: 50000, active: 1 },
     { id: 4, name: 'Gone (SAMPLE)', address: 'D Street', billing: 'seasonal', price_cents: 50000, active: 0 },
-    { id: 5, name: 'Idle (SAMPLE)', address: 'E Street', billing: 'per_push', price_cents: 4000, active: 1 }
+    { id: 5, name: 'Idle (SAMPLE)', address: 'E Street', billing: 'per_push', price_cents: 4000, active: 1 },
   ]
   const p = (client_id, at, over = {}) => ({ client_id, kind: 'plowed', at, voided_at: null, ...over })
-  const checkins = [p(1, '2026-01-19T09:00:00.000Z'), p(1, '2026-01-05T09:00:00.000Z'), p(1, '2026-01-12T09:00:00.000Z'), p(2, '2026-01-05T09:00:00.000Z'),
-    p(3, '2026-01-05T09:00:00.000Z'), p(5, '2026-01-05T09:00:00.000Z', { kind: 'skipped' })]
+  const checkins = [
+    p(1, '2026-01-19T09:00:00.000Z'),
+    p(1, '2026-01-05T09:00:00.000Z'),
+    p(1, '2026-01-12T09:00:00.000Z'),
+    p(2, '2026-01-05T09:00:00.000Z'),
+    p(3, '2026-01-05T09:00:00.000Z'),
+    p(5, '2026-01-05T09:00:00.000Z', { kind: 'skipped' }),
+  ]
   const r = billingReport('2026-01', clients, checkins)
-  assert.deepEqual(r.rows.map(x => x.name), ['amy (SAMPLE)', 'Season (SAMPLE)', 'Zed (SAMPLE)'])
+  assert.deepEqual(
+    r.rows.map((x) => x.name),
+    ['amy (SAMPLE)', 'Season (SAMPLE)', 'Zed (SAMPLE)'],
+  )
   const zed = r.rows[2]
-  assert.deepEqual([zed.pushes, zed.dates, zed.amount_cents, zed.hst_cents, zed.total_cents],
-    [3, ['2026-01-05', '2026-01-12', '2026-01-19'], 10650, 1598, 12248])
+  assert.deepEqual(
+    [zed.pushes, zed.dates, zed.amount_cents, zed.hst_cents, zed.total_cents],
+    [3, ['2026-01-05', '2026-01-12', '2026-01-19'], 10650, 1598, 12248],
+  )
   assert.deepEqual(r.totals, { pushes: 5, subtotal_cents: 14200, hst_cents: 2131, total_cents: 16331 }) // not 15% of 14200 (2130)
   assert.equal(r.label, 'January 2026')
-  assert.equal(toCsv(r), [
-    CSV_HEADER,
-    'amy (SAMPLE),B Street,Per push,1,2026-01-05,35.50,35.50,5.33,40.83',
-    'Season (SAMPLE),C Street,Seasonal contract,1,2026-01-05,500.00,0.00,0.00,0.00',
-    'Zed (SAMPLE),A Street,Per push,3,2026-01-05; 2026-01-12; 2026-01-19,35.50,106.50,15.98,122.48',
-    'Total,,,5,,,142.00,21.31,163.31'
-  ].join('\r\n') + '\r\n')
+  assert.equal(
+    toCsv(r),
+    [
+      CSV_HEADER,
+      'amy (SAMPLE),B Street,Per push,1,2026-01-05,35.50,35.50,5.33,40.83',
+      'Season (SAMPLE),C Street,Seasonal contract,1,2026-01-05,500.00,0.00,0.00,0.00',
+      'Zed (SAMPLE),A Street,Per push,3,2026-01-05; 2026-01-12; 2026-01-19,35.50,106.50,15.98,122.48',
+      'Total,,,5,,,142.00,21.31,163.31',
+    ].join('\r\n') + '\r\n',
+  )
   assert.equal(csvFilename('2026-01', true), 'snow-route-SAMPLE-2026-01.csv')
   assert.equal(csvFilename('2026-01', false), 'snow-route-2026-01.csv')
 })

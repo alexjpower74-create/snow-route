@@ -35,9 +35,19 @@ export function png(width, height, paint) {
   ihdr.writeUInt32BE(height, 4)
   ihdr[8] = 8
   ihdr[9] = 2
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
 }
-export const TEST_STYLE = { version: 8, name: 'Snow Route test style (local fixture)', sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dde3e8' } }] }
+export const TEST_STYLE = {
+  version: 8,
+  name: 'Snow Route test style (local fixture)',
+  sources: {},
+  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dde3e8' } }],
+}
 export const TILE = png(256, 256, (x, y) => (((x >> 5) + (y >> 5)) % 2 ? [58, 74, 104] : [48, 62, 90]))
 export const PHOTO = {
   name: 'plowed-sample.png',
@@ -51,29 +61,42 @@ export async function guard(context) {
   const styles = []
   await context.route('https://tiles.openfreemap.org/**', (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname.startsWith('/styles/')) { styles.push(url.href); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEST_STYLE) }) }
+    if (url.pathname.startsWith('/styles/')) {
+      styles.push(url.href)
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEST_STYLE) })
+    }
     outside.push(url.href) // a style that starts fetching real tiles fails the test
     return route.abort('blockedbyclient')
   })
   await context.route(
     // blob: and data: URLs are objects inside the page, not network requests (MapLibre starts its web worker from a blob: URL).
-    (url) => url.protocol !== 'blob:' && url.protocol !== 'data:' && url.hostname !== '127.0.0.1' && url.hostname !== 'tiles.openfreemap.org',
-    (route) => { outside.push(route.request().url()); return route.abort('blockedbyclient') },
+    (url) =>
+      url.protocol !== 'blob:' && url.protocol !== 'data:' && url.hostname !== '127.0.0.1' && url.hostname !== 'tiles.openfreemap.org',
+    (route) => {
+      outside.push(route.request().url())
+      return route.abort('blockedbyclient')
+    },
   )
   return { outside, styles }
 }
 
 export const test = base.extend({
-  guarded: [async ({ context }, use) => {
-    const g = await guard(context)
-    await use(g)
-    expect(g.outside, 'every request stays on 127.0.0.1 (the map style goes to the local fixture)').toEqual([])
-  }, { auto: true }],
-  seed: [async ({ request }, use) => {
-    const r = await request.post('/api/test/reset')
-    expect(r.status(), 'POST /api/test/reset').toBe(200)
-    await use(await r.json())
-  }, { auto: true }],
+  guarded: [
+    async ({ context }, use) => {
+      const g = await guard(context)
+      await use(g)
+      expect(g.outside, 'every request stays on 127.0.0.1 (the map style goes to the local fixture)').toEqual([])
+    },
+    { auto: true },
+  ],
+  seed: [
+    async ({ request }, use) => {
+      const r = await request.post('/api/test/reset')
+      expect(r.status(), 'POST /api/test/reset').toBe(200)
+      await use(await r.json())
+    },
+    { auto: true },
+  ],
 })
 
 /* ---- real input ------------------------------------------------------------ */
@@ -83,10 +106,13 @@ export async function hitTest(locator) {
   if (!box) return { box, hit: 'no box' }
   const x = box.x + box.width / 2
   const y = box.y + box.height / 2
-  const hit = await locator.evaluate((el, [px, py]) => {
-    const t = document.elementFromPoint(px, py)
-    return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 160) : 'nothing'
-  }, [x, y])
+  const hit = await locator.evaluate(
+    (el, [px, py]) => {
+      const t = document.elementFromPoint(px, py)
+      return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 160) : 'nothing'
+    },
+    [x, y],
+  )
   return { box, x, y, hit }
 }
 
@@ -94,7 +120,9 @@ async function intoView(page, locator) {
   await locator.scrollIntoViewIfNeeded()
   let box = await locator.boundingBox()
   // "In view" to Playwright includes under the sticky sync strip, where a person could not tap it; scroll it to the middle then.
-  const stuck = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll('.strip')].map((e) => e.getBoundingClientRect().bottom)))
+  const stuck = await page.evaluate(() =>
+    Math.max(0, ...[...document.querySelectorAll('.strip')].map((e) => e.getBoundingClientRect().bottom)),
+  )
   const vh = page.viewportSize().height
   if (box && (box.y + box.height / 2 < stuck || box.y + box.height / 2 > vh)) {
     await locator.evaluate((el) => el.scrollIntoView({ block: 'center' }))
@@ -121,10 +149,13 @@ export async function tapAt(page, locator, fx, fy, label) {
   const box = await locator.boundingBox()
   const x = box.x + box.width * fx
   const y = box.y + box.height * fy
-  const hit = await locator.evaluate((el, [px, py]) => {
-    const t = document.elementFromPoint(px, py)
-    return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 160) : 'nothing'
-  }, [x, y])
+  const hit = await locator.evaluate(
+    (el, [px, py]) => {
+      const t = document.elementFromPoint(px, py)
+      return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 160) : 'nothing'
+    },
+    [x, y],
+  )
   expect(hit, `tapAt(${label}) hit-test at ${Math.round(x)},${Math.round(y)}`).toBe('')
   if (await coarse(page)) await page.touchscreen.tap(x, y)
   else await page.mouse.click(x, y)
@@ -147,7 +178,9 @@ export async function api(request, method, url, { data, headers = {}, token } = 
   if (token) h.Authorization = `Bearer ${token}`
   const r = await request.fetch(url, { method, data, headers: h })
   let body = null
-  try { body = await r.json() } catch {}
+  try {
+    body = await r.json()
+  } catch {}
   return { status: r.status(), body, headers: r.headers() }
 }
 
@@ -160,7 +193,11 @@ export async function ownerToken(request) {
 export async function startStorm(request, token, headers = {}) {
   const clients = (await api(request, 'GET', '/api/owner/clients', { token })).body.clients
   const trucks = (await api(request, 'GET', '/api/owner/trucks', { token })).body.trucks
-  const r = await api(request, 'POST', '/api/owner/storms', { token, headers, data: { client_ids: clients.map((c) => c.id), truck_ids: trucks.map((t) => t.id) } })
+  const r = await api(request, 'POST', '/api/owner/storms', {
+    token,
+    headers,
+    data: { client_ids: clients.map((c) => c.id), truck_ids: trucks.map((t) => t.id) },
+  })
   expect(r.status, 'start a storm with every client and both trucks').toBe(201)
   return r.body
 }
@@ -190,9 +227,16 @@ export async function shot(page, testInfo, name, { fullPage = true } = {}) {
 }
 
 /* ---- colour ------------------------------------------------------------------ */
-const channel = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
+const channel = (c) => {
+  const s = c / 255
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+}
 const luminance = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-export const rgb = (css) => css.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number)
+export const rgb = (css) =>
+  css
+    .match(/\d+(\.\d+)?/g)
+    .slice(0, 3)
+    .map(Number)
 export function contrast(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
   return (hi + 0.05) / (lo + 0.05)

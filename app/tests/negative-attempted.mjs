@@ -3,10 +3,16 @@
 import path from 'node:path'
 import { control, replaceOnce } from './negative-lib.mjs'
 
-process.exit(control({
-  name: 'attempted',
-  what: 'queue.js deletes an undone item without a DELETE even when its POST was attempted',
-  args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', 'answer is lost'],
-  breakIt: (copy) => replaceOnce(path.join(copy, 'app', 'public', 'd', 'queue.js'),
-    '            const needsUndo = !!i.attempted', '            const needsUndo = false // NEGATIVE CONTROL (i)'),
-}))
+process.exit(
+  control({
+    name: 'attempted',
+    what: 'queue.js deletes an undone item without a DELETE even when its POST was attempted',
+    args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', 'answer is lost'],
+    breakIt: (copy) =>
+      replaceOnce(
+        path.join(copy, 'app', 'public', 'd', 'queue.js'),
+        '            const needsUndo = !!i.attempted',
+        '            const needsUndo = false // NEGATIVE CONTROL (i)',
+      ),
+  }),
+)

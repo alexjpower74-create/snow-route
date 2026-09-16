@@ -4,18 +4,23 @@
 import path from 'node:path'
 import { control, replaceOnce } from './negative-lib.mjs'
 
-process.exit(control({
-  name: 'resend',
-  what: 'queue.js sends the DELETE without re-sending the check-in, and drops a 404 undo quietly',
-  args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', 're-sends the check-in first and voids it'],
-  breakIt: (copy) => {
-    const file = path.join(copy, 'app', 'public', 'd', 'queue.js')
-    replaceOnce(file, `    if (item.op === 'void' && item.resend) {`, `    if (false) { // NEGATIVE CONTROL (k): no re-send`)
-    replaceOnce(file, `      } else {
+process.exit(
+  control({
+    name: 'resend',
+    what: 'queue.js sends the DELETE without re-sending the check-in, and drops a 404 undo quietly',
+    args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', 're-sends the check-in first and voids it'],
+    breakIt: (copy) => {
+      const file = path.join(copy, 'app', 'public', 'd', 'queue.js')
+      replaceOnce(file, `    if (item.op === 'void' && item.resend) {`, `    if (false) { // NEGATIVE CONTROL (k): no re-send`)
+      replaceOnce(
+        file,
+        `      } else {
         // After the re-send, a 404 means the check-in belongs to another truck: shown, never dropped (clarification 49).`,
-    `      } else if (status === 404) {
+        `      } else if (status === 404) {
         await remove(item.qid) // NEGATIVE CONTROL (k): 404 is nothing to undo
       } else {
-        // After the re-send, a 404 means the check-in belongs to another truck: shown, never dropped (clarification 49).`)
-  },
-}))
+        // After the re-send, a 404 means the check-in belongs to another truck: shown, never dropped (clarification 49).`,
+      )
+    },
+  }),
+)

@@ -31,7 +31,9 @@ test('NL month boundary: 2026-02-01T03:00:00Z is Jan 31 11:30 PM NST', () => {
 })
 
 test('clock.js honours X-Test-Now and X-Test-IP only when TEST_MODE=1', () => {
-  const req = new Request('http://x/', { headers: { 'X-Test-Now': '2026-01-12T08:00:00.000Z', 'X-Test-IP': '10.9.9.9', 'CF-Connecting-IP': '1.2.3.4' } })
+  const req = new Request('http://x/', {
+    headers: { 'X-Test-Now': '2026-01-12T08:00:00.000Z', 'X-Test-IP': '10.9.9.9', 'CF-Connecting-IP': '1.2.3.4' },
+  })
   assert.equal(now(req, { TEST_MODE: '1' }), Date.parse('2026-01-12T08:00:00.000Z'))
   assert.equal(clientIp(req, { TEST_MODE: '1' }), '10.9.9.9')
   assert.ok(Math.abs(now(req, {}) - Date.now()) < 5000)
@@ -41,7 +43,15 @@ test('clock.js honours X-Test-Now and X-Test-IP only when TEST_MODE=1', () => {
 
 test('without TEST_MODE, /api/test/* answers 404 before touching the database', async () => {
   const touched = []
-  const db = new Proxy({}, { get: (_, k) => { touched.push(k); throw new Error('database touched') } })
+  const db = new Proxy(
+    {},
+    {
+      get: (_, k) => {
+        touched.push(k)
+        throw new Error('database touched')
+      },
+    },
+  )
   const res = await worker.fetch(new Request('http://127.0.0.1/api/test/reset', { method: 'POST' }), { DB: db, PHOTOS: db })
   assert.equal(res.status, 404)
   assert.equal((await res.json()).code, 'not_found')
@@ -55,8 +65,11 @@ test('wrangler.toml never sets TEST_MODE', () => {
 })
 
 test('src/sample-data.js is up to date with data/sample-clients.json and every name says SAMPLE', () => {
-  assert.equal(readFileSync(new URL('../src/sample-data.js', import.meta.url), 'utf8'), render(sampleData()),
-    'stale: run npm run build:sample')
+  assert.equal(
+    readFileSync(new URL('../src/sample-data.js', import.meta.url), 'utf8'),
+    render(sampleData()),
+    'stale: run npm run build:sample',
+  )
   assert.equal(SAMPLE.clients.length, 25)
   assert.equal(SAMPLE.trucks.length, 2)
   for (const c of SAMPLE.clients) {
@@ -83,7 +96,11 @@ test('UUID v4 check', () => {
 })
 
 test('an unexpected failure answers 500 server_error with the contract text (clarification 6)', async () => {
-  const failing = { prepare () { throw new Error('database unavailable (test)') } }
+  const failing = {
+    prepare() {
+      throw new Error('database unavailable (test)')
+    },
+  }
   const quiet = console.error
   console.error = () => {}
   try {
@@ -97,7 +114,14 @@ test('an unexpected failure answers 500 server_error with the contract text (cla
 })
 
 test('an unreadable request body answers 400 before the database is touched', async () => {
-  const db = new Proxy({}, { get: () => { throw new Error('database touched') } })
+  const db = new Proxy(
+    {},
+    {
+      get: () => {
+        throw new Error('database touched')
+      },
+    },
+  )
   const res = await worker.fetch(new Request('http://127.0.0.1/api/owner/signin', { method: 'POST', body: '{not json' }), { DB: db })
   assert.equal(res.status, 400)
   assert.deepEqual(await res.json(), { error: 'That request could not be read.', code: 'bad_request' })
@@ -105,10 +129,12 @@ test('an unreadable request body answers 400 before the database is touched', as
 
 test('no Worker text says "Please try again" (the scan is shown to catch a known-bad line)', async () => {
   const { readdirSync } = await import('node:fs')
-  const scan = text => text.split('\n').filter(line => /Please try again/.test(line))
+  const scan = (text) => text.split('\n').filter((line) => /Please try again/.test(line))
   assert.equal(scan("  throw badRequest(null, 'That request could not be read. Please try again.')").length, 1, 'the scan can fail')
   const dir = new URL('../src/', import.meta.url)
-  const hits = readdirSync(dir).filter(f => f.endsWith('.js')).flatMap(f => scan(readFileSync(new URL(f, dir), 'utf8')).map(l => `${f}: ${l.trim()}`))
+  const hits = readdirSync(dir)
+    .filter((f) => f.endsWith('.js'))
+    .flatMap((f) => scan(readFileSync(new URL(f, dir), 'utf8')).map((l) => `${f}: ${l.trim()}`))
   assert.deepEqual(hits, [])
 })
 
@@ -116,15 +142,18 @@ test('no Worker text says "Please try again" (the scan is shown to catch a known
 import { test as placeholderTest } from 'node:test'
 import placeholderAssert from 'node:assert/strict'
 import { placeholderSvg } from '../src/sample.js'
-placeholderTest('the demo placeholder photo is a card: SAMPLE label, a drawn camera, the NL time taken, the stop, no flat white block', () => {
-  const svg = placeholderSvg('Pat <SAMPLE> & co', '2026-01-12T11:12:00.000Z')
-  placeholderAssert.match(svg, /^<svg [^>]*viewBox="0 0 800 600"/)
-  placeholderAssert.ok(svg.includes('SAMPLE placeholder photo'), 'the SAMPLE label')
-  placeholderAssert.ok(svg.includes('id="camera"'), 'a drawn camera')
-  placeholderAssert.ok(svg.includes('Photo taken 7:42 AM'), 'the NL time the photo was taken (11:12Z is 7:42 AM NST)')
-  placeholderAssert.ok(svg.includes('Pat &#60;SAMPLE&#62; &#38; co'), 'the stop name, XML-escaped')
-  placeholderAssert.ok(!/<rect[^>]*fill="#eef3fb"/.test(svg), 'no flat white block that reads as a broken image')
-})
+placeholderTest(
+  'the demo placeholder photo is a card: SAMPLE label, a drawn camera, the NL time taken, the stop, no flat white block',
+  () => {
+    const svg = placeholderSvg('Pat <SAMPLE> & co', '2026-01-12T11:12:00.000Z')
+    placeholderAssert.match(svg, /^<svg [^>]*viewBox="0 0 800 600"/)
+    placeholderAssert.ok(svg.includes('SAMPLE placeholder photo'), 'the SAMPLE label')
+    placeholderAssert.ok(svg.includes('id="camera"'), 'a drawn camera')
+    placeholderAssert.ok(svg.includes('Photo taken 7:42 AM'), 'the NL time the photo was taken (11:12Z is 7:42 AM NST)')
+    placeholderAssert.ok(svg.includes('Pat &#60;SAMPLE&#62; &#38; co'), 'the stop name, XML-escaped')
+    placeholderAssert.ok(!/<rect[^>]*fill="#eef3fb"/.test(svg), 'no flat white block that reads as a broken image')
+  },
+)
 
 // The owner map's style URL is one config value (API.md 54, DECISIONS 62): MAP_STYLE_URL when set, OpenFreeMap by default.
 import { test as mapTest } from 'node:test'
@@ -135,5 +164,8 @@ mapTest('the map style URL is one config value: MAP_STYLE_URL when set, OpenFree
   mapAssert.equal(mapStyleUrl({}), DEFAULT_MAP_STYLE_URL)
   mapAssert.equal(mapStyleUrl(undefined), DEFAULT_MAP_STYLE_URL)
   mapAssert.equal(mapStyleUrl({ MAP_STYLE_URL: '   ' }), DEFAULT_MAP_STYLE_URL)
-  mapAssert.equal(mapStyleUrl({ MAP_STYLE_URL: 'https://maps.example.test/styles/snow.json' }), 'https://maps.example.test/styles/snow.json')
+  mapAssert.equal(
+    mapStyleUrl({ MAP_STYLE_URL: 'https://maps.example.test/styles/snow.json' }),
+    'https://maps.example.test/styles/snow.json',
+  )
 })

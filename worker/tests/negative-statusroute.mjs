@@ -6,6 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['status link: a mangled key'],
   api: true,
-  breaks: [{ file: 'src/index.js', find: "  ['GET', /^\\/api\\/status\\/(.*)$/, 'public', clientStatus],", replace: "  ['GET', /^\\/api\\/status\\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus]," }],
-  describe: 'the router only sends key-shaped paths to the status handler'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: "  ['GET', /^\\/api\\/status\\/(.*)$/, 'public', clientStatus],",
+      replace: "  ['GET', /^\\/api\\/status\\/([A-Za-z0-9_-]{1,128})$/, 'public', clientStatus],",
+    },
+  ],
+  describe: 'the router only sends key-shaped paths to the status handler',
 })

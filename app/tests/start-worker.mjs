@@ -13,15 +13,23 @@ const STATE = path.join(APP, 'tests', `.state-${PORT}`)
 
 rmSync(STATE, { recursive: true, force: true })
 const migrate = spawnSync('wrangler', ['d1', 'migrations', 'apply', 'snow-route', '--local', '--persist-to', STATE], {
-  cwd: WORKER, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, CI: '1' },
+  cwd: WORKER,
+  stdio: ['ignore', 'inherit', 'inherit'],
+  env: { ...process.env, CI: '1' },
 })
 if (migrate.status !== 0) {
   console.error(`start-worker: migrations failed (exit ${migrate.status})`)
   process.exit(migrate.status || 1)
 }
 
-const dev = spawn('wrangler', ['dev', '--local', '--port', String(PORT), '--inspector-port', String(PORT + 10), '--persist-to', STATE, '--var', 'TEST_MODE:1'], {
-  cwd: WORKER, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, CI: '1' },
-})
+const dev = spawn(
+  'wrangler',
+  ['dev', '--local', '--port', String(PORT), '--inspector-port', String(PORT + 10), '--persist-to', STATE, '--var', 'TEST_MODE:1'],
+  {
+    cwd: WORKER,
+    stdio: ['ignore', 'inherit', 'inherit'],
+    env: { ...process.env, CI: '1' },
+  },
+)
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => dev.kill(signal))
 dev.on('exit', (code) => process.exit(code ?? 0))

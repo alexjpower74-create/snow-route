@@ -6,5 +6,5 @@ await runControl({
   tests: ['check-ins: original time kept'],
   api: true,
   breaks: [{ file: 'src/index.js', find: 'const at = inWindow ? iso(input.at) : iso(ctx.now)', replace: 'const at = iso(ctx.now)' }],
-  describe: 'a check-in is stamped with the time it synced'
+  describe: 'a check-in is stamped with the time it synced',
 })

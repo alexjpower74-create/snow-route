@@ -8,11 +8,16 @@
 import path from 'node:path'
 import { control, replaceOnce } from './negative-lib.mjs'
 
-process.exit(control({
-  name: 'hst',
-  what: 'owner.js shows HST as Math.floor(amount * 0.15) computed on the page, not the API row',
-  args: ['billing.spec.mjs', '--project', 'chromium-390'],
-  breakIt: (copy) => replaceOnce(path.join(copy, 'app', 'public', 'owner', 'owner.js'),
-    '<td class="cell-num" data-col="hst">${money(r.hst_cents)}</td>',
-    '<td class="cell-num" data-col="hst">${money(Math.floor(r.amount_cents * 0.15))}</td>'),
-}))
+process.exit(
+  control({
+    name: 'hst',
+    what: 'owner.js shows HST as Math.floor(amount * 0.15) computed on the page, not the API row',
+    args: ['billing.spec.mjs', '--project', 'chromium-390'],
+    breakIt: (copy) =>
+      replaceOnce(
+        path.join(copy, 'app', 'public', 'owner', 'owner.js'),
+        '<td class="cell-num" data-col="hst">${money(r.hst_cents)}</td>',
+        '<td class="cell-num" data-col="hst">${money(Math.floor(r.amount_cents * 0.15))}</td>',
+      ),
+  }),
+)

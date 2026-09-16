@@ -7,9 +7,23 @@ export const TOKEN_KEY = 'snow-route:owner-token'
 export const SIGNED_OUT = 'snow-route:signed-out'
 
 export const session = {
-  get() { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } },
-  set(token) { try { localStorage.setItem(TOKEN_KEY, token) } catch {} },
-  clear() { try { localStorage.removeItem(TOKEN_KEY) } catch {} },
+  get() {
+    try {
+      return localStorage.getItem(TOKEN_KEY) || ''
+    } catch {
+      return ''
+    }
+  },
+  set(token) {
+    try {
+      localStorage.setItem(TOKEN_KEY, token)
+    } catch {}
+  },
+  clear() {
+    try {
+      localStorage.removeItem(TOKEN_KEY)
+    } catch {}
+  },
 }
 
 const mode = new URLSearchParams(location.search).get('mock')
@@ -18,7 +32,9 @@ try {
   if (mode === '1') sessionStorage.setItem(MOCK_KEY, '1')
   if (mode === '0') sessionStorage.removeItem(MOCK_KEY)
   mocked = sessionStorage.getItem(MOCK_KEY) === '1'
-} catch { mocked = mode === '1' }
+} catch {
+  mocked = mode === '1'
+}
 const mock = mocked ? await import('/api.mock.js') : null
 
 export class ApiError extends Error {
@@ -37,8 +53,14 @@ const NO_SIGNAL = { error: 'No signal. Check your connection and try again.', co
 export async function send(method, path, { json, bytes, type, headers = {}, timeout } = {}) {
   const h = { ...headers }
   let body
-  if (json !== undefined) { h['content-type'] = 'application/json'; body = JSON.stringify(json) }
-  if (bytes !== undefined) { h['content-type'] = type; body = bytes }
+  if (json !== undefined) {
+    h['content-type'] = 'application/json'
+    body = JSON.stringify(json)
+  }
+  if (bytes !== undefined) {
+    h['content-type'] = type
+    body = bytes
+  }
   if (mock) {
     if (!navigator.onLine) throw new ApiError(0, NO_SIGNAL)
     return mock.handle(method, path, { json, bytes, type, headers: h })
@@ -51,9 +73,15 @@ export async function send(method, path, { json, bytes, type, headers = {}, time
     throw new ApiError(0, NO_SIGNAL) // no signal, or no answer within the timeout
   }
   let text
-  try { text = await res.text() } catch { throw new ApiError(0, NO_SIGNAL) }
+  try {
+    text = await res.text()
+  } catch {
+    throw new ApiError(0, NO_SIGNAL)
+  }
   let data = null
-  try { data = JSON.parse(text) } catch {}
+  try {
+    data = JSON.parse(text)
+  } catch {}
   return { status: res.status, data }
 }
 
@@ -89,7 +117,9 @@ async function ownerCsv(path) {
   }
   if (!res.ok) {
     let data = null
-    try { data = await res.json() } catch {}
+    try {
+      data = await res.json()
+    } catch {}
     if (res.status === 401 && !data?.field) {
       session.clear()
       window.dispatchEvent(new CustomEvent(SIGNED_OUT, { detail: data?.error || '' }))
@@ -140,7 +170,8 @@ export const api = {
     route: (key) => call('GET', '/api/driver/route', { headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
     // The queue needs every status code (201, 200 duplicate, 409, 5xx), so these answer { status, data } instead of throwing.
     checkin: (key, body) => send('POST', '/api/driver/checkins', { json: body, headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
-    photo: (key, id, bytes, type) => send('PUT', `/api/driver/checkins/${q(id)}/photo`, { bytes, type, headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
+    photo: (key, id, bytes, type) =>
+      send('PUT', `/api/driver/checkins/${q(id)}/photo`, { bytes, type, headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
     undo: (key, id) => send('DELETE', `/api/driver/checkins/${q(id)}`, { headers: driverHeaders(key), timeout: DRIVER_TIMEOUT_MS }),
   },
 }

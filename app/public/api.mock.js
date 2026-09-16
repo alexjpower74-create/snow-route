@@ -23,7 +23,9 @@ const ORIGIN = location.origin
 const iso = (ms) => new Date(ms).toISOString()
 
 if (new URLSearchParams(location.search).get('reset') === '1') {
-  try { localStorage.removeItem(STORE_KEY) } catch {}
+  try {
+    localStorage.removeItem(STORE_KEY)
+  } catch {}
 }
 
 /* ---- seed ------------------------------------------------------------ */
@@ -60,14 +62,28 @@ function seed() {
   const started = now - 120 * MIN
   const stops = []
   for (const truck of TRUCKS) {
-    order(CLIENTS.filter((c) => c.truck_id === truck.id)).forEach((c, i) => stops.push({ client_id: c.id, truck_id: truck.id, position: i + 1 }))
+    order(CLIENTS.filter((c) => c.truck_id === truck.id)).forEach((c, i) => {
+      stops.push({ client_id: c.id, truck_id: truck.id, position: i + 1 })
+    })
   }
   const s = { v: 1, storms: [{ id: 1, started_at: iso(started), ended_at: null, stops }], checkins: [], photos: {} }
   const on = (truck, pos) => stops.find((x) => x.truck_id === truck && x.position === pos).client_id
   const add = (truck, pos, kind, minutes, reason = null) => {
     const id = `00000000-0000-4000-8000-${String(s.checkins.length + 1).padStart(12, '0')}`
-    s.checkins.push({ id, storm_id: 1, client_id: on(truck, pos), truck_id: truck, kind, reason, note: '', at: iso(started + minutes * MIN),
-      at_adjusted: false, received_at: iso(started + minutes * MIN), photo: kind === 'plowed' ? 'stored' : 'none', voided_at: null })
+    s.checkins.push({
+      id,
+      storm_id: 1,
+      client_id: on(truck, pos),
+      truck_id: truck,
+      kind,
+      reason,
+      note: '',
+      at: iso(started + minutes * MIN),
+      at_adjusted: false,
+      received_at: iso(started + minutes * MIN),
+      photo: kind === 'plowed' ? 'stored' : 'none',
+      voided_at: null,
+    })
     if (kind === 'plowed') s.photos[id] = placeholderPhoto(CLIENTS.find((c) => c.id === on(truck, pos)).name)
   }
   add(1, 1, 'plowed', 25)
@@ -89,7 +105,11 @@ function load() {
   return memory
 }
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(memory)) } catch { /* over quota: keep it for this page only */ }
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(memory))
+  } catch {
+    /* over quota: keep it for this page only */
+  }
 }
 
 /* ---- views ----------------------------------------------------------- */
@@ -99,9 +119,21 @@ const activeStorm = (s) => s.storms.find((x) => !x.ended_at) || null
 function checkinView(s, c) {
   const reasonText = c.kind === 'skipped' ? (c.note && c.reason === 'other' ? `Other: ${c.note}` : REASON[c.reason]) : null
   return {
-    id: c.id, storm_id: c.storm_id, client_id: c.client_id, truck_id: c.truck_id, kind: c.kind, reason: c.reason, reason_text: reasonText,
-    note: c.note, at: c.at, at_label: timeLabel(c.at), at_adjusted: c.at_adjusted, received_at: c.received_at, photo: c.photo,
-    photo_url: c.photo === 'stored' ? s.photos[c.id] || null : null, voided: !!c.voided_at,
+    id: c.id,
+    storm_id: c.storm_id,
+    client_id: c.client_id,
+    truck_id: c.truck_id,
+    kind: c.kind,
+    reason: c.reason,
+    reason_text: reasonText,
+    note: c.note,
+    at: c.at,
+    at_label: timeLabel(c.at),
+    at_adjusted: c.at_adjusted,
+    received_at: c.received_at,
+    photo: c.photo,
+    photo_url: c.photo === 'stored' ? s.photos[c.id] || null : null,
+    voided: !!c.voided_at,
   }
 }
 
@@ -112,9 +144,21 @@ function stopView(s, storm, stop) {
   const skipped = live.filter((k) => k.kind === 'skipped').pop()
   const decided = plowed || skipped || null
   return {
-    client_id: c.id, truck_id: stop.truck_id, position: stop.position, name: c.name, address: c.address, lat: c.lat, lng: c.lng,
-    type: c.type, type_label: TYPE[c.type], priority: c.priority, priority_label: PRIORITY[c.priority], opens_at: c.opens_at,
-    notes: c.notes, status: plowed ? 'plowed' : skipped ? 'skipped' : 'pending', checkin: decided ? checkinView(s, decided) : null,
+    client_id: c.id,
+    truck_id: stop.truck_id,
+    position: stop.position,
+    name: c.name,
+    address: c.address,
+    lat: c.lat,
+    lng: c.lng,
+    type: c.type,
+    type_label: TYPE[c.type],
+    priority: c.priority,
+    priority_label: PRIORITY[c.priority],
+    opens_at: c.opens_at,
+    notes: c.notes,
+    status: plowed ? 'plowed' : skipped ? 'skipped' : 'pending',
+    checkin: decided ? checkinView(s, decided) : null,
   }
 }
 
@@ -153,7 +197,9 @@ export async function handle(method, path, { json, bytes, type, headers }) {
     return ok(200, {
       company: { name: COMPANY.name, sample: true, timezone: NL_ZONE },
       truck: { id: truck.id, name: truck.name },
-      storm: inStorm ? { id: storm.id, name: `Storm of ${dateLabel(storm.started_at)}`, status: 'active', started_at: storm.started_at } : null,
+      storm: inStorm
+        ? { id: storm.id, name: `Storm of ${dateLabel(storm.started_at)}`, status: 'active', started_at: storm.started_at }
+        : null,
       stops: inStorm ? mine.map((x) => stopView(s, storm, x)) : [],
       server_now: iso(now),
     })
@@ -166,12 +212,22 @@ export async function handle(method, path, { json, bytes, type, headers }) {
     const existing = s.checkins.find((k) => k.id === b.id)
     if (existing) {
       const st = s.storms.find((x) => x.id === existing.storm_id)
-      return ok(200, { checkin: checkinView(s, existing), stop: stopView(s, st, st.stops.find((x) => x.client_id === existing.client_id)), duplicate: true })
+      return ok(200, {
+        checkin: checkinView(s, existing),
+        stop: stopView(
+          s,
+          st,
+          st.stops.find((x) => x.client_id === existing.client_id),
+        ),
+        duplicate: true,
+      })
     }
     if (b.kind !== 'plowed' && b.kind !== 'skipped') return err(400, 'bad_request', 'Pick plowed or skipped.', { field: 'kind' })
     if (b.kind === 'skipped' && !REASON[b.reason]) return err(400, 'bad_request', 'Pick a reason for skipping.', { field: 'reason' })
-    if (b.note != null && (typeof b.note !== 'string' || b.note.length > 120)) return err(400, 'bad_request', 'Keep the note under 120 characters.', { field: 'note' })
-    if (typeof b.at !== 'string' || Number.isNaN(Date.parse(b.at))) return err(400, 'bad_request', 'The check-in time is not valid.', { field: 'at' })
+    if (b.note != null && (typeof b.note !== 'string' || b.note.length > 120))
+      return err(400, 'bad_request', 'Keep the note under 120 characters.', { field: 'note' })
+    if (typeof b.at !== 'string' || Number.isNaN(Date.parse(b.at)))
+      return err(400, 'bad_request', 'The check-in time is not valid.', { field: 'at' })
     if (typeof b.has_photo !== 'boolean') return err(400, 'bad_request', 'has_photo must be true or false.', { field: 'has_photo' })
     const st = s.storms.find((x) => x.id === b.storm_id)
     const stop = st?.stops.find((x) => x.client_id === b.client_id)
@@ -180,9 +236,20 @@ export async function handle(method, path, { json, bytes, type, headers }) {
     if (plowed) return err(409, 'already_plowed', 'This stop is already marked plowed.', { checkin: checkinView(s, plowed) })
     const at = Date.parse(b.at)
     const fair = at >= Date.parse(st.started_at) - 10 * MIN && at <= now + 10 * MIN
-    const row = { id: b.id, storm_id: st.id, client_id: stop.client_id, truck_id: truck.id, kind: b.kind, reason: b.kind === 'skipped' ? b.reason : null,
-      note: b.note || '', at: fair ? new Date(at).toISOString() : iso(now), at_adjusted: !fair, received_at: iso(now),
-      photo: b.has_photo ? 'waiting' : 'none', voided_at: null }
+    const row = {
+      id: b.id,
+      storm_id: st.id,
+      client_id: stop.client_id,
+      truck_id: truck.id,
+      kind: b.kind,
+      reason: b.kind === 'skipped' ? b.reason : null,
+      note: b.note || '',
+      at: fair ? new Date(at).toISOString() : iso(now),
+      at_adjusted: !fair,
+      received_at: iso(now),
+      photo: b.has_photo ? 'waiting' : 'none',
+      voided_at: null,
+    }
     s.checkins.push(row)
     save()
     return ok(201, { checkin: checkinView(s, row), stop: stopView(s, st, stop) })
@@ -192,7 +259,8 @@ export async function handle(method, path, { json, bytes, type, headers }) {
     if (!truck) return DRIVER_401()
     const row = s.checkins.find((k) => k.id === decodeURIComponent(m[1]) && k.truck_id === truck.id)
     if (!row) return err(404, 'not_found', 'That check-in is not on this truck.')
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return err(415, 'unsupported_photo', 'Send the photo as a JPEG, PNG or WebP picture.')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(type))
+      return err(415, 'unsupported_photo', 'Send the photo as a JPEG, PNG or WebP picture.')
     const size = bytes?.byteLength ?? bytes?.size ?? 0
     if (size > 5_000_000) return err(413, 'too_large', 'That photo is too big. The limit is 5 MB.')
     s.photos[row.id] = toDataUrl(bytes instanceof Blob ? await bytes.arrayBuffer() : bytes, type)
@@ -211,28 +279,50 @@ export async function handle(method, path, { json, bytes, type, headers }) {
       save()
     }
     const st = s.storms.find((x) => x.id === row.storm_id)
-    return ok(200, { checkin: checkinView(s, row), stop: stopView(s, st, st.stops.find((x) => x.client_id === row.client_id)) })
+    return ok(200, {
+      checkin: checkinView(s, row),
+      stop: stopView(
+        s,
+        st,
+        st.stops.find((x) => x.client_id === row.client_id),
+      ),
+    })
   }
 
   if ((m = /^\/api\/status\/([^/]+)$/.exec(p)) && method === 'GET') {
     const ref = /^demo-status-(sample-\d\d)$/.exec(decodeURIComponent(m[1]))?.[1]
     const c = CLIENTS.find((x) => x.ref === ref)
     if (!c) return err(404, 'not_found', "This status link doesn't work. Ask your snow clearing company for a new one.")
-    const lastRow = s.checkins.filter((k) => k.client_id === c.id && k.kind === 'plowed' && !k.voided_at).sort((a, b) => a.at.localeCompare(b.at)).pop()
+    const lastRow = s.checkins
+      .filter((k) => k.client_id === c.id && k.kind === 'plowed' && !k.voided_at)
+      .sort((a, b) => a.at.localeCompare(b.at))
+      .pop()
     let tonight = null
     const stop = storm?.stops.find((x) => x.client_id === c.id)
     if (stop) {
       const onTruck = storm.stops.filter((x) => x.truck_id === stop.truck_id).map((x) => stopView(s, storm, x))
       const mine = onTruck.find((x) => x.client_id === c.id)
-      tonight = { storm_name: `Storm of ${dateLabel(storm.started_at)}`, state: mine.status === 'pending' ? 'waiting' : mine.status,
-        stop_number: mine.position, stops_on_route: onTruck.length, stops_done: onTruck.filter((x) => x.status !== 'pending').length,
-        reason_text: mine.status === 'skipped' ? mine.checkin.reason_text : null }
+      tonight = {
+        storm_name: `Storm of ${dateLabel(storm.started_at)}`,
+        state: mine.status === 'pending' ? 'waiting' : mine.status,
+        stop_number: mine.position,
+        stops_on_route: onTruck.length,
+        stops_done: onTruck.filter((x) => x.status !== 'pending').length,
+        reason_text: mine.status === 'skipped' ? mine.checkin.reason_text : null,
+      }
     }
     return ok(200, {
       company: { name: COMPANY.name, sample: true },
       client: { name: c.name, address: c.address, type: c.type, type_label: TYPE[c.type] },
-      last: lastRow ? { at: lastRow.at, at_label: fullLabel(lastRow.at), time_label: timeLabel(lastRow.at),
-        photo_url: lastRow.photo === 'stored' ? s.photos[lastRow.id] : null, photo_waiting: lastRow.photo === 'waiting' } : null,
+      last: lastRow
+        ? {
+            at: lastRow.at,
+            at_label: fullLabel(lastRow.at),
+            time_label: timeLabel(lastRow.at),
+            photo_url: lastRow.photo === 'stored' ? s.photos[lastRow.id] : null,
+            photo_waiting: lastRow.photo === 'waiting',
+          }
+        : null,
       tonight,
       server_now: iso(now),
     })

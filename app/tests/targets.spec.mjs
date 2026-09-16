@@ -16,7 +16,12 @@ test('every driver button is at least 56 px and hit-tests to itself at 390 @phon
   const truck = storm.trucks[0]
   await page.goto(`/d/?k=${seed.trucks.find((t) => t.id === truck.id).driver_key}`)
   await expect(page.locator('#stop-name')).toHaveText(truck.stops[0].name)
-  for (const [sel, label] of [['#navigate', 'Navigate'], ['#plowed', 'Plowed'], ['#plowed-nophoto', 'Plowed, no photo'], ['#skip', 'Skip this stop']]) {
+  for (const [sel, label] of [
+    ['#navigate', 'Navigate'],
+    ['#plowed', 'Plowed'],
+    ['#plowed-nophoto', 'Plowed, no photo'],
+    ['#skip', 'Skip this stop'],
+  ]) {
     await bigAndOnTop(page.locator(sel), label)
   }
   await tap(page, page.locator('#skip'), 'Skip this stop')
@@ -46,7 +51,9 @@ test('the SAMPLE badge and the company name are on every page', async ({ page, r
     await page.goto(url)
     await expect(page.locator('[data-sample]').first(), `${label}: SAMPLE badge`).toBeVisible()
     await expect(page.locator('[data-sample]').first()).toHaveText('SAMPLE')
-    await expect(page.locator('[data-company-name]').first(), `${label}: company`).toHaveText('SAMPLE Snow Clearing — Grand Falls-Windsor (demo)')
+    await expect(page.locator('[data-company-name]').first(), `${label}: company`).toHaveText(
+      'SAMPLE Snow Clearing — Grand Falls-Windsor (demo)',
+    )
   }
 })
 
@@ -57,7 +64,11 @@ test('no horizontal scroll at 390 on any screen @phone', async ({ page, request,
     const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
     expect(scroll, `${label}: page is ${scroll} px wide in a ${inner} px window`).toBeLessThanOrEqual(inner)
   }
-  for (const [url, label] of [['/', 'landing'], [`/d/?k=${seed.trucks[0].driver_key}`, 'driver'], [new URL(seed.clients[3].status_url).pathname + new URL(seed.clients[3].status_url).search, 'status']]) {
+  for (const [url, label] of [
+    ['/', 'landing'],
+    [`/d/?k=${seed.trucks[0].driver_key}`, 'driver'],
+    [new URL(seed.clients[3].status_url).pathname + new URL(seed.clients[3].status_url).search, 'status'],
+  ]) {
     await page.goto(url)
     await expect(page.locator('[data-sample]').first()).toBeVisible()
     await wide(label)
@@ -81,9 +92,17 @@ test('the action colours meet 4.5 : 1', async ({ page, request, seed }) => {
   const storm = await startStorm(request, token)
   await page.goto(`/d/?k=${seed.trucks.find((t) => t.id === storm.trucks[0].id).driver_key}`)
   await expect(page.locator('#stop-name')).toBeVisible()
-  for (const [sel, label, bg, ink] of [['#navigate', 'Navigate', '#1d4ed8', '#ffffff'], ['#plowed', 'Plowed', '#15803d', '#ffffff'], ['#skip', 'Skip this stop', '#f59e0b', '#1a1200']]) {
+  for (const [sel, label, bg, ink] of [
+    ['#navigate', 'Navigate', '#1d4ed8', '#ffffff'],
+    ['#plowed', 'Plowed', '#15803d', '#ffffff'],
+    ['#skip', 'Skip this stop', '#f59e0b', '#1a1200'],
+  ]) {
     const [b, c] = await page.locator(sel).evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])
-    const hex = (s) => '#' + rgb(s).map((n) => n.toString(16).padStart(2, '0')).join('')
+    const hex = (s) =>
+      '#' +
+      rgb(s)
+        .map((n) => n.toString(16).padStart(2, '0'))
+        .join('')
     expect(hex(b), `${label} background is the Design token`).toBe(bg)
     expect(hex(c), `${label} text is the Design token`).toBe(ink)
     const ratio = contrast(rgb(b), rgb(c))
@@ -98,7 +117,12 @@ test('the network guard fails a request to another host and answers the map styl
   const g = await guard(context)
   const page = await context.newPage()
   await page.goto('about:blank')
-  const style = await page.evaluate(() => fetch('https://tiles.openfreemap.org/styles/positron').then((r) => r.json()).then((j) => j.name).catch((e) => String(e)))
+  const style = await page.evaluate(() =>
+    fetch('https://tiles.openfreemap.org/styles/positron')
+      .then((r) => r.json())
+      .then((j) => j.name)
+      .catch((e) => String(e)),
+  )
   expect(style, 'the style is answered by the local fixture').toBe('Snow Route test style (local fixture)')
   expect(g.outside).toEqual([])
   await page.evaluate(() => fetch('https://example.com/').catch(() => null))

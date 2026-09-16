@@ -2,7 +2,12 @@
 // and the past-storms list.
 import { test, expect, tap, api, ownerToken, startStorm, signIn } from './helpers.mjs'
 
-test('End storm with the confirm → the summary lists the skip with its reason and the not-reached count; the driver sees no storm', async ({ page, context, request, seed }) => {
+test('End storm with the confirm → the summary lists the skip with its reason and the not-reached count; the driver sees no storm', async ({
+  page,
+  context,
+  request,
+  seed,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
@@ -12,7 +17,11 @@ test('End storm with the confirm → the summary lists the skip with its reason 
 
   // Arrange two check-ins through the driver API: one plowed, one skipped "Gate locked".
   const now = new Date().toISOString()
-  const send = (body) => api(request, 'POST', '/api/driver/checkins', { headers: { 'X-Driver-Key': key }, data: { storm_id: storm.id, note: '', at: now, has_photo: false, ...body } })
+  const send = (body) =>
+    api(request, 'POST', '/api/driver/checkins', {
+      headers: { 'X-Driver-Key': key },
+      data: { storm_id: storm.id, note: '', at: now, has_photo: false, ...body },
+    })
   expect((await send({ id: '22222222-2222-4222-8222-222222222222', client_id: s1.client_id, kind: 'plowed' })).status).toBe(201)
   const skip = await send({ id: '33333333-3333-4333-8333-333333333333', client_id: s2.client_id, kind: 'skipped', reason: 'gate' })
   expect(skip.status).toBe(201)
@@ -56,7 +65,10 @@ test('End storm with the confirm → the summary lists the skip with its reason 
   await expect(page.locator('#summary-skipped li')).toContainText('Gate locked')
 })
 
-test('End storm refused because it ended on another screen: the confirm closes and that storm\'s summary shows the message', async ({ page, request }) => {
+test("End storm refused because it ended on another screen: the confirm closes and that storm's summary shows the message", async ({
+  page,
+  request,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   await signIn(page)
@@ -72,18 +84,26 @@ test('End storm refused because it ended on another screen: the confirm closes a
   await expect(page.locator('#end-confirm')).toHaveCount(0)
 })
 
-test('Add a stop refused because the storm ended elsewhere: the form closes and Tonight repaints with the message', async ({ page, request }) => {
+test('Add a stop refused because the storm ended elsewhere: the form closes and Tonight repaints with the message', async ({
+  page,
+  request,
+}) => {
   const token = await ownerToken(request)
   const clients = (await api(request, 'GET', '/api/owner/clients', { token })).body.clients
   const trucks = (await api(request, 'GET', '/api/owner/trucks', { token })).body.trucks
   const left = clients.find((c) => c.name === 'Drew (SAMPLE)')
-  const started = await api(request, 'POST', '/api/owner/storms', { token, data: { client_ids: clients.filter((c) => c !== left).map((c) => c.id), truck_ids: trucks.map((t) => t.id) } })
+  const started = await api(request, 'POST', '/api/owner/storms', {
+    token,
+    data: { client_ids: clients.filter((c) => c !== left).map((c) => c.id), truck_ids: trucks.map((t) => t.id) },
+  })
   expect(started.status).toBe(201)
   await signIn(page)
   await tap(page, page.locator('#add-stop'), 'Add a stop')
   await page.locator('#stop-client').selectOption(String(left.id))
   expect((await api(request, 'POST', `/api/owner/storms/${started.body.id}/end`, { token })).status).toBe(200)
-  const answer = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${started.body.id}/stops`) && r.request().method() === 'POST')
+  const answer = page.waitForResponse(
+    (r) => r.url().endsWith(`/api/owner/storms/${started.body.id}/stops`) && r.request().method() === 'POST',
+  )
   await tap(page, page.locator('#add-stop-save'), 'Add to the end of that route')
   const refused = await answer
   expect(refused.status()).toBe(409)

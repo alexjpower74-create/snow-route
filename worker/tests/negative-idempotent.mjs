@@ -7,8 +7,12 @@ await runControl({
   tests: ['check-ins: the same id again'],
   api: true,
   breaks: [
-    { file: 'migrations/0001_init.sql', find: '  id TEXT PRIMARY KEY,\n  storm_id INTEGER NOT NULL,', replace: '  id TEXT NOT NULL,\n  storm_id INTEGER NOT NULL,' },
-    { file: 'src/index.js', find: ' ON CONFLICT(id) DO NOTHING', replace: '' }
+    {
+      file: 'migrations/0001_init.sql',
+      find: '  id TEXT PRIMARY KEY,\n  storm_id INTEGER NOT NULL,',
+      replace: '  id TEXT NOT NULL,\n  storm_id INTEGER NOT NULL,',
+    },
+    { file: 'src/index.js', find: ' ON CONFLICT(id) DO NOTHING', replace: '' },
   ],
-  describe: 'check-ins.id is not a primary key and the insert is a plain INSERT'
+  describe: 'check-ins.id is not a primary key and the insert is a plain INSERT',
 })

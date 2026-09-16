@@ -8,5 +8,5 @@ await runControl({
   tests: ['route version: a stale version with the same stop set', 'route version: two PUTs racing with the same version'],
   api: true,
   breaks: [{ file: 'src/index.js', find: '    db.prepare(ROUTE_VERSION_GUARD_SQL).bind(stormId, body.route_version),\n', replace: '' }],
-  describe: 'the route PUT no longer checks the version inside its write batch'
+  describe: 'the route PUT no longer checks the version inside its write batch',
 })

@@ -1,7 +1,12 @@
 // The client status page against the real Worker.
 import { test, expect, tap, api, ownerToken, startStorm, ownerStorm, choosePhoto, shot } from './helpers.mjs'
 
-test('waiting says the same stop number as the driver list; after the plow: Plowed at h:mm AM and the photo', async ({ page, context, request, seed }, testInfo) => {
+test('waiting says the same stop number as the driver list; after the plow: Plowed at h:mm AM and the photo', async ({
+  page,
+  context,
+  request,
+  seed,
+}, testInfo) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
@@ -35,10 +40,14 @@ test('waiting says the same stop number as the driver list; after the plow: Plow
 
   // The open status page checks again on its own within a minute.
   await page.clock.runFor(61_000)
-  const stop = (await ownerStorm(request, token, storm.id)).trucks.find((t) => t.id === truck.id).stops.find((s) => s.client_id === s2.client_id)
+  const stop = (await ownerStorm(request, token, storm.id)).trucks
+    .find((t) => t.id === truck.id)
+    .stops.find((s) => s.client_id === s2.client_id)
   await expect(page.locator('#answer')).toHaveText(`Plowed at ${stop.checkin.at_label}`)
   await expect(page.locator('#answer')).toHaveText(/^Plowed at \d{1,2}:\d{2} [AP]M$/)
-  await expect.poll(() => page.locator('#photo').evaluate((img) => img.complete && img.naturalWidth), { message: 'the photo loads' }).toBeGreaterThan(0)
+  await expect
+    .poll(() => page.locator('#photo').evaluate((img) => img.complete && img.naturalWidth), { message: 'the photo loads' })
+    .toBeGreaterThan(0)
   await shot(page, testInfo, 'status-plowed')
 })
 
@@ -48,10 +57,16 @@ test('a bad status link shows the plain message', async ({ page }) => {
   await expect(page.locator('[data-sample]')).toBeVisible()
 })
 
-test('a mangled link (trailing dot) shows the bad-link text, and after that 404 the page stops checking', async ({ page, request, seed }) => {
+test('a mangled link (trailing dot) shows the bad-link text, and after that 404 the page stops checking', async ({
+  page,
+  request,
+  seed,
+}) => {
   const good = new URL(seed.clients[0].status_url)
   const lookups = []
-  page.on('request', (r) => { if (r.url().includes('/api/status/')) lookups.push(r.url()) })
+  page.on('request', (r) => {
+    if (r.url().includes('/api/status/')) lookups.push(r.url())
+  })
   // Headless Playwright never changes visibilityState on a tab switch (probed in chromium and webkit), so the test dispatches the
   // event itself. First it proves the page listens: on a good link one dispatch makes one more lookup.
   const returnToTab = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))

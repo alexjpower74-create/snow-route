@@ -6,5 +6,5 @@ await runControl({
   tests: ['billing: a skipped stop never bills'],
   api: true,
   breaks: [{ file: 'src/billing.js', find: "  if (checkin.kind !== 'plowed') return false\n", replace: '' }],
-  describe: 'billing counts skipped check-ins as pushes'
+  describe: 'billing counts skipped check-ins as pushes',
 })

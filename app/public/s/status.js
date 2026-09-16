@@ -36,7 +36,9 @@ function answer(r) {
     const type = lowerFirst(r.client.type_label)
     const photo = l.photo_url
       ? `<img class="photo" id="photo" src="${esc(l.photo_url)}" alt="Photo of the cleared ${esc(type)}" referrerpolicy="no-referrer">`
-      : l.photo_waiting ? '<p class="answer-note">The photo is still on its way from the truck.</p>' : ''
+      : l.photo_waiting
+        ? '<p class="answer-note">The photo is still on its way from the truck.</p>'
+        : ''
     return `<p class="answer-big answer-plowed" id="answer">Plowed at ${esc(l.time_label)}</p>
       <p class="answer-sub">${esc(day)}</p>${photo}`
   }
@@ -56,7 +58,9 @@ function render(r, note = '') {
 
 async function renderBadLink(message) {
   let company = null
-  try { company = await api.company() } catch {}
+  try {
+    company = await api.company()
+  } catch {}
   app.innerHTML = `
     <article class="status-card">
       <header class="status-head">${brandBar(company)}</header>
@@ -88,4 +92,6 @@ async function check() {
 
 timer = setInterval(check, POLL_MS)
 check()
-document.addEventListener('visibilitychange', () => { if (!stopped && document.visibilityState === 'visible') check() })
+document.addEventListener('visibilitychange', () => {
+  if (!stopped && document.visibilityState === 'visible') check()
+})

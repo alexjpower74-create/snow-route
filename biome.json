@@ -1,0 +1,89 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/vendor",
+      "!**/.state-*",
+      "!**/.negative",
+      "!**/tests/results",
+      "!**/package-lock.json",
+      "!**/.wrangler",
+      "!**/data/sources"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 140
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedPrivateClassMembers": "error",
+        "noUndeclaredVariables": "error"
+      },
+      "suspicious": {
+        "preset": "recommended",
+        "noConsole": "off",
+        "noAssignInExpressions": "off",
+        "noControlCharactersInRegex": "off"
+      },
+      "style": {
+        "preset": "none",
+        "useConst": "error"
+      },
+      "complexity": {
+        "preset": "recommended",
+        "noForEach": "off",
+        "noCommaOperator": "off",
+        "useLiteralKeys": "off",
+        "noImportantStyles": "off"
+      },
+      "performance": {
+        "preset": "recommended"
+      },
+      "a11y": {
+        "preset": "recommended"
+      },
+      "nursery": {
+        "preset": "none"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.spec.mjs", "**/tests/**", "**/test/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noEmptyBlockStatements": "off"
+          }
+        }
+      }
+    }
+  ],
+  "assist": {
+    "enabled": false
+  }
+}

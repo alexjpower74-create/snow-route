@@ -3,11 +3,16 @@
 import path from 'node:path'
 import { control, replaceOnce } from './negative-lib.mjs'
 
-process.exit(control({
-  name: 'missingundo',
-  what: 'queue.js reads a check-in missing after 200/201 as undone (only that rule; the lock code is untouched)',
-  args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', 'without Web Locks'],
-  breakIt: (copy) => replaceOnce(path.join(copy, 'app', 'public', 'd', 'queue.js'),
-    `        if (!still) return { result: 'gone' } // another tab sent it and removed it: nothing was undone`,
-    `        if (!still) return { also: [voidFor({ ...item, truck_id: stored })], result: 'undone' } // NEGATIVE CONTROL (j): missing read as undone`),
-}))
+process.exit(
+  control({
+    name: 'missingundo',
+    what: 'queue.js reads a check-in missing after 200/201 as undone (only that rule; the lock code is untouched)',
+    args: ['queue.spec.mjs', '--project', 'chromium-390', '-g', 'without Web Locks'],
+    breakIt: (copy) =>
+      replaceOnce(
+        path.join(copy, 'app', 'public', 'd', 'queue.js'),
+        `        if (!still) return { result: 'gone' } // another tab sent it and removed it: nothing was undone`,
+        `        if (!still) return { also: [voidFor({ ...item, truck_id: stored })], result: 'undone' } // NEGATIVE CONTROL (j): missing read as undone`,
+      ),
+  }),
+)

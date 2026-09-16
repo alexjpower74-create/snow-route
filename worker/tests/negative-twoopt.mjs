@@ -4,6 +4,12 @@ await runControl({
   title: 'negative:twoopt',
   testFile: 'tests/route.test.mjs',
   tests: ['2-opt local optimum', 'crossing'],
-  breaks: [{ file: 'src/route.js', find: 'return twoOpt(start, nearestNeighbour(start, stops))', replace: 'return nearestNeighbour(start, stops)' }],
-  describe: 'a tier is ordered by nearest neighbour alone'
+  breaks: [
+    {
+      file: 'src/route.js',
+      find: 'return twoOpt(start, nearestNeighbour(start, stops))',
+      replace: 'return nearestNeighbour(start, stops)',
+    },
+  ],
+  describe: 'a tier is ordered by nearest neighbour alone',
 })

@@ -11,11 +11,30 @@ import { esc, brandBar, plural, clockLabel, NL_ZONE } from '/ui.js'
 // config change; this fallback only matters if an answer has no style.
 const FALLBACK_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
 // OpenFreeMap's required attribution, exactly as its quick start shows it (DECISIONS 62). Leaflet draws it; MapLibre's own control is off.
-const ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-const TYPES = [['driveway', 'Driveway'], ['lot', 'Parking lot'], ['walkway', 'Walkway']]
-const PRIORITIES = [['none', 'None'], ['medical', 'Medical'], ['commuter', 'Early commuter'], ['business', 'Business opening']]
-const BILLING = [['per_push', 'Per push'], ['seasonal', 'Seasonal contract']]
-const VIEWS = [['tonight', 'Tonight'], ['clients', 'Clients'], ['trucks', 'Trucks'], ['billing', 'Billing'], ['settings', 'Settings']]
+const ATTRIBUTION =
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+const TYPES = [
+  ['driveway', 'Driveway'],
+  ['lot', 'Parking lot'],
+  ['walkway', 'Walkway'],
+]
+const PRIORITIES = [
+  ['none', 'None'],
+  ['medical', 'Medical'],
+  ['commuter', 'Early commuter'],
+  ['business', 'Business opening'],
+]
+const BILLING = [
+  ['per_push', 'Per push'],
+  ['seasonal', 'Seasonal contract'],
+]
+const VIEWS = [
+  ['tonight', 'Tonight'],
+  ['clients', 'Clients'],
+  ['trucks', 'Trucks'],
+  ['billing', 'Billing'],
+  ['settings', 'Settings'],
+]
 // Truck lines and swatches use Design tokens only: ice blue, then white, then muted.
 const TRUCK_COLOURS = ['#7cc4ff', '#eef3fb', '#a3b3cc']
 const TRUCK_COLOUR_NAMES = ['blue', 'white', 'grey']
@@ -23,18 +42,39 @@ const TRUCK_COLOUR_NAMES = ['blue', 'white', 'grey']
 const TRUCK_SHAPES = ['round', 'square', 'dashed']
 const TRUCK_SHAPE_NAMES = ['round', 'square', 'dashed-ring']
 const truckLook = (i) => ({
-  colour: TRUCK_COLOURS[i % TRUCK_COLOURS.length], colourName: TRUCK_COLOUR_NAMES[i % TRUCK_COLOUR_NAMES.length],
-  shape: TRUCK_SHAPES[i % TRUCK_SHAPES.length], shapeName: TRUCK_SHAPE_NAMES[i % TRUCK_SHAPE_NAMES.length],
+  colour: TRUCK_COLOURS[i % TRUCK_COLOURS.length],
+  colourName: TRUCK_COLOUR_NAMES[i % TRUCK_COLOUR_NAMES.length],
+  shape: TRUCK_SHAPES[i % TRUCK_SHAPES.length],
+  shapeName: TRUCK_SHAPE_NAMES[i % TRUCK_SHAPE_NAMES.length],
 })
-const truckMark = (i) => { const l = truckLook(i); return `<span class="truck-mark shape-${l.shape}" data-truck="${i + 1}" style="border-color:${l.colour}" aria-hidden="true"></span>` }
+const truckMark = (i) => {
+  const l = truckLook(i)
+  return `<span class="truck-mark shape-${l.shape}" data-truck="${i + 1}" style="border-color:${l.colour}" aria-hidden="true"></span>`
+}
 const STORM_REFRESH_MS = 30_000
 const PRICE_TEXT = 'Type a price in dollars and cents.'
-const GRIP = '<svg aria-hidden="true" width="18" height="24" viewBox="0 0 18 24"><g fill="currentColor"><circle cx="5" cy="5" r="2"/><circle cx="13" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></g></svg>'
+const GRIP =
+  '<svg aria-hidden="true" width="18" height="24" viewBox="0 0 18 24"><g fill="currentColor"><circle cx="5" cy="5" r="2"/><circle cx="13" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></g></svg>'
 
 const app = document.getElementById('app')
 const state = {
-  company: null, clients: [], trucks: [], storm: null, editing: null, pin: null, picking: null, notice: '', stormNotice: '',
-  confirm: null, adding: false, saving: false, renaming: null, addingTruck: false, billingMonth: null, yardPin: null, stopErrors: {},
+  company: null,
+  clients: [],
+  trucks: [],
+  storm: null,
+  editing: null,
+  pin: null,
+  picking: null,
+  notice: '',
+  stormNotice: '',
+  confirm: null,
+  adding: false,
+  saving: false,
+  renaming: null,
+  addingTruck: false,
+  billingMonth: null,
+  yardPin: null,
+  stopErrors: {},
 }
 let map = null
 let pinMarker = null
@@ -45,7 +85,8 @@ let edits = 0 // route changes started on this screen; a refresh that saw fewer 
 const $ = (id) => document.getElementById(id)
 const money = (cents) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const round5 = (n) => Math.round(n * 1e5) / 1e5
-const options = (list, value) => list.map(([v, l]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('')
+const options = (list, value) =>
+  list.map(([v, l]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('')
 const zone = () => state.company?.timezone || NL_ZONE
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -54,13 +95,20 @@ const dayLabel = (d) => `${SHORT[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8,
 
 // "45", "45.5", "45.50", ".50", "45." and "$1,200.00" → cents; anything else → null (clarification 23).
 function dollarsToCents(text) {
-  const t = String(text).trim().replace(/^\$/, '').replace(/,(?=\d{3}(\D|$))/g, '')
+  const t = String(text)
+    .trim()
+    .replace(/^\$/, '')
+    .replace(/,(?=\d{3}(\D|$))/g, '')
   return /^(\d+\.?\d{0,2}|\.\d{1,2})$/.test(t) ? Math.round(Number(t) * 100) : null
 }
 
 // The current month in the company's zone, "YYYY-MM".
 function thisMonth() {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone(), year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map((x) => [x.type, x.value]))
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: zone(), year: 'numeric', month: '2-digit' })
+      .formatToParts(new Date())
+      .map((x) => [x.type, x.value]),
+  )
   return `${p.year}-${p.month}`
 }
 
@@ -103,7 +151,9 @@ async function copy(btn) {
   try {
     await navigator.clipboard.writeText(text)
     btn.textContent = 'Copied'
-    setTimeout(() => { if (btn.isConnected) btn.textContent = label }, 2500)
+    setTimeout(() => {
+      if (btn.isConnected) btn.textContent = label
+    }, 2500)
   } catch {
     let note = btn.parentElement.querySelector('.copy-fallback')
     if (!note) {
@@ -138,7 +188,8 @@ function stopMap() {
   map = null
   pinMarker = null
 }
-const dot = (cls, html = '', size = 26) => L.divIcon({ className: `pin ${cls}`, html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] })
+const dot = (cls, html = '', size = 26) =>
+  L.divIcon({ className: `pin ${cls}`, html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] })
 function yardMarker() {
   const y = state.company?.yard
   if (y) L.marker([y.lat, y.lng], { icon: dot('pin-yard', 'Y', 28), title: y.label, interactive: false, keyboard: false }).addTo(map)
@@ -185,7 +236,8 @@ async function signin() {
 /* ---- shell ------------------------------------------------------------------ */
 function paintBar() {
   const bar = document.querySelector('.bar')
-  if (bar) bar.innerHTML = brandBar(state.company, '<button class="btn-small" id="signout" type="button" data-action="signout">Sign out</button>')
+  if (bar)
+    bar.innerHTML = brandBar(state.company, '<button class="btn-small" id="signout" type="button" data-action="signout">Sign out</button>')
 }
 
 async function showApp() {
@@ -245,7 +297,9 @@ function pastList(storms) {
   if (!ended.length) return '<p class="muted" id="past-storms">No storms yet.</p>'
   return `
     <ul class="past-list" id="past-storms">
-      ${ended.map((s) => `
+      ${ended
+        .map(
+          (s) => `
         <li class="past-row" data-storm-id="${s.id}">
           <div class="row-main">
             <span class="row-name">${esc(s.name)}</span>
@@ -253,7 +307,9 @@ function pastList(storms) {
             <span class="row-meta muted">${s.counts.plowed} of ${plural(s.counts.stops, 'stop')} plowed · ${s.counts.skipped} skipped</span>
           </div>
           <a class="btn-small" href="#storm/${s.id}" aria-label="Open the summary of ${esc(s.name)}">Open summary</a>
-        </li>`).join('')}
+        </li>`,
+        )
+        .join('')}
     </ul>`
 }
 
@@ -297,17 +353,25 @@ function paintPicker() {
         <button class="btn-small" type="button" data-action="untick-all">Untick all</button>
       </div>
       <ul class="pick-list" id="pick-clients">
-        ${clients.map((c) => `
+        ${clients
+          .map(
+            (c) => `
           <li><label class="check"><input type="checkbox" name="client" value="${c.id}"${p.clients.has(c.id) ? ' checked' : ''}>
             <span><strong>${esc(c.name)}</strong> <span class="muted">${esc(c.address)}</span>
-            ${c.priority !== 'none' ? `<span class="chip chip-priority">${esc(c.priority_label)}</span>` : ''}</span></label></li>`).join('')}
+            ${c.priority !== 'none' ? `<span class="chip chip-priority">${esc(c.priority_label)}</span>` : ''}</span></label></li>`,
+          )
+          .join('')}
       </ul>
       <p class="field-error" id="err-client_ids" role="alert"></p>
       <h2 class="section-title">Trucks going out</h2>
       <ul class="pick-list" id="pick-trucks">
-        ${trucks.map((t) => `
+        ${trucks
+          .map(
+            (t) => `
           <li><label class="check"><input type="checkbox" name="truck" value="${t.id}"${p.trucks.has(t.id) ? ' checked' : ''}>
-            <span><strong>${esc(t.name)}</strong></span></label></li>`).join('')}
+            <span><strong>${esc(t.name)}</strong></span></label></li>`,
+          )
+          .join('')}
       </ul>
       <p class="field-error" id="err-truck_ids" role="alert"></p>
       <p class="field-error" id="form-error" role="alert"></p>
@@ -327,7 +391,8 @@ async function buildRoute() {
   const p = state.picking
   const btn = $('build-route')
   for (const id of ['err-client_ids', 'err-truck_ids', 'form-error']) $(id).textContent = ''
-  const inOrder = (name, set) => [...document.querySelectorAll(`input[name="${name}"]`)].map((i) => Number(i.value)).filter((id) => set.has(id))
+  const inOrder = (name, set) =>
+    [...document.querySelectorAll(`input[name="${name}"]`)].map((i) => Number(i.value)).filter((id) => set.has(id))
   btn.disabled = true
   try {
     state.storm = await api.owner.startStorm({ client_ids: inOrder('client', p.clients), truck_ids: inOrder('truck', p.trucks) })
@@ -369,14 +434,18 @@ function stopItem(st, truck, index, trucks) {
           ${others.map((o) => `<button class="btn-small" type="button" data-action="move-truck" data-client="${st.client_id}" data-to="${o.id}">Move to ${esc(o.name)}</button>`).join('')}
           ${st.removable === true ? `<button class="btn-small" type="button" data-action="remove-stop" data-client="${st.client_id}">Remove from tonight</button>` : ''}
         </div>
-        ${state.confirm === `remove-${st.client_id}` ? `
+        ${
+          state.confirm === `remove-${st.client_id}`
+            ? `
           <div class="confirm remove-confirm" role="group" aria-labelledby="remove-text-${st.client_id}">
             <p id="remove-text-${st.client_id}"><strong>Take ${esc(st.name)} off tonight's route?</strong> The driver stops seeing this stop, and nothing is billed for it.</p>
             <div class="form-actions">
               <button class="btn-small btn-warn" type="button" data-action="remove-yes" data-client="${st.client_id}">Yes, remove it</button>
               <button class="btn-small" type="button" data-action="remove-no">Keep it</button>
             </div>
-          </div>` : ''}
+          </div>`
+            : ''
+        }
         ${state.stopErrors[st.client_id] ? `<p class="field-error stop-error" role="alert">${esc(state.stopErrors[st.client_id])}</p>` : ''}
         ${messagesBlock(st.messages)}
       </div>
@@ -396,10 +465,16 @@ function addStopForm() {
       <h2 class="section-title">Add a stop</h2>
       <div class="field-row">
         <div class="form-field"><label class="field-label" for="stop-client">Client</label>
-          <select class="field" id="stop-client">${options(free.map((c) => [String(c.id), c.name]), '')}</select>
+          <select class="field" id="stop-client">${options(
+            free.map((c) => [String(c.id), c.name]),
+            '',
+          )}</select>
           <p class="field-error" id="err-client_id" role="alert"></p></div>
         <div class="form-field"><label class="field-label" for="stop-truck">Truck</label>
-          <select class="field" id="stop-truck">${options(s.trucks.map((t) => [String(t.id), t.name]), '')}</select>
+          <select class="field" id="stop-truck">${options(
+            s.trucks.map((t) => [String(t.id), t.name]),
+            '',
+          )}</select>
           <p class="field-error" id="err-truck_id" role="alert"></p></div>
       </div>
       <p class="field-error" id="add-stop-error" role="alert"></p>
@@ -424,7 +499,9 @@ function paintStorm() {
         <button class="btn-small btn-warn" id="end-storm" type="button" data-action="end-storm">End storm</button>
         <a class="btn-small" id="past-storms-link" href="#past">Past storms</a>
       </div>
-      ${state.confirm === 'end' ? `
+      ${
+        state.confirm === 'end'
+          ? `
         <div class="confirm" id="end-confirm" role="group" aria-labelledby="end-confirm-text">
           <p id="end-confirm-text"><strong>End this storm?</strong> Drivers stop seeing the route. Check-ins still saved on their phones keep sending and still count.</p>
           <p class="field-error" id="end-error" role="alert"></p>
@@ -432,20 +509,26 @@ function paintStorm() {
             <button class="btn-small btn-warn" id="end-yes" type="button" data-action="end-yes">Yes, end the storm</button>
             <button class="btn-small" type="button" data-action="end-no">Keep it going</button>
           </div>
-        </div>` : ''}
+        </div>`
+          : ''
+      }
       ${state.adding ? addStopForm() : ''}
     </div>
     <p class="field-error" id="route-error" role="alert"></p>
     <div class="split">
       <section class="panel" id="route-lists">
-        ${s.trucks.map((t, i) => `
+        ${s.trucks
+          .map(
+            (t, i) => `
           <section class="truck-stops" data-truck-id="${t.id}">
             <h2 class="section-title">${truckMark(i)}${esc(t.name)} · ${plural(t.stops.length, 'stop')}</h2>
             <ol class="owner-stops" data-truck-id="${t.id}">
               ${t.stops.map((st, index) => stopItem(st, t, index, s.trucks)).join('')}
             </ol>
             ${t.stops.length ? '' : '<p class="muted empty-route">No stops on this truck. Drag one here or use Move to.</p>'}
-          </section>`).join('')}
+          </section>`,
+          )
+          .join('')}
       </section>
       <section class="panel map-panel">
         <div class="map map-tall" id="map" role="region" aria-label="Tonight's route on the map"></div>
@@ -469,7 +552,12 @@ function paintStorm() {
     for (const st of t.stops) {
       points.push([st.lat, st.lng])
       L.marker([st.lat, st.lng], {
-        icon: L.divIcon({ className: `route-pin is-${st.status} shape-${look.shape}`, html: `<span data-truck="${i + 1}" style="border-color:${colour}">${st.position}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+        icon: L.divIcon({
+          className: `route-pin is-${st.status} shape-${look.shape}`,
+          html: `<span data-truck="${i + 1}" style="border-color:${colour}">${st.position}</span>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+        }),
         title: `${t.name}, stop ${st.position}: ${st.name}`,
         riseOnHover: true,
       }).addTo(map)
@@ -505,7 +593,9 @@ async function saveRoute(lists) {
   if (state.saving) return
   edits += 1
   state.saving = true
-  document.querySelectorAll('.stop-tools button, .drag-handle').forEach((b) => { b.disabled = true })
+  document.querySelectorAll('.stop-tools button, .drag-handle').forEach((b) => {
+    b.disabled = true
+  })
   try {
     state.storm = await api.owner.saveRoute(state.storm.id, lists, state.storm.route_version)
     state.saving = false
@@ -546,13 +636,19 @@ function dropTarget(y) {
     if (y < box.top || y > box.bottom) continue
     const ol = section.querySelector('.owner-stops')
     const items = [...ol.children].filter((li) => li !== drag.li)
-    const before = items.find((li) => { const r = li.getBoundingClientRect(); return y < r.top + r.height / 2 }) || null
+    const before =
+      items.find((li) => {
+        const r = li.getBoundingClientRect()
+        return y < r.top + r.height / 2
+      }) || null
     return { truckId: Number(section.dataset.truckId), before, ol }
   }
   return null
 }
 function showDrop(target) {
-  document.querySelectorAll('.drop-before, .drop-end').forEach((el) => el.classList.remove('drop-before', 'drop-end'))
+  document.querySelectorAll('.drop-before, .drop-end').forEach((el) => {
+    el.classList.remove('drop-before', 'drop-end')
+  })
   if (!target) return
   if (target.before) target.before.classList.add('drop-before')
   else target.ol.classList.add('drop-end')
@@ -600,7 +696,10 @@ async function addStop() {
   edits += 1
   btn.disabled = true
   try {
-    state.storm = await api.owner.addStop(state.storm.id, { client_id: Number($('stop-client').value), truck_id: Number($('stop-truck').value) })
+    state.storm = await api.owner.addStop(state.storm.id, {
+      client_id: Number($('stop-client').value),
+      truck_id: Number($('stop-truck').value),
+    })
     state.adding = false
     paintStorm()
   } catch (e) {
@@ -671,7 +770,11 @@ async function removeStop(clientId) {
 async function renderSummary(id) {
   stopMap()
   const [storm, summary] = await Promise.all([api.owner.storm(id), api.owner.summary(id)])
-  const skippedText = (clientId) => storm.trucks.flatMap((t) => t.stops).find((s) => s.client_id === clientId)?.messages?.find((m) => m.kind === 'skipped')
+  const skippedText = (clientId) =>
+    storm.trucks
+      .flatMap((t) => t.stops)
+      .find((s) => s.client_id === clientId)
+      ?.messages?.find((m) => m.kind === 'skipped')
   $('view').innerHTML = `
     <section class="panel narrow summary" id="summary" data-storm-id="${summary.storm_id}">
       <a class="btn-small" href="#tonight">Back to Tonight</a>
@@ -697,21 +800,31 @@ async function renderSummary(id) {
       </div>
 
       <h2 class="section-title">Skipped (${summary.skipped.length})</h2>
-      ${summary.skipped.length ? `
+      ${
+        summary.skipped.length
+          ? `
         <ul class="summary-list" id="summary-skipped">
-          ${summary.skipped.map((k) => {
-            const m = skippedText(k.client_id)
-            return `<li data-client-id="${k.client_id}"><span class="row-name">${esc(k.name)}</span>
+          ${summary.skipped
+            .map((k) => {
+              const m = skippedText(k.client_id)
+              return `<li data-client-id="${k.client_id}"><span class="row-name">${esc(k.name)}</span>
               <span class="row-status is-skipped-text">${esc(k.reason_text)} at ${esc(k.at_label)}</span>
               ${m ? `<p class="text-preview">${esc(m.text)}</p>${copyButton(m.text, m.label)}` : ''}</li>`
-          }).join('')}
-        </ul>` : '<p class="muted" id="summary-skipped">No stops were skipped.</p>'}
+            })
+            .join('')}
+        </ul>`
+          : '<p class="muted" id="summary-skipped">No stops were skipped.</p>'
+      }
 
       <h2 class="section-title">Not reached (${summary.not_reached.length})</h2>
-      ${summary.not_reached.length ? `
+      ${
+        summary.not_reached.length
+          ? `
         <ul class="summary-list" id="summary-not-reached">
           ${summary.not_reached.map((n) => `<li data-client-id="${n.client_id}"><span class="row-name">${esc(n.name)}</span></li>`).join('')}
-        </ul>` : '<p class="muted" id="summary-not-reached">Every stop was reached.</p>'}
+        </ul>`
+          : '<p class="muted" id="summary-not-reached">Every stop was reached.</p>'
+      }
     </section>`
 }
 
@@ -725,8 +838,10 @@ async function renderClients() {
 
 function clientRow(c) {
   const truck = state.trucks.find((t) => t.id === c.truck_id)
-  const priority = c.priority !== 'none'
-    ? `<span class="chip chip-priority">${esc(c.priority_label)}${c.opens_at ? `, opens ${esc(clockLabel(c.opens_at))}` : ''}</span>` : ''
+  const priority =
+    c.priority !== 'none'
+      ? `<span class="chip chip-priority">${esc(c.priority_label)}${c.opens_at ? `, opens ${esc(clockLabel(c.opens_at))}` : ''}</span>`
+      : ''
   return `
     <li class="client-row${c.active ? '' : ' is-inactive'}" data-client-id="${c.id}">
       <div class="row-main">
@@ -748,8 +863,11 @@ function field(name, id, label, control) {
 }
 
 function clientForm(c, messages) {
-  const v = (k, d = '') => (c ? c[k] ?? d : d)
-  const trucks = [['', 'No usual truck'], ...state.trucks.filter((t) => t.active || t.id === v('truck_id', null)).map((t) => [String(t.id), t.name])]
+  const v = (k, d = '') => (c ? (c[k] ?? d) : d)
+  const trucks = [
+    ['', 'No usual truck'],
+    ...state.trucks.filter((t) => t.active || t.id === v('truck_id', null)).map((t) => [String(t.id), t.name]),
+  ]
   const statusText = messages?.find((m) => m.kind === 'status_link')
   return `
     <form id="client-form" class="client-form" novalidate>
@@ -775,28 +893,40 @@ function clientForm(c, messages) {
         <button class="btn-small btn-primary" id="save-client" type="submit">Save client</button>
         <button class="btn-small" type="button" data-action="cancel-edit">Cancel</button>
       </div>
-      ${c ? `
+      ${
+        c
+          ? `
         <section class="form-section" id="status-link-section">
           <h2 class="section-title">Status link</h2>
           <p class="muted">The client checks this link for the last plowed time and photo. Nothing is sent from here: copy the text and send it yourself.</p>
           <label class="field-label" for="status-url">Status link</label>
           <input class="field" id="status-url" type="text" readonly value="${esc(c.status_url)}">
-          ${statusText ? `<p class="text-preview" id="status-text">${esc(statusText.text)}</p>
-            <div class="form-actions">${copyButton(statusText.text, 'Copy status text', ' id="copy-status"')}</div>` : ''}
+          ${
+            statusText
+              ? `<p class="text-preview" id="status-text">${esc(statusText.text)}</p>
+            <div class="form-actions">${copyButton(statusText.text, 'Copy status text', ' id="copy-status"')}</div>`
+              : ''
+          }
           <div class="form-actions">
             <button class="btn-small" id="new-status-link" type="button" data-action="confirm-status-link">New status link</button>
             <button class="btn-small" id="toggle-client" type="button" data-action="toggle-client">${c.active ? 'Deactivate client' : 'Make active again'}</button>
           </div>
-          ${state.confirm === `status-${c.id}` ? `
+          ${
+            state.confirm === `status-${c.id}`
+              ? `
             <div class="confirm" id="status-link-confirm" role="group" aria-labelledby="status-link-confirm-text">
               <p id="status-link-confirm-text"><strong>Make a new status link for ${esc(c.name)}?</strong> The old link stops working at once. Send the client the new one.</p>
               <div class="form-actions">
                 <button class="btn-small btn-warn" id="status-link-yes" type="button" data-action="status-link-yes">Yes, make a new link</button>
                 <button class="btn-small" type="button" data-action="confirm-cancel">Cancel</button>
               </div>
-            </div>` : ''}
+            </div>`
+              : ''
+          }
           <p class="field-error" id="client-tools-error" role="alert"></p>
-        </section>` : ''}
+        </section>`
+          : ''
+      }
     </form>`
 }
 
@@ -818,9 +948,11 @@ function paintClients() {
       <section class="panel map-panel">
         <p class="map-hint" id="map-hint">${editing ? 'Tap the map where the driver should go. Drag the pin to move it.' : 'Every active client. Tap a pin to edit that client.'}</p>
         <div class="map" id="map" role="region" aria-label="${editing ? 'Map: tap to place the pin' : 'Map of clients'}"></div>
-        <p class="map-legend" id="clients-legend">${editing
-          ? '<span class="legend-item"><span class="legend-dot pin-edit"></span>This client\'s pin</span>'
-          : '<span class="legend-item"><span class="legend-dot pin-client"></span>Client</span><span class="legend-item"><span class="legend-dot pin-client is-medical"></span>Medical client (goes first)</span><span class="legend-item"><span class="legend-dot pin-yard">Y</span>Yard</span>'}</p>
+        <p class="map-legend" id="clients-legend">${
+          editing
+            ? '<span class="legend-item"><span class="legend-dot pin-edit"></span>This client\'s pin</span>'
+            : '<span class="legend-item"><span class="legend-dot pin-client"></span>Client</span><span class="legend-item"><span class="legend-dot pin-client is-medical"></span>Medical client (goes first)</span><span class="legend-item"><span class="legend-dot pin-yard">Y</span>Yard</span>'
+        }</p>
       </section>
     </div>`
   makeMap('map')
@@ -838,7 +970,8 @@ function paintClients() {
   yardMarker()
   for (const c of active) {
     L.marker([c.lat, c.lng], { icon: dot(`pin-client${c.priority === 'medical' ? ' is-medical' : ''}`), title: c.name, riseOnHover: true })
-      .addTo(map).on('click', () => startEdit(c.id))
+      .addTo(map)
+      .on('click', () => startEdit(c.id))
   }
   fit(active.map((c) => [c.lat, c.lng]))
 }
@@ -861,7 +994,9 @@ function placePin(p) {
 function updatePinState() {
   const el = $('pin-state')
   if (!el) return
-  el.textContent = state.pin ? `Pin placed at ${state.pin.lat}, ${state.pin.lng}. Drag it to move it.` : 'No pin yet. Tap the map where the driver should go.'
+  el.textContent = state.pin
+    ? `Pin placed at ${state.pin.lat}, ${state.pin.lng}. Drag it to move it.`
+    : 'No pin yet. Tap the map where the driver should go.'
   if (state.pin) $('err-lat').textContent = ''
 }
 
@@ -877,8 +1012,18 @@ async function startEdit(id) {
 }
 
 const clientBody = (c) => ({
-  name: c.name, address: c.address, lat: c.lat, lng: c.lng, type: c.type, priority: c.priority, opens_at: c.opens_at, notes: c.notes,
-  billing: c.billing, price_cents: c.price_cents, truck_id: c.truck_id, active: c.active,
+  name: c.name,
+  address: c.address,
+  lat: c.lat,
+  lng: c.lng,
+  type: c.type,
+  priority: c.priority,
+  opens_at: c.opens_at,
+  notes: c.notes,
+  billing: c.billing,
+  price_cents: c.price_cents,
+  truck_id: c.truck_id,
+  active: c.active,
 })
 
 async function saveClient(form) {
@@ -887,10 +1032,17 @@ async function saveClient(form) {
   for (const el of form.querySelectorAll('.field-error')) el.textContent = ''
   const truck = g('f-truck').value
   const body = {
-    name: g('f-name').value, address: g('f-address').value,
-    lat: state.pin ? state.pin.lat : null, lng: state.pin ? state.pin.lng : null,
-    type: g('f-type').value, priority: g('f-priority').value, opens_at: g('f-opens').value || null, notes: g('f-notes').value,
-    billing: g('f-billing').value, price_cents: dollarsToCents(g('f-price').value), truck_id: truck ? Number(truck) : null,
+    name: g('f-name').value,
+    address: g('f-address').value,
+    lat: state.pin ? state.pin.lat : null,
+    lng: state.pin ? state.pin.lng : null,
+    type: g('f-type').value,
+    priority: g('f-priority').value,
+    opens_at: g('f-opens').value || null,
+    notes: g('f-notes').value,
+    billing: g('f-billing').value,
+    price_cents: dollarsToCents(g('f-price').value),
+    truck_id: truck ? Number(truck) : null,
     active: c ? c.active : true,
   }
   if (body.price_cents === null) {
@@ -922,7 +1074,9 @@ async function toggleClient() {
     const saved = await api.owner.updateClient(c.id, { ...clientBody(c), active: !c.active })
     state.editing = null
     state.pin = null
-    state.notice = saved.active ? `${saved.name} is active again.` : `${saved.name} is inactive: not on new storms. The status link still works.`
+    state.notice = saved.active
+      ? `${saved.name} is active again.`
+      : `${saved.name} is inactive: not on new storms. The status link still works.`
     await renderClients()
   } catch (e) {
     if (e.status === 401 && !e.field) return
@@ -939,7 +1093,10 @@ async function newStatusLink() {
     state.editing = { client: saved, messages }
     state.confirm = null
     paintClients()
-    $('status-link-section').insertAdjacentHTML('afterbegin', '<p class="notice" role="status" id="status-link-made">New status link made. The old one no longer works.</p>')
+    $('status-link-section').insertAdjacentHTML(
+      'afterbegin',
+      '<p class="notice" role="status" id="status-link-made">New status link made. The old one no longer works.</p>',
+    )
     $('status-link-section').scrollIntoView({ block: 'start' })
   } catch (e) {
     if (e.status === 401 && !e.field) return
@@ -965,7 +1122,9 @@ function paintTrucks() {
       </div>
       <p class="muted">Send each driver their truck's link once. It opens tonight's route on their phone, and it keeps working with no signal.</p>
       ${notice ? `<p class="notice" role="status" id="trucks-notice">${esc(notice)}</p>` : ''}
-      ${state.addingTruck ? `
+      ${
+        state.addingTruck
+          ? `
         <form class="confirm" id="truck-form" novalidate>
           <label class="field-label" for="truck-name">Truck name</label>
           <input class="field" id="truck-name" type="text" maxlength="40" autocomplete="off">
@@ -974,12 +1133,18 @@ function paintTrucks() {
             <button class="btn-small btn-primary" id="save-truck" type="submit">Save truck</button>
             <button class="btn-small" type="button" data-action="cancel-truck">Cancel</button>
           </div>
-        </form>` : ''}
+        </form>`
+          : ''
+      }
       <ul class="truck-list" id="truck-list">
-        ${state.trucks.map((t) => `
+        ${state.trucks
+          .map(
+            (t) => `
           <li class="truck-row${t.active ? '' : ' is-inactive'}" data-truck-id="${t.id}">
             <div class="truck-head"><strong class="row-name">${esc(t.name)}</strong>${t.active ? '' : '<span class="chip">Inactive</span>'}</div>
-            ${state.renaming === t.id ? `
+            ${
+              state.renaming === t.id
+                ? `
               <form class="rename-form" data-truck-id="${t.id}" novalidate>
                 <label class="field-label" for="rename-${t.id}">New name</label>
                 <input class="field" id="rename-${t.id}" type="text" maxlength="40" autocomplete="off" value="${esc(t.name)}">
@@ -988,7 +1153,9 @@ function paintTrucks() {
                   <button class="btn-small btn-primary" type="submit">Save name</button>
                   <button class="btn-small" type="button" data-action="cancel-rename">Cancel</button>
                 </div>
-              </form>` : ''}
+              </form>`
+                : ''
+            }
             <label class="field-label" for="link-${t.id}">Driver link</label>
             <div class="copy-row">
               <input class="field" id="link-${t.id}" type="text" readonly value="${esc(t.driver_url)}">
@@ -1000,16 +1167,22 @@ function paintTrucks() {
               <button class="btn-small" type="button" data-action="toggle-truck" data-id="${t.id}">${t.active ? 'Deactivate' : 'Make active again'}</button>
               <button class="btn-small" type="button" data-action="confirm-truck-link" data-id="${t.id}">New link</button>
             </div>
-            ${state.confirm === `link-${t.id}` ? `
+            ${
+              state.confirm === `link-${t.id}`
+                ? `
               <div class="confirm" id="truck-link-confirm" role="group" aria-labelledby="truck-link-confirm-text">
                 <p id="truck-link-confirm-text"><strong>Make a new driver link for ${esc(t.name)}?</strong> The old link stops working at once. Check-ins still saved on a phone under it send when the driver opens the new link.</p>
                 <div class="form-actions">
                   <button class="btn-small btn-warn" id="truck-link-yes" type="button" data-action="truck-link-yes" data-id="${t.id}">Yes, make a new link</button>
                   <button class="btn-small" type="button" data-action="confirm-cancel">Cancel</button>
                 </div>
-              </div>` : ''}
+              </div>`
+                : ''
+            }
             <p class="field-error" id="err-truck-${t.id}" role="alert"></p>
-          </li>`).join('')}
+          </li>`,
+          )
+          .join('')}
       </ul>
     </section>`
 }
@@ -1021,7 +1194,9 @@ async function copyLink(btn) {
     await navigator.clipboard.writeText(input.value)
     btn.textContent = 'Copied'
     note.textContent = ''
-    setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy link' }, 2000)
+    setTimeout(() => {
+      if (btn.isConnected) btn.textContent = 'Copy link'
+    }, 2000)
   } catch {
     input.select()
     note.textContent = 'This browser would not copy it. The link is selected: copy it from there.'
@@ -1074,7 +1249,9 @@ async function renderBilling() {
             <th scope="col" class="cell-num">Price</th><th scope="col" class="cell-num">Amount</th><th scope="col" class="cell-num">HST ${Math.round(data.hst_rate * 100)}%</th><th scope="col" class="cell-num">Total</th>
           </tr></thead>
           <tbody>
-            ${data.rows.map((r) => `
+            ${data.rows
+              .map(
+                (r) => `
               <tr data-client-id="${r.client_id}">
                 <th scope="row"><span class="row-name">${esc(r.name)}</span><span class="row-addr">${esc(r.address)}</span></th>
                 <td data-col="billing">${esc(r.billing_label)}</td>
@@ -1084,7 +1261,9 @@ async function renderBilling() {
                 <td class="cell-num" data-col="amount">${money(r.amount_cents)}</td>
                 <td class="cell-num" data-col="hst">${money(r.hst_cents)}</td>
                 <td class="cell-num" data-col="total">${money(r.total_cents)}</td>
-              </tr>`).join('')}
+              </tr>`,
+              )
+              .join('')}
           </tbody>
           <tfoot><tr id="billing-totals">
             <th scope="row">Total</th><td></td><td class="cell-num" data-col="pushes">${t.pushes}</td><td></td><td></td>
@@ -1160,8 +1339,16 @@ async function renderSettings() {
   makeMap('map')
   map.setView([c.yard.lat, c.yard.lng], 15)
   pinMarker = L.marker([c.yard.lat, c.yard.lng], { icon: dot('pin-yard', 'Y', 30), title: 'Yard pin', draggable: true }).addTo(map)
-  const moved = (p) => { state.yardPin = p; pinMarker.setLatLng([p.lat, p.lng]); yardState(); $('err-yard.pin').textContent = '' }
-  pinMarker.on('dragend', () => { const ll = pinMarker.getLatLng(); moved({ lat: round5(ll.lat), lng: round5(ll.lng) }) })
+  const moved = (p) => {
+    state.yardPin = p
+    pinMarker.setLatLng([p.lat, p.lng])
+    yardState()
+    $('err-yard.pin').textContent = ''
+  }
+  pinMarker.on('dragend', () => {
+    const ll = pinMarker.getLatLng()
+    moved({ lat: round5(ll.lat), lng: round5(ll.lng) })
+  })
   map.on('click', (e) => moved({ lat: round5(e.latlng.lat), lng: round5(e.latlng.lng) }))
   yardState()
 }
@@ -1178,7 +1365,10 @@ async function saveCompany() {
   const btn = $('save-company')
   btn.disabled = true
   try {
-    state.company = await api.owner.saveCompany({ name: $('f-company').value, yard: { label: $('f-yard-label').value, lat: state.yardPin.lat, lng: state.yardPin.lng } })
+    state.company = await api.owner.saveCompany({
+      name: $('f-company').value,
+      yard: { label: $('f-yard-label').value, lat: state.yardPin.lat, lng: state.yardPin.lng },
+    })
     paintBar()
     $('company-saved').textContent = 'Saved.'
   } catch (e) {
@@ -1231,7 +1421,9 @@ document.addEventListener('change', (e) => {
   const input = e.target
   if (input.id === 'billing-month') {
     state.billingMonth = input.value
-    renderBilling().catch((err) => { if (err.status !== 401) $('view').insertAdjacentHTML('afterbegin', `<p class="notice" role="alert">${esc(err.message)}</p>`) })
+    renderBilling().catch((err) => {
+      if (err.status !== 401) $('view').insertAdjacentHTML('afterbegin', `<p class="notice" role="alert">${esc(err.message)}</p>`)
+    })
     return
   }
   if (!state.picking || input.type !== 'checkbox') return
@@ -1250,7 +1442,9 @@ document.addEventListener('click', async (e) => {
   try {
     switch (t.dataset.action) {
       case 'signout':
-        try { await api.owner.signout() } catch {}
+        try {
+          await api.owner.signout()
+        } catch {}
         session.clear()
         return showSignin()
       case 'copy':
@@ -1338,15 +1532,22 @@ document.addEventListener('click', async (e) => {
         return paintTrucks()
       case 'toggle-truck': {
         const truck = state.trucks.find((x) => x.id === id)
-        return await truckAction(() => api.owner.updateTruck(id, { name: truck.name, active: !truck.active }), `err-truck-${id}`,
-          truck.active ? `${truck.name} is inactive: not offered for new storms. Its link still works.` : `${truck.name} is active again.`)
+        return await truckAction(
+          () => api.owner.updateTruck(id, { name: truck.name, active: !truck.active }),
+          `err-truck-${id}`,
+          truck.active ? `${truck.name} is inactive: not offered for new storms. Its link still works.` : `${truck.name} is active again.`,
+        )
       }
       case 'confirm-truck-link':
         state.confirm = `link-${id}`
         return paintTrucks()
       case 'truck-link-yes': {
         const truck = state.trucks.find((x) => x.id === id)
-        return await truckAction(() => api.owner.resetTruckLink(id), `err-truck-${id}`, `New link made for ${truck.name}. The old link no longer works: send the driver this one.`)
+        return await truckAction(
+          () => api.owner.resetTruckLink(id),
+          `err-truck-${id}`,
+          `New link made for ${truck.name}. The old link no longer works: send the driver this one.`,
+        )
       }
       case 'download-csv':
         return await downloadCsv(t)
@@ -1359,11 +1560,23 @@ document.addEventListener('click', async (e) => {
 
 window.addEventListener('hashchange', () => {
   if (!session.get()) return
-  Object.assign(state, { editing: null, picking: null, pin: null, notice: '', confirm: null, adding: false, renaming: null, addingTruck: false, stopErrors: {} })
+  Object.assign(state, {
+    editing: null,
+    picking: null,
+    pin: null,
+    notice: '',
+    confirm: null,
+    adding: false,
+    renaming: null,
+    addingTruck: false,
+    stopErrors: {},
+  })
   render()
 })
 window.addEventListener(SIGNED_OUT, (e) => showSignin(e.detail || 'Please sign in again.'))
 
-try { state.company = await api.company() } catch {}
+try {
+  state.company = await api.company()
+} catch {}
 if (session.get()) showApp()
 else showSignin()

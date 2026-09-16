@@ -5,23 +5,26 @@
 // stop. Exits 0 only if the guarded copy shows 0 such check-ins and the broken copy shows at least 1 and the test goes red.
 import { runControl } from './negative-lib.mjs'
 
-const orphans = out => Number((/STOPRACE orphans=(\d+)/.exec(out) || [])[1] ?? NaN)
+const orphans = (out) => Number((/STOPRACE orphans=(\d+)/.exec(out) || [])[1] ?? NaN)
 
 await runControl({
   title: 'negative:stoprace',
   testFile: 'tests/api.test.mjs',
   tests: ['stop race'],
   api: true,
-  setup: [{
-    file: 'src/index.js',
-    find: '  // TIME-RULE:',
-    replace: "  await scheduler.wait(25) // NEGATIVE CONTROL ONLY: widen the gap between the check-in's read and its write\n  // TIME-RULE:"
-  }],
+  setup: [
+    {
+      file: 'src/index.js',
+      find: '  // TIME-RULE:',
+      replace:
+        "  await scheduler.wait(25) // NEGATIVE CONTROL ONLY: widen the gap between the check-in's read and its write\n  // TIME-RULE:",
+    },
+  ],
   breaks: [{ file: 'src/index.js', find: '  stmts.push(db.prepare(STOP_GUARD_SQL).bind(storm.id, body.client_id))\n', replace: '' }],
   check: (before, after) => {
     const b = orphans(before)
     const a = orphans(after)
     return { ok: b === 0 && a >= 1, note: `check-ins on removed stops, same 25 ms gap: with the guard ${b}, without it ${a} (of 10 pairs)` }
   },
-  describe: 'the check-in batch no longer re-checks that the stop is still on the route'
+  describe: 'the check-in batch no longer re-checks that the stop is still on the route',
 })

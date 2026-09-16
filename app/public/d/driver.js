@@ -4,7 +4,12 @@ import { api } from '/api.js'
 import { esc, timeLabel, clockLabel, brandBar, plural, uuid } from '/ui.js'
 import * as queue from '/d/queue.js'
 
-const REASONS = [['car', 'Car in the way'], ['gate', 'Gate locked'], ['cancelled', 'Client cancelled'], ['other', 'Other']]
+const REASONS = [
+  ['car', 'Car in the way'],
+  ['gate', 'Gate locked'],
+  ['cancelled', 'Client cancelled'],
+  ['other', 'Other'],
+]
 const REASON_LABEL = Object.fromEntries(REASONS)
 const UNDO_MS = 15_000
 const LOCK_MS = 700 // a second glove tap on the same spot must not land on the next stop's button
@@ -14,20 +19,45 @@ const KEYS = 'snow-route:keys' // { driver key: truck id }, never overwritten by
 const PHOTO_NOTES = 'snow-route:photo-not-sent' // { checkin id: server message } for photos the server refused
 
 function photoNotes() {
-  try { return JSON.parse(localStorage.getItem(PHOTO_NOTES)) || {} } catch { return {} }
+  try {
+    return JSON.parse(localStorage.getItem(PHOTO_NOTES)) || {}
+  } catch {
+    return {}
+  }
 }
 const noteText = (n) => (typeof n === 'string' ? n : n?.message || '')
 // A refused photo keeps a note: the message, and (clarification 30) enough to list it when its stop is not on this route.
 function notePhotoDropped(id, message, item) {
   const notes = photoNotes()
-  notes[id] = { message, label: item?.label || '', at: item?.body?.at || null, client_id: item?.body?.client_id ?? null, storm_id: item?.body?.storm_id ?? null, dismissed: false }
-  try { localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes)) } catch {}
+  notes[id] = {
+    message,
+    label: item?.label || '',
+    at: item?.body?.at || null,
+    client_id: item?.body?.client_id ?? null,
+    storm_id: item?.body?.storm_id ?? null,
+    dismissed: false,
+  }
+  try {
+    localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes))
+  } catch {}
 }
 
 const key = new URLSearchParams(location.search).get('k') || ''
 const state = {
-  route: null, savedAt: null, fromCache: false, error: '', loading: true,
-  items: [], last: null, focus: null, locked: false, notice: '', sheet: null, routeVersion: 0, confirmUndo: null, confirmAttempted: false,
+  route: null,
+  savedAt: null,
+  fromCache: false,
+  error: '',
+  loading: true,
+  items: [],
+  last: null,
+  focus: null,
+  locked: false,
+  notice: '',
+  sheet: null,
+  routeVersion: 0,
+  confirmUndo: null,
+  confirmAttempted: false,
 }
 const app = document.getElementById('app')
 
@@ -50,13 +80,19 @@ function writeCache() {
   } catch {}
 }
 function knownKeys() {
-  try { return JSON.parse(localStorage.getItem(KEYS)) || {} } catch { return {} }
+  try {
+    return JSON.parse(localStorage.getItem(KEYS)) || {}
+  } catch {
+    return {}
+  }
 }
 function rememberKey(k, truckId) {
   const keys = knownKeys()
   if (keys[k] === truckId) return
   keys[k] = truckId
-  try { localStorage.setItem(KEYS, JSON.stringify(keys)) } catch {}
+  try {
+    localStorage.setItem(KEYS, JSON.stringify(keys))
+  } catch {}
 }
 // The truck a driver key belongs to: the key store first, then (for phones from before it) a route saved with that key.
 function truckOfKey(k) {
@@ -94,7 +130,8 @@ function ours(item) {
   const truck = item.truck_id ?? truckOfKey(item.key)
   return (truck != null && truck === pageTruck()) || sender.isDead(item.key)
 }
-const itemWhat = (i) => (i.op === 'void' ? 'Undo' : i.body.kind === 'plowed' ? 'Plowed' : `Skipped: ${reasonText(i.body.reason, i.body.note)}`)
+const itemWhat = (i) =>
+  i.op === 'void' ? 'Undo' : i.body.kind === 'plowed' ? 'Plowed' : `Skipped: ${reasonText(i.body.reason, i.body.note)}`
 const itemAt = (i) => (i.body.at ? ` at ${timeLabel(i.body.at, zone())}` : '')
 
 // Queued check-ins not on this route: from a storm that has ended (or an earlier one), or for a stop moved to another truck in this
@@ -109,7 +146,10 @@ function offRoute() {
     moved: rows.filter((i) => route.storm && i.body.storm_id === route.storm.id && !here.has(i.body.client_id)),
   }
 }
-const elsewhere = () => { const o = offRoute(); return [...o.ended, ...o.moved] }
+const elsewhere = () => {
+  const o = offRoute()
+  return [...o.ended, ...o.moved]
+}
 
 function stops() {
   const route = state.route
@@ -122,15 +162,31 @@ function stops() {
     if (!s) continue
     const b = item.body
     if (item.op === 'void') {
-      if (s.checkin?.id === b.id) { s.status = 'pending'; s.checkin = null; s.queued = true }
+      if (s.checkin?.id === b.id) {
+        s.status = 'pending'
+        s.checkin = null
+        s.queued = true
+      }
       continue
     }
     const checkin = {
-      id: b.id, kind: b.kind, reason: b.reason || null, reason_text: b.kind === 'skipped' ? reasonText(b.reason, b.note) : null,
-      at: b.at, at_label: timeLabel(b.at, zone()), photo: b.has_photo ? 'waiting' : 'none',
+      id: b.id,
+      kind: b.kind,
+      reason: b.reason || null,
+      reason_text: b.kind === 'skipped' ? reasonText(b.reason, b.note) : null,
+      at: b.at,
+      at_label: timeLabel(b.at, zone()),
+      photo: b.has_photo ? 'waiting' : 'none',
     }
-    if (b.kind === 'plowed') { s.status = 'plowed'; s.checkin = checkin; s.queued = item.state === 'send' }
-    else if (s.status !== 'plowed') { s.status = 'skipped'; s.checkin = checkin; s.queued = true }
+    if (b.kind === 'plowed') {
+      s.status = 'plowed'
+      s.checkin = checkin
+      s.queued = item.state === 'send'
+    } else if (s.status !== 'plowed') {
+      s.status = 'skipped'
+      s.checkin = checkin
+      s.queued = true
+    }
   }
   return list
 }
@@ -172,7 +228,11 @@ function paint(id, markup) {
   painted.set(id, markup)
   $(id).innerHTML = markup
 }
-const painter = (id) => ({ set innerHTML(markup) { paint(id, markup) } })
+const painter = (id) => ({
+  set innerHTML(markup) {
+    paint(id, markup)
+  },
+})
 
 function render() {
   renderBar()
@@ -219,8 +279,10 @@ function renderStrip() {
   strip.className = `strip strip-${tone}`
   strip.dataset.toSend = String(toSend)
   strip.dataset.photos = String(photos)
-  const saved = state.fromCache && state.savedAt
-    ? `<span class="strip-note">Route saved on this phone at ${esc(timeLabel(state.savedAt, zone()))}.</span>` : ''
+  const saved =
+    state.fromCache && state.savedAt
+      ? `<span class="strip-note">Route saved on this phone at ${esc(timeLabel(state.savedAt, zone()))}.</span>`
+      : ''
   paint('strip', `<span class="strip-text" id="sync-text">${esc(text)}</span>${saved}`)
 }
 
@@ -243,7 +305,8 @@ function renderStop() {
   const list = stops()
   const stop = current(list)
   if (!list.length) {
-    box.innerHTML = '<div class="message"><h1 class="big-msg">No stops on your route tonight</h1><p class="lead">Ask the owner if that looks wrong.</p></div>'
+    box.innerHTML =
+      '<div class="message"><h1 class="big-msg">No stops on your route tonight</h1><p class="lead">Ask the owner if that looks wrong.</p></div>'
     return
   }
   if (!stop) {
@@ -276,9 +339,11 @@ function renderStop() {
         <span class="btn-main">Plowed</span><span class="btn-sub">takes a photo</span>
       </label>
       <button class="btn btn-plain" id="plowed-nophoto" type="button" data-action="plowed" data-client="${stop.client_id}"${lock}>Plowed, no photo</button>
-      ${back
-        ? '<button class="btn btn-quiet" id="back-next" type="button" data-action="back">Back to the next stop</button>'
-        : `<button class="btn btn-skip" id="skip" type="button" data-action="skip" data-client="${stop.client_id}"${lock}>Skip this stop</button>`}
+      ${
+        back
+          ? '<button class="btn btn-quiet" id="back-next" type="button" data-action="back">Back to the next stop</button>'
+          : `<button class="btn btn-skip" id="skip" type="button" data-action="skip" data-client="${stop.client_id}"${lock}>Skip this stop</button>`
+      }
     </div>`
 }
 
@@ -296,14 +361,19 @@ function statusLine(s, next) {
 function renderList() {
   const box = painter('list')
   const list = stops()
-  if (!list.length) { box.innerHTML = ''; return }
+  if (!list.length) {
+    box.innerHTML = ''
+    return
+  }
   const next = current(list)
   const count = (st) => list.filter((s) => s.status === st).length
   box.innerHTML = `
     <h2 class="section-title">All stops tonight</h2>
     <p class="muted">${count('plowed')} plowed · ${count('skipped')} skipped · ${count('pending')} to go</p>
     <ol class="stops" id="stops">
-      ${list.map((s) => `
+      ${list
+        .map(
+          (s) => `
         <li class="stop-row is-${s.status}${s === next ? ' is-next' : ''}" data-client="${s.client_id}">
           <span class="num" aria-hidden="true">${s.position}</span>
           <div class="row-main">
@@ -312,28 +382,41 @@ function renderList() {
             <span class="row-status">${esc(statusLine(s, next))}</span>
           </div>
           ${s.status === 'skipped' ? `<button class="btn-row" type="button" data-action="plowed-now" data-client="${s.client_id}">Plowed now</button>` : ''}
-        </li>`).join('')}
+        </li>`,
+        )
+        .join('')}
     </ol>`
 }
 
 function renderOldLink() {
   const box = painter('oldlink')
   const off = new Set(elsewhere().map((i) => i.qid))
-  const rows = state.items.filter((i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && !off.has(i.qid) && (i.key !== key || i.rekeyed_from))
-  if (!rows.length) { box.innerHTML = ''; return }
+  const rows = state.items.filter(
+    (i) => ours(i) && i.state !== 'rejected' && i.state !== 'undone' && !off.has(i.qid) && (i.key !== key || i.rekeyed_from),
+  )
+  if (!rows.length) {
+    box.innerHTML = ''
+    return
+  }
   box.innerHTML = `
     <div class="queue-note" id="old-link">
       <h2 class="section-title">Saved under an old driver link</h2>
       <ul class="rejected-list">
-        ${rows.map((i) => `
+        ${rows
+          .map(
+            (i) => `
           <li data-qid="${esc(i.qid)}">
             <strong>${esc(i.label)}</strong>
             <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}</span>
-            ${i.stuck
-              ? `<span class="error-text">This ${i.op === 'void' ? 'undo' : 'photo'} belongs to another truck's link, so this link cannot send it.</span>
+            ${
+              i.stuck
+                ? `<span class="error-text">This ${i.op === 'void' ? 'undo' : 'photo'} belongs to another truck's link, so this link cannot send it.</span>
                  <button class="btn-row" type="button" data-action="dismiss" data-qid="${esc(i.qid)}">Remove from this phone</button>`
-              : '<span class="queue-note-status">Saved under an old driver link, sending with this one.</span>'}
-          </li>`).join('')}
+                : '<span class="queue-note-status">Saved under an old driver link, sending with this one.</span>'
+            }
+          </li>`,
+          )
+          .join('')}
       </ul>
     </div>`
 }
@@ -352,55 +435,73 @@ function renderElsewhere() {
   const box = painter('elsewhere')
   const { ended, moved } = offRoute()
   const onRoute = new Set((state.route?.stops || []).map((s) => s.checkin?.id).filter(Boolean))
-  const notes = Object.entries(photoNotes()).filter(([id, n]) => typeof n === 'object' && !n.dismissed && !onRoute.has(id))
+  const notes = Object.entries(photoNotes())
+    .filter(([id, n]) => typeof n === 'object' && !n.dismissed && !onRoute.has(id))
     .sort(([, a], [, b]) => (a.storm_id ?? 0) - (b.storm_id ?? 0))
-  const endedBlock = ended.length ? `
+  const endedBlock = ended.length
+    ? `
     <div class="queue-note" id="ended-storm">
       <h2 class="section-title">Saved from the storm that ended, still sending</h2>
       <p class="muted">The owner ended that storm. These still count, with the time you tapped.</p>
       <ul class="rejected-list">${ended.map(offRouteRow).join('')}</ul>
-    </div>` : ''
-  const movedBlock = moved.length ? `
+    </div>`
+    : ''
+  const movedBlock = moved.length
+    ? `
     <div class="queue-note" id="other-route">
       <h2 class="section-title">Saved for stops on another route</h2>
       <p class="muted">The owner moved these stops off this route. They still send, with the time you tapped.</p>
       <ul class="rejected-list">
         ${moved.map(offRouteRow).join('')}
       </ul>
-    </div>` : ''
+    </div>`
+    : ''
   // Refused photos have their own neutral heading, keyed by storm, never under wording about moved stops (clarification 45).
-  const photosBlock = notes.length ? `
+  const photosBlock = notes.length
+    ? `
     <div class="queue-note" id="photos-not-sent">
       <h2 class="section-title">Photos not sent</h2>
       <p class="muted">The office has these stops as plowed, without the photo.</p>
       <ul class="rejected-list">
-        ${notes.map(([id, n]) => `
+        ${notes
+          .map(
+            ([id, n]) => `
           <li data-note="${esc(id)}">
             <strong>${esc(n.label)}</strong>
             <span class="error-text">Photo not sent: ${esc(n.message)}</span>
             <button class="btn-row" type="button" data-action="dismiss-note" data-id="${esc(id)}">Dismiss</button>
-          </li>`).join('')}
+          </li>`,
+          )
+          .join('')}
       </ul>
-    </div>` : ''
+    </div>`
+    : ''
   box.innerHTML = endedBlock + movedBlock + photosBlock
 }
 
 function renderRejected() {
   const box = painter('rejected')
   const bad = state.items.filter((i) => ours(i) && i.state === 'rejected')
-  if (!bad.length) { box.innerHTML = ''; return }
+  if (!bad.length) {
+    box.innerHTML = ''
+    return
+  }
   box.innerHTML = `
     <div class="rejected" id="not-accepted">
       <h2 class="section-title">Not accepted</h2>
       <p class="muted">These were saved on this phone, but the server did not take them. Tell the owner.</p>
       <ul class="rejected-list">
-        ${bad.map((i) => `
+        ${bad
+          .map(
+            (i) => `
           <li>
             <strong>${esc(i.label)}</strong>
             <span class="muted">${esc(itemWhat(i))}${esc(itemAt(i))}</span>
             <span class="error-text">${esc(i.error)}</span>
             <button class="btn-row" type="button" data-action="dismiss" data-qid="${esc(i.qid)}">Remove from this phone</button>
-          </li>`).join('')}
+          </li>`,
+          )
+          .join('')}
       </ul>
     </div>`
 }
@@ -410,9 +511,11 @@ function renderRejected() {
 // Asked before an Undo would delete a check-in that has not been sent (clarification 28).
 function confirmUndoMarkup(qid) {
   return `<div class="undo-confirm" role="group" aria-labelledby="undo-confirm-text">
-      <span class="undo-confirm-text" id="undo-confirm-text">${state.confirmAttempted
-        ? 'It may already be at the office. Undo it?'
-        : 'This check-in has not reached the office yet. Delete it from this phone?'}</span>
+      <span class="undo-confirm-text" id="undo-confirm-text">${
+        state.confirmAttempted
+          ? 'It may already be at the office. Undo it?'
+          : 'This check-in has not reached the office yet. Delete it from this phone?'
+      }</span>
       <span class="undo-confirm-buttons">
         <button class="btn-undo" id="undo-delete" type="button" data-action="undo-confirm" data-qid="${esc(qid)}">${state.confirmAttempted ? 'Undo it' : 'Delete it'}</button>
         <button class="btn-undo btn-undo-keep" id="undo-keep" type="button" data-action="undo-keep">Keep it</button>
@@ -436,7 +539,10 @@ function renderSheet() {
   const box = $('sheet')
   const sh = state.sheet
   document.body.classList.toggle('has-sheet', !!sh)
-  if (!sh) { box.innerHTML = ''; return }
+  if (!sh) {
+    box.innerHTML = ''
+    return
+  }
   box.innerHTML = `
     <div class="sheet-backdrop" data-action="sheet-backdrop">
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -445,10 +551,14 @@ function renderSheet() {
         <div class="choices">
           ${REASONS.map(([code, label]) => `<button class="btn btn-choice${sh.other && code === 'other' ? ' is-chosen' : ''}" type="button" data-action="reason" data-reason="${code}"${code === 'other' ? ` aria-expanded="${sh.other}"` : ''}>${label}</button>`).join('')}
         </div>
-        ${sh.other ? `
+        ${
+          sh.other
+            ? `
           <label class="field-label" for="skip-note">Add a note (optional)</label>
           <input class="field" id="skip-note" type="text" maxlength="120" autocomplete="off" enterkeyhint="done">
-          <button class="btn btn-skip" id="skip-other" type="button" data-action="skip-other">Skip this stop</button>` : ''}
+          <button class="btn btn-skip" id="skip-other" type="button" data-action="skip-other">Skip this stop</button>`
+            : ''
+        }
         <button class="btn btn-quiet" id="sheet-back" type="button" data-action="close-sheet">Back</button>
       </div>
     </div>`
@@ -456,12 +566,19 @@ function renderSheet() {
 
 /* ---- actions ------------------------------------------------------------ */
 async function refreshItems() {
-  try { state.items = await queue.all() } catch { /* IndexedDB unavailable: nothing queued to show */ }
+  try {
+    state.items = await queue.all()
+  } catch {
+    /* IndexedDB unavailable: nothing queued to show */
+  }
 }
 
 function lockButtons() {
   state.locked = true
-  setTimeout(() => { state.locked = false; renderStop() }, LOCK_MS)
+  setTimeout(() => {
+    state.locked = false
+    renderStop()
+  }, LOCK_MS)
 }
 
 let undoTimer = null
@@ -481,10 +598,21 @@ async function record(clientId, { kind, reason = null, note = '', at, photo = nu
   }
   state.focus = null
   const word = kind === 'plowed' ? 'Plowed' : 'Skipped'
-  state.last = { id, canUndo: true, text: `${word}: ${stop.name}`, past: `Last stop: ${stop.name}, ${word.toLowerCase()} at ${timeLabel(at, zone())}`, item: state.lastItem }
+  state.last = {
+    id,
+    canUndo: true,
+    text: `${word}: ${stop.name}`,
+    past: `Last stop: ${stop.name}, ${word.toLowerCase()} at ${timeLabel(at, zone())}`,
+    item: state.lastItem,
+  }
   state.confirmUndo = null
   clearTimeout(undoTimer)
-  undoTimer = setTimeout(() => { if (state.last?.id === id) { state.last.canUndo = false; renderUndo() } }, UNDO_MS)
+  undoTimer = setTimeout(() => {
+    if (state.last?.id === id) {
+      state.last.canUndo = false
+      renderUndo()
+    }
+  }, UNDO_MS)
   lockButtons()
   await refreshItems()
   render()
@@ -523,7 +651,7 @@ async function unanswered(qid) {
 async function undo(confirmed = false) {
   const u = state.last
   if (!u || (!u.canUndo && state.confirmUndo !== u.id)) return
-  const waiting = !confirmed && await unanswered(u.id)
+  const waiting = !confirmed && (await unanswered(u.id))
   if (waiting) {
     state.confirmUndo = u.id
     state.confirmAttempted = !!waiting.attempted
@@ -545,7 +673,9 @@ async function decode(file) {
     try {
       const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
       return { source: bitmap, width: bitmap.width, height: bitmap.height, done: () => bitmap.close() }
-    } catch { /* fall back to an <img> */ }
+    } catch {
+      /* fall back to an <img> */
+    }
   }
   const url = URL.createObjectURL(file)
   try {
@@ -601,7 +731,10 @@ document.addEventListener('click', async (e) => {
   if (!t) return
   const action = t.dataset.action
   if (action === 'sheet-backdrop') {
-    if (e.target === t) { state.sheet = null; renderSheet() }
+    if (e.target === t) {
+      state.sheet = null
+      renderSheet()
+    }
     return
   }
   if (t.disabled) return
@@ -618,7 +751,10 @@ document.addEventListener('click', async (e) => {
     case 'reason': {
       const sh = state.sheet
       if (!sh) return
-      if (t.dataset.reason === 'other') { sh.other = true; return renderSheet() }
+      if (t.dataset.reason === 'other') {
+        sh.other = true
+        return renderSheet()
+      }
       const at = new Date().toISOString()
       state.sheet = null
       renderSheet()
@@ -668,7 +804,10 @@ document.addEventListener('click', async (e) => {
         state.confirmAttempted = !!waiting.attempted
         return render()
       }
-      await takeBack(qid, state.items.find((i) => i.qid === qid))
+      await takeBack(
+        qid,
+        state.items.find((i) => i.qid === qid),
+      )
       await refreshItems()
       render()
       return sender.flush()
@@ -676,7 +815,9 @@ document.addEventListener('click', async (e) => {
     case 'dismiss-note': {
       const notes = photoNotes()
       if (typeof notes[t.dataset.id] === 'object') notes[t.dataset.id].dismissed = true
-      try { localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes)) } catch {}
+      try {
+        localStorage.setItem(PHOTO_NOTES, JSON.stringify(notes))
+      } catch {}
       return render()
     }
     case 'dismiss':
@@ -689,12 +830,18 @@ document.addEventListener('click', async (e) => {
 })
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && state.sheet) { state.sheet = null; renderSheet() }
+  if (e.key === 'Escape' && state.sheet) {
+    state.sheet = null
+    renderSheet()
+  }
 })
 
 /* ---- loading and sending ------------------------------------------------ */
 const sender = queue.createSender({
-  onChange: async () => { await refreshItems(); render() },
+  onChange: async () => {
+    await refreshItems()
+    render()
+  },
   onSent: (itemKey, stop) => {
     if (itemKey !== key || !stop || !state.route?.stops) return
     const i = state.route.stops.findIndex((s) => s.client_id === stop.client_id)
@@ -704,14 +851,17 @@ const sender = queue.createSender({
     writeCache()
   },
   onDrained: () => loadRoute(),
-  onPhotoDropped: (itemKey, id, message, item) => { notePhotoDropped(id, message, item); render() },
+  onPhotoDropped: (_itemKey, id, message, item) => {
+    notePhotoDropped(id, message, item)
+    render()
+  },
   truckOf: (k) => truckOfKey(k),
 })
 
 async function loadRoute() {
   if (!key) {
     state.loading = false
-    state.error = "This driver link is missing its key. Open the link the owner sent you."
+    state.error = 'This driver link is missing its key. Open the link the owner sent you.'
     return render()
   }
   const version = state.routeVersion
@@ -756,8 +906,12 @@ async function start() {
   sender.start()
   window.addEventListener('online', () => loadRoute())
   window.addEventListener('offline', () => renderStrip())
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadRoute() })
-  setInterval(() => { if (navigator.onLine && !state.sheet) loadRoute() }, REFRESH_MS)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadRoute()
+  })
+  setInterval(() => {
+    if (navigator.onLine && !state.sheet) loadRoute()
+  }, REFRESH_MS)
 }
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/d/sw.js', { scope: '/d/' }).catch(() => {})

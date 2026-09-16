@@ -6,6 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['undo flag: a new id is stored already voided'],
   api: true,
-  breaks: [{ file: 'src/index.js', find: 'has_photo: body.has_photo, undo: body.undo === true }', replace: 'has_photo: body.has_photo, undo: false }' }],
-  describe: 'the undo flag is ignored and the re-send stores a live push'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: 'has_photo: body.has_photo, undo: body.undo === true }',
+      replace: 'has_photo: body.has_photo, undo: false }',
+    },
+  ],
+  describe: 'the undo flag is ignored and the re-send stores a live push',
 })

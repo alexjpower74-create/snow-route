@@ -1,7 +1,8 @@
 // Copy buttons put the exact API text on the clipboard. Nothing is ever sent from the app.
 import { test, expect, tap, api, ownerToken, startStorm, ownerStorm, signIn } from './helpers.mjs'
 
-const WEBKIT_REASON = "webkit: Playwright cannot grant clipboard-read in WebKit, so the page's 'Copied' is checked and reading the clipboard back is skipped"
+const WEBKIT_REASON =
+  "webkit: Playwright cannot grant clipboard-read in WebKit, so the page's 'Copied' is checked and reading the clipboard back is skipped"
 
 async function clipboardIs(page, browserName, expected) {
   if (browserName === 'webkit') {

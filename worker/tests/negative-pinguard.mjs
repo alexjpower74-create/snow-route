@@ -6,10 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['PIN change: wrong current PINs count toward the sign-in guard'],
   api: true,
-  breaks: [{
-    file: 'src/index.js',
-    find: "  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)\n  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')\n  if (!(await verifyPin(typeof body.current",
-    replace: "  const attempt = 0\n  if (!(await verifyPin(typeof body.current"
-  }],
-  describe: 'a wrong current PIN on PUT /api/owner/pin is not counted'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: "  const attempt = await takeAttempt(env.DB, 'pin', ctx.ip, ctx.now, SIGNIN_LIMIT)\n  if (!attempt) throw rateLimited('Too many tries. Wait 15 minutes and try again.')\n  if (!(await verifyPin(typeof body.current",
+      replace: '  const attempt = 0\n  if (!(await verifyPin(typeof body.current',
+    },
+  ],
+  describe: 'a wrong current PIN on PUT /api/owner/pin is not counted',
 })

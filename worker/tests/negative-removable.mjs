@@ -6,10 +6,12 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['removable: a fresh stop is removable'],
   api: true,
-  breaks: [{
-    file: 'src/index.js',
-    find: "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1').bind(stormId)",
-    replace: "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1 AND voided_at IS NULL').bind(stormId)"
-  }],
-  describe: 'removable ignores voided check-ins'
+  breaks: [
+    {
+      file: 'src/index.js',
+      find: "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1').bind(stormId)",
+      replace: "db.prepare('SELECT DISTINCT client_id FROM checkins WHERE storm_id = ?1 AND voided_at IS NULL').bind(stormId)",
+    },
+  ],
+  describe: 'removable ignores voided check-ins',
 })

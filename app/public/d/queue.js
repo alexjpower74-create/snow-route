@@ -33,7 +33,10 @@ function db() {
       if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE, { keyPath: 'qid' })
     }
     r.onsuccess = () => resolve(r.result)
-    r.onerror = () => { opening = null; reject(r.error) }
+    r.onerror = () => {
+      opening = null
+      reject(r.error)
+    }
   })
   return opening
 }
@@ -44,7 +47,10 @@ async function tx(mode, work) {
     const t = d.transaction(STORE, mode)
     let result
     const req = work(t.objectStore(STORE))
-    if (req) req.onsuccess = () => { result = req.result }
+    if (req)
+      req.onsuccess = () => {
+        result = req.result
+      }
     t.oncomplete = () => resolve(result)
     t.onerror = () => reject(t.error)
     t.onabort = () => reject(t.error)
@@ -90,9 +96,20 @@ const withSendLock = (fn) => {
 // check-in that was attempted but whose arrival the phone never heard about. It takes the check-in's place in the queue (same seq).
 export function voidFor(item, { resend = false, truckId, stuck = false } = {}) {
   return {
-    qid: `void:${item.body.id}`, seq: item.seq, created_at: new Date().toISOString(), op: 'void', state: 'send', key: item.key,
-    truck_id: truckId ?? item.truck_id ?? null, label: item.label, resend, stuck, checkin: resend ? item.body : null,
-    body: { id: item.body.id, storm_id: item.body.storm_id, client_id: item.body.client_id }, photo: null, error: null,
+    qid: `void:${item.body.id}`,
+    seq: item.seq,
+    created_at: new Date().toISOString(),
+    op: 'void',
+    state: 'send',
+    key: item.key,
+    truck_id: truckId ?? item.truck_id ?? null,
+    label: item.label,
+    resend,
+    stuck,
+    checkin: resend ? item.body : null,
+    body: { id: item.body.id, storm_id: item.body.storm_id, client_id: item.body.client_id },
+    photo: null,
+    error: null,
   }
 }
 
@@ -108,9 +125,24 @@ const pending = (items) => items.filter((i) => i.state !== 'rejected')
 // onChange(): the queue or the sender's state changed. onSent(key, stop): the server answered with a stop to show.
 // onDrained(): the queue went empty after sending something (a good moment to reload the route).
 // truckOf(key): the truck id a key belonged to (from the route saved with it), for items saved before truck_id was kept.
-export function createSender({ onChange = () => {}, onSent = () => {}, onDrained = () => {}, onPhotoDropped = () => {}, truckOf = () => null } = {}) {
-  const st = { busy: false, again: false, failures: 0, problem: null, message: '', timer: null, started: false,
-    dead: new Set(), page: { key: '', truckId: null, working: false } }
+export function createSender({
+  onChange = () => {},
+  onSent = () => {},
+  onDrained = () => {},
+  onPhotoDropped = () => {},
+  truckOf = () => null,
+} = {}) {
+  const st = {
+    busy: false,
+    again: false,
+    failures: 0,
+    problem: null,
+    message: '',
+    timer: null,
+    started: false,
+    dead: new Set(),
+    page: { key: '', truckId: null, working: false },
+  }
   const blocked = (item) => st.dead.has(item.key)
 
   // Items under a key the Worker refused move to the page's working key. A check-in may move to any truck (its id makes a resend
@@ -126,7 +158,10 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
         if (!item || item.state === 'rejected' || item.key === page.key || !st.dead.has(item.key)) return { result: false }
         const checkin = item.op === 'checkin' && item.state === 'send'
         if (checkin || (item.truck_id ?? truckOf(item.key)) === page.truckId) {
-          return { item: { ...item, key: page.key, truck_id: page.truckId, rekeyed_from: item.rekeyed_from || item.key, stuck: false }, result: true }
+          return {
+            item: { ...item, key: page.key, truck_id: page.truckId, rekeyed_from: item.rekeyed_from || item.key, stuck: false },
+            result: true,
+          }
         }
         return item.stuck ? { result: false } : { item: { ...item, stuck: true }, result: true }
       })
@@ -151,7 +186,9 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
   async function step(item) {
     if (item.op === 'checkin' && item.state === 'send' && !item.attempted && navigator.onLine !== false) {
       // Written before the POST leaves: from here on the Worker may have it, so an Undo must send a DELETE (clarification 38).
-      const marked = await update(item.qid, (it) => (it && it.state === 'send' ? { item: { ...it, attempted: true }, result: true } : { result: false }))
+      const marked = await update(item.qid, (it) =>
+        it && it.state === 'send' ? { item: { ...it, attempted: true }, result: true } : { result: false },
+      )
       if (!marked) return true // undone or gone meanwhile: the next pass decides
       item = { ...item, attempted: true }
     }
@@ -167,7 +204,11 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       if (again.status >= 500 || again.status === 429) return failed('server', again.data?.error || '')
       if (again.status === 401) {
         st.dead.add(item.key)
-        if (item.key === st.page.key) { st.page.working = false; st.problem = 'unauthorized'; st.message = again.data?.error || '' }
+        if (item.key === st.page.key) {
+          st.page.working = false
+          st.problem = 'unauthorized'
+          st.message = again.data?.error || ''
+        }
         return true
       }
       if (again.status !== 200 && again.status !== 201) {
@@ -182,7 +223,11 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       }
       const stored = again.data?.checkin?.truck_id ?? item.truck_id
       const mine = truckOfKey(item.key)
-      await update(item.qid, (it) => (it ? { item: { ...it, resend: false, truck_id: stored, stuck: stored != null && mine != null && stored !== mine }, result: true } : { result: false }))
+      await update(item.qid, (it) =>
+        it
+          ? { item: { ...it, resend: false, truck_id: stored, stuck: stored != null && mine != null && stored !== mine }, result: true }
+          : { result: false },
+      )
       return true
     }
     let r
@@ -198,7 +243,11 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     if (status === 401) {
       // Only this item's key is dead; the queue goes on. The strip shows the refusal only when it is the page's own key.
       st.dead.add(item.key)
-      if (item.key === st.page.key) { st.page.working = false; st.problem = 'unauthorized'; st.message = data?.error || '' }
+      if (item.key === st.page.key) {
+        st.page.working = false
+        st.problem = 'unauthorized'
+        st.message = data?.error || ''
+      }
       return true
     }
 
@@ -234,8 +283,10 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       // Decide from the item as it is now; the undo replaces the item in the same transaction (clarifications 26 and 50).
       await update(item.qid, (still) => {
         if (!still) return { result: 'gone' } // another tab sent it and removed it: nothing was undone
-        if (still.state === 'undone') return { item: null, also: [voidFor(still, { truckId: stored, stuck: otherTruck })], result: 'undone' }
-        if (item.body.has_photo && still.photo) return { item: { ...still, state: 'photo', truck_id: stored, stuck: otherTruck }, result: 'photo' }
+        if (still.state === 'undone')
+          return { item: null, also: [voidFor(still, { truckId: stored, stuck: otherTruck })], result: 'undone' }
+        if (item.body.has_photo && still.photo)
+          return { item: { ...still, state: 'photo', truck_id: stored, stuck: otherTruck }, result: 'photo' }
         return { item: null, result: 'sent' }
       })
       return true
@@ -245,42 +296,52 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
   }
 
   async function flush() {
-    if (st.busy) { st.again = true; return }
+    if (st.busy) {
+      st.again = true
+      return
+    }
     st.busy = true
     clearTimeout(st.timer)
     let sent = false
     try {
       await withSendLock(async () => {
-      for (;;) {
-        // Undone items (clarification 38): never attempted → leave the phone with no DELETE; attempted (the Worker may have it) → an undo,
-        // whichever sender finds it. Inside the lock where there is one.
-        for (const snapshot of await all()) {
-          if (snapshot.state !== 'undone') continue
-          await update(snapshot.qid, (i) => {
-            if (!i || i.state !== 'undone') return { result: false }
-            const needsUndo = !!i.attempted
-            return { item: null, also: needsUndo ? [voidFor(i, { resend: true, truckId: i.truck_id ?? truckOf(i.key) })] : [], result: true }
-          })
+        for (;;) {
+          // Undone items (clarification 38): never attempted → leave the phone with no DELETE; attempted (the Worker may have it) → an undo,
+          // whichever sender finds it. Inside the lock where there is one.
+          for (const snapshot of await all()) {
+            if (snapshot.state !== 'undone') continue
+            await update(snapshot.qid, (i) => {
+              if (!i || i.state !== 'undone') return { result: false }
+              const needsUndo = !!i.attempted
+              return {
+                item: null,
+                also: needsUndo ? [voidFor(i, { resend: true, truckId: i.truck_id ?? truckOf(i.key) })] : [],
+                result: true,
+              }
+            })
+          }
+          await rekey()
+          const items = pending(await all()).filter((i) => !blocked(i) && !i.stuck && i.state !== 'undone')
+          if (!items.length) {
+            st.failures = 0
+            st.problem = null
+            st.message = ''
+            break
+          }
+          const before = st.failures
+          // Every pending check-in and undo goes before any photo (clarification 51).
+          const go = await step(items.find((i) => i.state !== 'photo') || items[0])
+          if (!go) break
+          sent = true
+          if (st.failures === before) {
+            st.failures = 0
+            if (st.problem !== 'unauthorized') {
+              st.problem = null
+              st.message = ''
+            }
+          }
+          onChange()
         }
-        await rekey()
-        const items = pending(await all()).filter((i) => !blocked(i) && !i.stuck && i.state !== 'undone')
-        if (!items.length) {
-          st.failures = 0
-          st.problem = null
-          st.message = ''
-          break
-        }
-        const before = st.failures
-        // Every pending check-in and undo goes before any photo (clarification 51).
-        const go = await step(items.find((i) => i.state !== 'photo') || items[0])
-        if (!go) break
-        sent = true
-        if (st.failures === before) {
-          st.failures = 0
-          if (st.problem !== 'unauthorized') { st.problem = null; st.message = '' }
-        }
-        onChange()
-      }
       })
     } catch (e) {
       failed('error', e.message)
@@ -291,7 +352,10 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
       onChange()
       if (sent && !left.length) onDrained()
       // A send asked for while this one ran goes now, unless this one just failed: then the backoff timer decides.
-      if (st.again) { st.again = false; if (!st.failures) flush() }
+      if (st.again) {
+        st.again = false
+        if (!st.failures) flush()
+      }
     }
   }
 
@@ -307,8 +371,13 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     if (st.started) return
     st.started = true
     // Signal coming back is news: try at once, and start the backoff over (failures while offline must not delay this).
-    window.addEventListener('online', () => { st.failures = 0; flush() })
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') flush() })
+    window.addEventListener('online', () => {
+      st.failures = 0
+      flush()
+    })
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') flush()
+    })
     flush()
   }
 
@@ -320,7 +389,10 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     st.page = { key, truckId, working }
     if (!working) return
     st.dead.delete(key)
-    if (st.problem === 'unauthorized') { st.problem = null; st.message = '' }
+    if (st.problem === 'unauthorized') {
+      st.problem = null
+      st.message = ''
+    }
     if (news) flush()
   }
 
@@ -329,8 +401,14 @@ export function createSender({ onChange = () => {}, onSent = () => {}, onDrained
     start,
     setPage,
     isDead: (key) => st.dead.has(key),
-    get problem() { return st.problem },
-    get message() { return st.message },
-    get busy() { return st.busy },
+    get problem() {
+      return st.problem
+    },
+    get message() {
+      return st.message
+    },
+    get busy() {
+      return st.busy
+    },
   }
 }

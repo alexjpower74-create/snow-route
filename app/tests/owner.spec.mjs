@@ -25,7 +25,10 @@ test('add a client by typing and tapping the map: it shows in the list and on th
   await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
   await expect(page.locator('#client-list > li')).toHaveCount(25)
   await expect(page.locator('.leaflet-marker-icon.pin-client')).toHaveCount(25)
-  await expect(page.locator('#map .maplibregl-canvas, #map[data-base-map="unavailable"]').first(), 'the base map layer is in place').toBeAttached()
+  await expect(
+    page.locator('#map .maplibregl-canvas, #map[data-base-map="unavailable"]').first(),
+    'the base map layer is in place',
+  ).toBeAttached()
   await shot(page, testInfo, 'owner-clients')
 
   await tap(page, page.locator('#add-client'), 'Add a client')
@@ -66,7 +69,9 @@ test('add a client by typing and tapping the map: it shows in the list and on th
   expect(saved.lng).toBeLessThan(-55.5)
 })
 
-test('start a storm: medical stops first on each truck, the order note, the route on the map with its attribution', async ({ page }, testInfo) => {
+test('start a storm: medical stops first on each truck, the order note, the route on the map with its attribution', async ({
+  page,
+}, testInfo) => {
   await signIn(page)
   await expect(page.getByText('No storm on right now.')).toBeVisible()
   await tap(page, page.locator('#start-storm'), 'Start a storm')
@@ -83,7 +88,10 @@ test('start a storm: medical stops first on each truck, the order note, the rout
   const trucks = page.locator('.truck-stops')
   await expect(trucks).toHaveCount(2)
   for (let i = 0; i < 2; i++) {
-    const priorities = await trucks.nth(i).locator('.stop-row').evaluateAll((rows) => rows.map((r) => r.dataset.priority))
+    const priorities = await trucks
+      .nth(i)
+      .locator('.stop-row')
+      .evaluateAll((rows) => rows.map((r) => r.dataset.priority))
     const lastMedical = priorities.lastIndexOf('medical')
     const firstOther = priorities.findIndex((p) => p !== 'medical')
     expect(priorities[0], `truck ${i + 1}: stop 1 is medical`).toBe('medical')
@@ -131,11 +139,14 @@ test('a storm started on another screen: Build shows the running storm with the 
 
 test('price input: .50 and 45. are prices; 4.5.0 is refused on the form without sending', async ({ page, request }) => {
   const puts = []
-  page.on('request', (r) => { if (r.method() === 'PUT' && r.url().includes('/api/owner/clients/')) puts.push(r.url()) })
+  page.on('request', (r) => {
+    if (r.method() === 'PUT' && r.url().includes('/api/owner/clients/')) puts.push(r.url())
+  })
   await signIn(page)
   await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
   const token = await ownerToken(request)
-  const priceOf = async (name) => (await api(request, 'GET', '/api/owner/clients', { token })).body.clients.find((c) => c.name === name).price_cents
+  const priceOf = async (name) =>
+    (await api(request, 'GET', '/api/owner/clients', { token })).body.clients.find((c) => c.name === name).price_cents
   const setPrice = async (text) => {
     await tap(page, page.getByRole('button', { name: 'Edit Alex (SAMPLE)' }), 'Edit Alex')
     await tap(page, page.locator('#f-price'), 'Price')
@@ -159,7 +170,10 @@ test('price input: .50 and 45. are prices; 4.5.0 is refused on the form without 
   expect(puts).toHaveLength(2)
 })
 
-test('at 1280 the map stays on screen while the long route list scrolls, and the Clients map explains its pin colours @desktop', async ({ page, request }) => {
+test('at 1280 the map stays on screen while the long route list scrolls, and the Clients map explains its pin colours @desktop', async ({
+  page,
+  request,
+}) => {
   await startStorm(request, await ownerToken(request))
   await signIn(page)
   await expect(page.locator('.route-pin')).toHaveCount(25)
@@ -185,8 +199,14 @@ test('at 1280 the map stays on screen while the long route list scrolls, and the
   await expect(legend).toContainText('Client')
   await expect(legend).toContainText('Medical client (goes first)')
   await expect(legend).toContainText('Yard')
-  const medical = await page.locator('.leaflet-marker-icon.pin-client.is-medical').first().evaluate((el) => getComputedStyle(el).backgroundColor)
-  const plainPin = await page.locator('.leaflet-marker-icon.pin-client:not(.is-medical)').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  const medical = await page
+    .locator('.leaflet-marker-icon.pin-client.is-medical')
+    .first()
+    .evaluate((el) => getComputedStyle(el).backgroundColor)
+  const plainPin = await page
+    .locator('.leaflet-marker-icon.pin-client:not(.is-medical)')
+    .first()
+    .evaluate((el) => getComputedStyle(el).backgroundColor)
   expect(medical, 'medical pins use the text token').toBe('rgb(238, 243, 251)')
   expect(plainPin, 'client pins use the accent token').toBe('rgb(124, 196, 255)')
   const legendMedical = await legend.locator('.legend-dot.is-medical').evaluate((el) => getComputedStyle(el).backgroundColor)
@@ -195,18 +215,29 @@ test('at 1280 the map stays on screen while the long route list scrolls, and the
 
 // Onyx's polish review: both trucks' pins looked alike, so two "1"s and two "7"s could not be told apart without following faint lines.
 // Each truck's pins now carry its ring colour AND a shape of its own (colour is never the only cue), matching its legend entry.
-test("each route pin shows its truck: its own shape and ring colour, the same as its legend entry", async ({ page, request }) => {
+test('each route pin shows its truck: its own shape and ring colour, the same as its legend entry', async ({ page, request }) => {
   await startStorm(request, await ownerToken(request))
   await signIn(page)
   await expect(page.locator('.route-pin')).toHaveCount(25)
-  const styleOf = (el) => { const s = getComputedStyle(el); return `${s.borderTopColor} | ${s.borderTopLeftRadius} | ${s.borderTopStyle}` }
+  const styleOf = (el) => {
+    const s = getComputedStyle(el)
+    return `${s.borderTopColor} | ${s.borderTopLeftRadius} | ${s.borderTopStyle}`
+  }
   const trucks = page.locator('.truck-stops')
   const legendLooks = []
   for (const n of [1, 2]) {
-    const stops = await trucks.nth(n - 1).locator('.stop-row').count()
+    const stops = await trucks
+      .nth(n - 1)
+      .locator('.stop-row')
+      .count()
     const pins = page.locator(`.route-pin span[data-truck="${n}"]`)
     await expect(pins, `truck ${n}: one pin per stop`).toHaveCount(stops)
-    const pinLooks = await pins.evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return `${s.borderTopColor} | ${s.borderTopLeftRadius} | ${s.borderTopStyle}` }))
+    const pinLooks = await pins.evaluateAll((els) =>
+      els.map((el) => {
+        const s = getComputedStyle(el)
+        return `${s.borderTopColor} | ${s.borderTopLeftRadius} | ${s.borderTopStyle}`
+      }),
+    )
     expect(new Set(pinLooks).size, `truck ${n}: every pin of the truck looks the same`).toBe(1)
     const entry = page.locator(`.legend-truck[data-truck="${n}"]`)
     await expect(entry).toContainText(/: (round|square|dashed-ring) pins, (blue|white|grey) line$/)
@@ -222,13 +253,21 @@ test("each route pin shows its truck: its own shape and ring colour, the same as
 
 // OpenFreeMap requires "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" on the map (DECISIONS 62). The style URL is the Worker's one
 // config value (API.md 54); the fixture answers it locally, so this test never touches the internet.
-test('the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names', async ({ page, request, guarded }) => {
+test('the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names', async ({
+  page,
+  request,
+  guarded,
+}) => {
   await signIn(page)
   await tap(page, page.getByRole('link', { name: 'Clients' }), 'Clients tab')
   const attribution = page.locator('#map .leaflet-control-attribution')
   await expect(attribution).toBeVisible()
   await expect(attribution).toContainText('OpenFreeMap © OpenMapTiles Data from OpenStreetMap')
-  for (const [name, href] of [['OpenFreeMap', 'https://openfreemap.org'], ['© OpenMapTiles', 'https://www.openmaptiles.org/'], ['OpenStreetMap', 'https://www.openstreetmap.org/copyright']]) {
+  for (const [name, href] of [
+    ['OpenFreeMap', 'https://openfreemap.org'],
+    ['© OpenMapTiles', 'https://www.openmaptiles.org/'],
+    ['OpenStreetMap', 'https://www.openstreetmap.org/copyright'],
+  ]) {
     const link = attribution.getByRole('link', { name, exact: true })
     await expect(link, `${name} link`).toHaveAttribute('href', href)
     await link.scrollIntoViewIfNeeded()

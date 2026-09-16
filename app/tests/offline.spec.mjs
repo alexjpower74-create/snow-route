@@ -12,7 +12,8 @@ import { test, expect, tap, ownerToken, startStorm, ownerStorm, dbCheckins, choo
 const T = Date.parse('2026-09-14T09:00:00.000Z') // Mon Sep 14, 6:30 AM NDT
 const MIN = 60_000
 const iso = (ms) => new Date(ms).toISOString()
-const WEBKIT_REASON = "webkit: Playwright's WebKit cannot read a chosen file while the context is offline, so no signal is simulated by failing every /api request with the service worker blocked; an offline reload would not exercise the service worker, so that step runs in Chromium only"
+const WEBKIT_REASON =
+  "webkit: Playwright's WebKit cannot read a chosen file while the context is offline, so no signal is simulated by failing every /api request with the service worker blocked; an offline reload would not exercise the service worker, so that step runs in Chromium only"
 
 test.use({ serviceWorkers: async ({ browserName }, use) => use(browserName === 'webkit' ? 'block' : 'allow') })
 
@@ -54,12 +55,20 @@ async function twoCheckinsOffline(page, truck, { photo }) {
   return [s1, s2]
 }
 
-test('no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped', async ({ page, context, request, seed, browserName }) => {
+test('no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped', async ({
+  page,
+  context,
+  request,
+  seed,
+  browserName,
+}) => {
   const webkit = browserName === 'webkit'
   const { token, storm, truck } = await driverOnline(page, context, request, seed, 'fixed', { worker: !webkit })
   await noSignal(page, context, browserName)
   const [s1, s2] = await twoCheckinsOffline(page, truck, { photo: true })
-  await expect(page.locator('#sync-text')).toHaveText(/^No signal\. 2 check-ins saved on this phone\. They send when signal comes back and keep the time you tapped\.$/)
+  await expect(page.locator('#sync-text')).toHaveText(
+    /^No signal\. 2 check-ins saved on this phone\. They send when signal comes back and keep the time you tapped\.$/,
+  )
   await expect(page.locator('.row-status', { hasText: 'saved on this phone' })).toHaveCount(2)
   expect(await dbCheckins(request, storm.id), 'nothing reached the server while offline').toHaveLength(0)
 
@@ -82,7 +91,10 @@ test('no signal: 2 check-ins saved, survive a reload, and send later with the ti
 
   const rows = await dbCheckins(request, storm.id)
   expect(rows, 'both check-ins reached the database').toHaveLength(2)
-  for (const [stop, kind] of [[s1, 'plowed'], [s2, 'skipped']]) {
+  for (const [stop, kind] of [
+    [s1, 'plowed'],
+    [s2, 'skipped'],
+  ]) {
     const row = rows.find((r) => r.client_id === stop.client_id)
     expect(row?.kind, `${stop.name} is ${kind}`).toBe(kind)
     expect(row.at, `${stop.name}: at is the time the driver tapped, not the sync time`).toBe(iso(T))
@@ -109,7 +121,11 @@ test.describe(() => {
     await page.route('**/api/driver/checkins', async (route) => {
       posts += 1
       if (posts === 1) {
-        return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' }) })
+        return route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Something went wrong on our side. Try again in a minute.', code: 'server_error' }),
+        })
       }
       return route.continue()
     })

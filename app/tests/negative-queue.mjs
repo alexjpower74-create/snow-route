@@ -3,11 +3,16 @@
 import path from 'node:path'
 import { control, replaceOnce } from './negative-lib.mjs'
 
-process.exit(control({
-  name: 'queue',
-  what: "queue.js removes the item from IndexedDB before sending it, so it is gone whatever the server says",
-  args: ['offline.spec.mjs', '--project', 'chromium-390', '-g', 'no signal: 2 check-ins saved'],
-  breakIt: (copy) => replaceOnce(path.join(copy, 'app', 'public', 'd', 'queue.js'),
-    '    let r\n    try {\n',
-    '    let r\n    await remove(item.qid) // NEGATIVE CONTROL (a): removed before the server answers\n    try {\n'),
-}))
+process.exit(
+  control({
+    name: 'queue',
+    what: 'queue.js removes the item from IndexedDB before sending it, so it is gone whatever the server says',
+    args: ['offline.spec.mjs', '--project', 'chromium-390', '-g', 'no signal: 2 check-ins saved'],
+    breakIt: (copy) =>
+      replaceOnce(
+        path.join(copy, 'app', 'public', 'd', 'queue.js'),
+        '    let r\n    try {\n',
+        '    let r\n    await remove(item.qid) // NEGATIVE CONTROL (a): removed before the server answers\n    try {\n',
+      ),
+  }),
+)

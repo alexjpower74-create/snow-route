@@ -6,5 +6,5 @@ await runControl({
   tests: ['billing: a voided check-in never bills'],
   api: true,
   breaks: [{ file: 'src/billing.js', find: '  if (checkin.voided_at) return false\n', replace: '' }],
-  describe: 'billing counts an undone check-in'
+  describe: 'billing counts an undone check-in',
 })

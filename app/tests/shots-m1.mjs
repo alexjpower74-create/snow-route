@@ -27,12 +27,21 @@ let failures = 0
 const notes = []
 
 /* ---- server ------------------------------------------------------------- */
-const up = async () => { try { return (await fetch(BASE + '/d/')).status === 200 } catch { return false } }
+const up = async () => {
+  try {
+    return (await fetch(BASE + '/d/')).status === 200
+  } catch {
+    return false
+  }
+}
 let server = null
 if (!(await up())) {
   server = spawn(process.execPath, ['serve.mjs', String(PORT)], { cwd: APP, stdio: 'ignore', env: process.env })
   for (let i = 0; i < 50 && !(await up()); i++) await new Promise((r) => setTimeout(r, 100))
-  if (!(await up())) { console.error(`FAIL could not start serve.mjs on ${PORT}`); process.exit(1) }
+  if (!(await up())) {
+    console.error(`FAIL could not start serve.mjs on ${PORT}`)
+    process.exit(1)
+  }
 }
 const at = (p) => `${BASE}${p}${p.includes('?') ? '&' : '?'}mock=1`
 
@@ -50,14 +59,24 @@ function png(width, height) {
     }
   }
   const chunk = (type, data) => {
-    const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
     const body = Buffer.concat([Buffer.from(type), data])
-    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body))
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(crc32(body))
     return Buffer.concat([len, body, crc])
   }
   const ihdr = Buffer.alloc(13)
-  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 2
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8
+  ihdr[9] = 2
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
 }
 const PHOTO = { name: 'plowed-sample.png', mimeType: 'image/png', buffer: png(1200, 900) }
 
@@ -76,10 +95,13 @@ async function tap(page, loc, label, touch) {
   const box = await loc.boundingBox()
   const x = box.x + box.width / 2
   const y = box.y + box.height / 2
-  const hit = await loc.evaluate((el, [px, py]) => {
-    const t = document.elementFromPoint(px, py)
-    return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 140) : 'nothing'
-  }, [x, y])
+  const hit = await loc.evaluate(
+    (el, [px, py]) => {
+      const t = document.elementFromPoint(px, py)
+      return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 140) : 'nothing'
+    },
+    [x, y],
+  )
   if (hit) {
     failures++
     console.log(`  FAIL tap(${label}) hit-test: centre ${Math.round(x)},${Math.round(y)} lands on ${hit}`)
@@ -91,16 +113,26 @@ async function tap(page, loc, label, touch) {
 
 async function big(loc, label) {
   const box = await loc.boundingBox()
-  check(`${label} is at least 56 x 56 px`, box && box.height >= 56 && box.width >= 56, box ? `${Math.round(box.width)} x ${Math.round(box.height)}` : 'no box')
+  check(
+    `${label} is at least 56 x 56 px`,
+    box && box.height >= 56 && box.width >= 56,
+    box ? `${Math.round(box.width)} x ${Math.round(box.height)}` : 'no box',
+  )
 }
 
 const text = (page, sel) => page.locator(sel).innerText()
 const see = (page, t) => page.getByText(t, { exact: false }).first().waitFor({ state: 'visible', timeout: T })
 async function waitText(page, sel, re) {
   try {
-    await page.waitForFunction(([s, src]) => new RegExp(src).test(document.querySelector(s)?.innerText || ''), [sel, re.source], { timeout: T })
+    await page.waitForFunction(([s, src]) => new RegExp(src).test(document.querySelector(s)?.innerText || ''), [sel, re.source], {
+      timeout: T,
+    })
   } catch {
-    const got = await page.locator(sel).first().innerText({ timeout: 1000 }).catch(() => '(missing)')
+    const got = await page
+      .locator(sel)
+      .first()
+      .innerText({ timeout: 1000 })
+      .catch(() => '(missing)')
     check(`${sel} matches ${re}`, false, `after ${T} ms it says: ${got}`)
   }
 }
@@ -147,10 +179,18 @@ const scenarios = {
       : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`
     check(`Navigate goes to ${apple ? 'Apple' : 'Google'} Maps with the encoded address`, href === want, href)
     check('Navigate opens in a new tab', (await page.locator('#navigate').getAttribute('target')) === '_blank')
-    for (const [sel, label] of [['#navigate', 'Navigate'], ['#plowed', 'Plowed'], ['#plowed-nophoto', 'Plowed, no photo'], ['#skip', 'Skip this stop']]) {
+    for (const [sel, label] of [
+      ['#navigate', 'Navigate'],
+      ['#plowed', 'Plowed'],
+      ['#plowed-nophoto', 'Plowed, no photo'],
+      ['#skip', 'Skip this stop'],
+    ]) {
       await big(page.locator(sel), label)
     }
-    check('Plowed wraps a camera file input', (await page.locator('#plowed input[type=file][accept="image/*"][capture=environment]').count()) === 1)
+    check(
+      'Plowed wraps a camera file input',
+      (await page.locator('#plowed input[type=file][accept="image/*"][capture=environment]').count()) === 1,
+    )
     await page.locator('#sync-text', { hasText: 'All sent' }).waitFor({ timeout: T })
     check('sync strip says All sent', true)
     await noSideScroll(page, size)
@@ -204,7 +244,11 @@ const scenarios = {
     check('Plowed now shows the skipped stop', (await page.locator('.eyebrow').textContent()) === 'Back at a skipped stop')
     await tap(page, page.locator('#plowed-nophoto'), 'Plowed, no photo', touch)
     await waitText(page, '#counter', /^Stop 4 of 13$/)
-    await page.locator('.stop-row').nth(2).locator('.row-status', { hasText: /^Plowed / }).waitFor({ timeout: T })
+    await page
+      .locator('.stop-row')
+      .nth(2)
+      .locator('.row-status', { hasText: /^Plowed / })
+      .waitFor({ timeout: T })
     check('a skipped stop can be plowed later', true)
   },
 
@@ -222,7 +266,8 @@ const scenarios = {
     const chooser = page.waitForEvent('filechooser', { timeout: T })
     await tap(page, page.locator('#plowed'), 'Plowed (offline)', touch)
     await (await chooser).setFiles(PHOTO)
-    await page.waitForFunction((c) => document.querySelector('#counter')?.innerText !== c, first, { timeout: T })
+    await page
+      .waitForFunction((c) => document.querySelector('#counter')?.innerText !== c, first, { timeout: T })
       .catch(() => check('offline Plowed is kept on the phone and the next stop shows', false, `counter still says ${first}`))
     await page.waitForTimeout(800)
     await tap(page, page.locator('#skip'), 'Skip this stop (offline)', touch)
@@ -252,7 +297,12 @@ const scenarios = {
     // The saved copy paints first; wait until the route came from the server, or this check reads the phone, not the server.
     await page.locator('.strip-note').waitFor({ state: 'detached', timeout: T })
     const statuses = await page.locator('.row-status').allInnerTexts()
-    check('both check-ins are on the server after sync', statuses.filter((s) => /^Plowed |^Skipped: Car in the way$/.test(s)).length === 4 && !statuses.some((s) => s.includes('saved on this phone')), statuses.slice(0, 4).join(' | '))
+    check(
+      'both check-ins are on the server after sync',
+      statuses.filter((s) => /^Plowed |^Skipped: Car in the way$/.test(s)).length === 4 &&
+        !statuses.some((s) => s.includes('saved on this phone')),
+      statuses.slice(0, 4).join(' | '),
+    )
   },
 
   async nostorm(page, { size, shot }) {
@@ -281,7 +331,11 @@ const scenarios = {
     await page.locator('#answer').waitFor({ timeout: T })
     await badge(page)
     check('plowed answer', /^Plowed at \d{1,2}:\d{2} [AP]M$/.test(await text(page, '#answer')), await text(page, '#answer'))
-    await page.waitForFunction(() => document.querySelector('#photo')?.complete && document.querySelector('#photo').naturalWidth > 0, null, { timeout: T })
+    await page.waitForFunction(
+      () => document.querySelector('#photo')?.complete && document.querySelector('#photo').naturalWidth > 0,
+      null,
+      { timeout: T },
+    )
     check('photo loads', true)
     await noSideScroll(page, size)
     await shot('status-plowed')
@@ -303,23 +357,43 @@ for (const engine of ENGINES) {
   const browser = await (engine === 'webkit' ? webkit : chromium).launch()
   for (const size of [390, 1280]) {
     const touch = size === 390
-    const device = size === 390
-      ? engine === 'webkit' ? { ...devices['iPhone 14'] } : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
-      : { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }
+    const device =
+      size === 390
+        ? engine === 'webkit'
+          ? { ...devices['iPhone 14'] }
+          : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+        : { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }
     for (const [name, fn] of Object.entries(scenarios)) {
       if (only && !only.split(',').includes(name)) continue
       console.log(`mock ${engine}-${size} ${name}`)
       const context = await browser.newContext(device)
       // Nothing may leave 127.0.0.1.
       const outside = []
-      await context.route((url) => url.hostname !== '127.0.0.1', (route) => { outside.push(route.request().url()); return route.abort() })
+      await context.route(
+        (url) => url.hostname !== '127.0.0.1',
+        (route) => {
+          outside.push(route.request().url())
+          return route.abort()
+        },
+      )
       const page = await context.newPage()
       const errors = []
       page.on('pageerror', (e) => errors.push(e.message))
       const shot = async (file) => {
         if (!SHOTS || engine !== 'chromium') return
-        await page.evaluate(() => window.scrollY === 0 || new Promise((r) => { window.scrollTo(0, 0); requestAnimationFrame(() => r(true)) }))
-        await page.screenshot({ path: path.join(APP, 'tests', 'shots', `${file}-${size}.png`), fullPage: !file.includes('sheet'), animations: 'disabled' }) // a sheet is fixed: show the screen a person sees
+        await page.evaluate(
+          () =>
+            window.scrollY === 0 ||
+            new Promise((r) => {
+              window.scrollTo(0, 0)
+              requestAnimationFrame(() => r(true))
+            }),
+        )
+        await page.screenshot({
+          path: path.join(APP, 'tests', 'shots', `${file}-${size}.png`),
+          fullPage: !file.includes('sheet'),
+          animations: 'disabled',
+        }) // a sheet is fixed: show the screen a person sees
       }
       try {
         await fn(page, { touch, size, shot, engine, context })

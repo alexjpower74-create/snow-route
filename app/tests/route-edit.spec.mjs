@@ -11,13 +11,19 @@ async function stormWithout(request, token, leaveOut) {
   const clients = (await api(request, 'GET', '/api/owner/clients', { token })).body.clients
   const trucks = (await api(request, 'GET', '/api/owner/trucks', { token })).body.trucks
   const r = await api(request, 'POST', '/api/owner/storms', {
-    token, data: { client_ids: clients.filter((c) => c.name !== leaveOut).map((c) => c.id), truck_ids: trucks.map((t) => t.id) },
+    token,
+    data: { client_ids: clients.filter((c) => c.name !== leaveOut).map((c) => c.id), truck_ids: trucks.map((t) => t.id) },
   })
   expect(r.status).toBe(201)
   return { storm: r.body, left: clients.find((c) => c.name === leaveOut) }
 }
 
-test('a real mouse drag of stop 3 above stop 1 saves the order; it stays after a reload and the driver sees it @desktop', async ({ page, context, request, seed }) => {
+test('a real mouse drag of stop 3 above stop 1 saves the order; it stays after a reload and the driver sees it @desktop', async ({
+  page,
+  context,
+  request,
+  seed,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
@@ -50,7 +56,12 @@ test('a real mouse drag of stop 3 above stop 1 saves the order; it stays after a
   await expect(driver.locator('#stop-name'), 'the driver sees the dragged stop first').toHaveText(names[2])
 })
 
-test('Move up, Move down, and Move to the other truck; the other driver sees the moved stop @phone', async ({ page, context, request, seed }) => {
+test('Move up, Move down, and Move to the other truck; the other driver sees the moved stop @phone', async ({
+  page,
+  context,
+  request,
+  seed,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const [t1, t2] = storm.trucks
@@ -68,14 +79,20 @@ test('Move up, Move down, and Move to the other truck; the other driver sees the
   expect(await orderOf(request, token, storm.id, t1.id)).toEqual(names)
 
   const moving = names[3]
-  await tap(page, rowsOf(page, t1.id).nth(3).getByRole('button', { name: `Move to ${t2.name}` }), `Move to ${t2.name}`)
+  await tap(
+    page,
+    rowsOf(page, t1.id)
+      .nth(3)
+      .getByRole('button', { name: `Move to ${t2.name}` }),
+    `Move to ${t2.name}`,
+  )
   await expect(rowsOf(page, t1.id)).toHaveCount(names.length - 1)
   await expect(rowsOf(page, t2.id).last().locator('.row-name')).toHaveText(moving)
   expect((await orderOf(request, token, storm.id, t2.id)).at(-1)).toBe(moving)
 
   const other = await context.newPage()
   await other.goto(`/d/?k=${seed.trucks.find((t) => t.id === t2.id).driver_key}`)
-  await expect(other.locator('.stop-row .row-name').last(), 'the other truck\'s driver has the stop last').toHaveText(moving)
+  await expect(other.locator('.stop-row .row-name').last(), "the other truck's driver has the stop last").toHaveText(moving)
   const first = await context.newPage()
   await first.goto(`/d/?k=${seed.trucks.find((t) => t.id === t1.id).driver_key}`)
   await expect(first.locator('.stop-row')).toHaveCount(names.length - 1)
@@ -89,7 +106,10 @@ test('a route changed on another screen: the move is refused, the page reloads t
   await signIn(page)
   await expect(rowsOf(page, truck.id)).toHaveCount(truck.stops.length)
 
-  const added = await api(request, 'POST', `/api/owner/storms/${storm.id}/stops`, { token, data: { client_id: left.id, truck_id: truck.id } })
+  const added = await api(request, 'POST', `/api/owner/storms/${storm.id}/stops`, {
+    token,
+    data: { client_id: left.id, truck_id: truck.id },
+  })
   expect(added.status, 'a stop added from another screen').toBe(200)
 
   const answer = page.waitForResponse((r) => r.url().endsWith(`/api/owner/storms/${storm.id}/route`) && r.request().method() === 'PUT')
@@ -118,19 +138,29 @@ test('Add a stop puts the client at the end of the chosen truck', async ({ page,
   expect((await orderOf(request, token, storm.id, t2.id)).at(-1)).toBe(left.name)
 })
 
-test('Remove from tonight: only on stops with no check-ins, behind a confirm; a check-in that lands first keeps the stop, with the message on it', async ({ page, context, request, seed }) => {
+test('Remove from tonight: only on stops with no check-ins, behind a confirm; a check-in that lands first keeps the stop, with the message on it', async ({
+  page,
+  context,
+  request,
+  seed,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
   const key = seed.trucks.find((t) => t.id === truck.id).driver_key
   const [s1, s2, s3] = truck.stops
-  const checkin = (id, client, kind, extra = {}) => api(request, 'POST', '/api/driver/checkins', { headers: { 'X-Driver-Key': key },
-    data: { id, storm_id: storm.id, client_id: client, kind, note: '', at: new Date().toISOString(), has_photo: false, ...extra } })
+  const checkin = (id, client, kind, extra = {}) =>
+    api(request, 'POST', '/api/driver/checkins', {
+      headers: { 'X-Driver-Key': key },
+      data: { id, storm_id: storm.id, client_id: client, kind, note: '', at: new Date().toISOString(), has_photo: false, ...extra },
+    })
   expect((await checkin('44444444-4444-4444-8444-444444444444', s1.client_id, 'plowed')).status).toBe(201)
 
   await signIn(page)
   const row = (c) => page.locator(`.owner-stops li[data-client-id="${c}"]`)
-  await expect(row(s1.client_id).getByRole('button', { name: 'Remove from tonight' }), 'a stop with a check-in has no Remove').toHaveCount(0)
+  await expect(row(s1.client_id).getByRole('button', { name: 'Remove from tonight' }), 'a stop with a check-in has no Remove').toHaveCount(
+    0,
+  )
 
   await tap(page, row(s2.client_id).getByRole('button', { name: 'Remove from tonight' }), 'Remove from tonight (stop 2)')
   await expect(row(s2.client_id)).toContainText(`Take ${s2.name} off tonight's route?`)
@@ -157,7 +187,10 @@ test('Remove from tonight: only on stops with no check-ins, behind a confirm; a 
   await expect(row(s3.client_id).getByRole('button', { name: 'Remove from tonight' }), 'reloaded: it has a check-in now').toHaveCount(0)
 })
 
-test("the 30 s refresh never paints an older route over a Move made while it was on its way; the next Move is 200, not 409", async ({ page, request }) => {
+test('the 30 s refresh never paints an older route over a Move made while it was on its way; the next Move is 200, not 409', async ({
+  page,
+  request,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
@@ -169,8 +202,12 @@ test("the 30 s refresh never paints an older route over a Move made while it was
   // The refresh GET is answered by the Worker at once (the old route) and handed to the page only when released.
   let answered
   let release
-  const gotOld = new Promise((r) => { answered = r })
-  const held = new Promise((r) => { release = r })
+  const gotOld = new Promise((r) => {
+    answered = r
+  })
+  const held = new Promise((r) => {
+    release = r
+  })
   await page.route('**/api/owner/storms/current', async (route) => {
     const response = await route.fetch()
     answered()
@@ -196,24 +233,40 @@ test("the 30 s refresh never paints an older route over a Move made while it was
   await expect.poll(() => orderOf(request, token, storm.id, truck.id)).toEqual(names)
 })
 
-test('Remove follows the office: none on a stop whose only check-in was undone; a stop already removed on another screen (404) reloads the route and says so', async ({ page, request, seed }) => {
+test('Remove follows the office: none on a stop whose only check-in was undone; a stop already removed on another screen (404) reloads the route and says so', async ({
+  page,
+  request,
+  seed,
+}) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
   const key = seed.trucks.find((t) => t.id === truck.id).driver_key
   const [s1, s2] = truck.stops
   const id = '77777777-7777-4777-8777-777777777777'
-  expect((await api(request, 'POST', '/api/driver/checkins', { headers: { 'X-Driver-Key': key },
-    data: { id, storm_id: storm.id, client_id: s1.client_id, kind: 'plowed', note: '', at: new Date().toISOString(), has_photo: false } })).status).toBe(201)
+  expect(
+    (
+      await api(request, 'POST', '/api/driver/checkins', {
+        headers: { 'X-Driver-Key': key },
+        data: { id, storm_id: storm.id, client_id: s1.client_id, kind: 'plowed', note: '', at: new Date().toISOString(), has_photo: false },
+      })
+    ).status,
+  ).toBe(201)
   expect((await api(request, 'DELETE', `/api/driver/checkins/${id}`, { headers: { 'X-Driver-Key': key } })).status).toBe(200)
 
   await signIn(page)
   const row = (c) => page.locator(`.owner-stops li[data-client-id="${c}"]`)
   await expect(row(s1.client_id)).toHaveCount(1)
-  await expect(row(s1.client_id).getByRole('button', { name: 'Remove from tonight' }), 'an undone check-in is still a record: removable is false').toHaveCount(0)
+  await expect(
+    row(s1.client_id).getByRole('button', { name: 'Remove from tonight' }),
+    'an undone check-in is still a record: removable is false',
+  ).toHaveCount(0)
 
   await tap(page, row(s2.client_id).getByRole('button', { name: 'Remove from tonight' }), 'Remove from tonight (stop 2)')
-  expect((await api(request, 'DELETE', `/api/owner/storms/${storm.id}/stops/${s2.client_id}`, { token })).status, 'removed on another screen').toBe(200)
+  expect(
+    (await api(request, 'DELETE', `/api/owner/storms/${storm.id}/stops/${s2.client_id}`, { token })).status,
+    'removed on another screen',
+  ).toBe(200)
   const answer = page.waitForResponse((r) => r.url().endsWith(`/stops/${s2.client_id}`) && r.request().method() === 'DELETE')
   await tap(page, row(s2.client_id).getByRole('button', { name: 'Yes, remove it' }), 'Yes, remove it')
   const refused = await answer

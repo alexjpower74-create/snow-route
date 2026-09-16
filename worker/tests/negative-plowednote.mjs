@@ -6,6 +6,8 @@ await runControl({
   testFile: 'tests/api.test.mjs',
   tests: ['check-ins: a plowed check-in stores no note and no reason'],
   api: true,
-  breaks: [{ file: 'src/index.js', find: "const note = plowed || body.note === undefined", replace: "const note = body.note === undefined" }],
-  describe: "a plowed check-in keeps the body's note"
+  breaks: [
+    { file: 'src/index.js', find: 'const note = plowed || body.note === undefined', replace: 'const note = body.note === undefined' },
+  ],
+  describe: "a plowed check-in keeps the body's note",
 })

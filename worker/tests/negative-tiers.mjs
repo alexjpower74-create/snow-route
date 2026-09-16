@@ -4,6 +4,12 @@ await runControl({
   title: 'negative:tiers',
   testFile: 'tests/route.test.mjs',
   tests: ['tiers'],
-  breaks: [{ file: 'src/route.js', find: 'for (const s of stops) tiers[tierOf(s.priority)].push(s)', replace: 'for (const s of stops) tiers[2].push(s)' }],
-  describe: 'priority is ignored when ordering'
+  breaks: [
+    {
+      file: 'src/route.js',
+      find: 'for (const s of stops) tiers[tierOf(s.priority)].push(s)',
+      replace: 'for (const s of stops) tiers[2].push(s)',
+    },
+  ],
+  describe: 'priority is ignored when ordering',
 })

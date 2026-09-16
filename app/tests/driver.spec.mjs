@@ -2,7 +2,11 @@
 // owner then sees, and Undo of a check-in the server already has.
 import { test, expect, tap, ownerToken, startStorm, ownerStorm, dbCheckins, choosePhoto, shot } from './helpers.mjs'
 
-test('driver link: Stop 1 is medical, Navigate, Plowed with a photo, Skip → Gate locked, and the owner sees both', async ({ page, request, seed }, testInfo) => {
+test('driver link: Stop 1 is medical, Navigate, Plowed with a photo, Skip → Gate locked, and the owner sees both', async ({
+  page,
+  request,
+  seed,
+}, testInfo) => {
   const token = await ownerToken(request)
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
@@ -18,9 +22,10 @@ test('driver link: Stop 1 is medical, Navigate, Plowed with a photo, Skip → Ga
   await expect(page.locator('#stop-address')).toHaveText(s1.address)
   const apple = testInfo.project.name === 'webkit-390'
   const enc = encodeURIComponent(s1.address)
-  await expect(page.locator('#navigate')).toHaveAttribute('href', apple
-    ? `https://maps.apple.com/?daddr=${enc}&dirflg=d`
-    : `https://www.google.com/maps/dir/?api=1&destination=${enc}`)
+  await expect(page.locator('#navigate')).toHaveAttribute(
+    'href',
+    apple ? `https://maps.apple.com/?daddr=${enc}&dirflg=d` : `https://www.google.com/maps/dir/?api=1&destination=${enc}`,
+  )
   await expect(page.locator('#navigate')).toHaveAttribute('target', '_blank')
   await expect(page.locator('#sync-text')).toHaveText('All sent')
   await shot(page, testInfo, 'driver-stop-1')
@@ -67,7 +72,9 @@ test('Undo on a check-in the server already has puts the stop back to pending', 
   await tap(page, page.locator('#undo-btn'), 'Undo')
   await expect(page.locator('#stop-name')).toHaveText(s1.name)
   await expect(page.locator('#sync-text')).toHaveText('All sent')
-  const stop = (await ownerStorm(request, token, storm.id)).trucks.find((t) => t.id === truck.id).stops.find((s) => s.client_id === s1.client_id)
+  const stop = (await ownerStorm(request, token, storm.id)).trucks
+    .find((t) => t.id === truck.id)
+    .stops.find((s) => s.client_id === s1.client_id)
   expect(stop.status).toBe('pending')
   const rows = await dbCheckins(request, storm.id)
   expect(rows).toHaveLength(1)
