@@ -146,7 +146,7 @@ export async function seedDemo(env, origin, nowMs) {
   for (const p of plan) {
     const started = nowMs - p.startsAgo
     const checkins = []
-    route.forEach((t, ti) =>
+    route.forEach((t, ti) => {
       t.stops.forEach((s, i) => {
         if (p.active) {
           if (i > 5) return
@@ -158,8 +158,8 @@ export async function seedDemo(env, origin, nowMs) {
           const skip = p.skip[0] === ti && p.skip[1] === i
           checkins.push({ t, s, at, kind: skip ? 'skipped' : 'plowed', reason: skip ? 'car' : null, photo: skip ? null : 'stored' })
         }
-      }),
-    )
+      })
+    })
     const last = Math.max(started, ...checkins.map((k) => k.at))
     const storm = await db
       .prepare('INSERT INTO storms (name, started_at, ended_at) VALUES (?1, ?2, ?3) RETURNING id')
@@ -168,13 +168,13 @@ export async function seedDemo(env, origin, nowMs) {
     const stmts = []
     for (const t of route) {
       stmts.push(db.prepare('INSERT INTO storm_trucks (storm_id, truck_id) VALUES (?1, ?2)').bind(storm.id, t.truck_id))
-      t.stops.forEach((s, i) =>
+      t.stops.forEach((s, i) => {
         stmts.push(
           db
             .prepare('INSERT INTO storm_stops (storm_id, client_id, truck_id, position) VALUES (?1, ?2, ?3, ?4)')
             .bind(storm.id, s.client_id, t.truck_id, i + 1),
-        ),
-      )
+        )
+      })
     }
     const puts = []
     for (const k of checkins) {

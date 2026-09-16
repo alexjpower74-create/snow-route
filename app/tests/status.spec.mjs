@@ -11,7 +11,7 @@ test('waiting says the same stop number as the driver list; after the plow: Plow
   const storm = await startStorm(request, token)
   const truck = storm.trucks[0]
   const key = seed.trucks.find((t) => t.id === truck.id).driver_key
-  const [s1, s2] = truck.stops
+  const [, s2] = truck.stops
   const client = seed.clients.find((c) => c.id === s2.client_id)
 
   await page.clock.install()

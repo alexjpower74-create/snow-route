@@ -15,7 +15,8 @@
       "!**/tests/results",
       "!**/package-lock.json",
       "!**/.wrangler",
-      "!**/data/sources"
+      "!**/data/sources",
+      "!**/worker/src/sample-data.js"
     ]
   },
   "formatter": {
@@ -30,7 +31,8 @@
       "semicolons": "asNeeded",
       "trailingCommas": "all",
       "arrowParentheses": "always"
-    }
+    },
+    "globals": ["L"]
   },
   "linter": {
     "enabled": true,

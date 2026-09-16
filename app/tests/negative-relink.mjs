@@ -14,7 +14,11 @@ process.exit(
         `    if (status === 401) {
       // Only this item's key is dead; the queue goes on. The strip shows the refusal only when it is the page's own key.
       st.dead.add(item.key)
-      if (item.key === st.page.key) { st.page.working = false; st.problem = 'unauthorized'; st.message = data?.error || '' }
+      if (item.key === st.page.key) {
+        st.page.working = false
+        st.problem = 'unauthorized'
+        st.message = data?.error || ''
+      }
       return true
     }
 `,

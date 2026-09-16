@@ -12,8 +12,8 @@ process.exit(
     breakIt: (copy) => {
       replaceOnce(
         path.join(copy, 'app', 'public', 'owner', 'owner.js'),
-        'const ATTRIBUTION = \'<a href="https://openfreemap.org"',
-        "const ATTRIBUTION = '' // NEGATIVE CONTROL (n)\nconst ATTRIBUTION_UNUSED = '<a href=\"https://openfreemap.org\"",
+        'const ATTRIBUTION =\n  \'<a href="https://openfreemap.org"',
+        "const ATTRIBUTION = '' // NEGATIVE CONTROL (n)\nconst ATTRIBUTION_UNUSED =\n  '<a href=\"https://openfreemap.org\"",
       )
     },
   }),

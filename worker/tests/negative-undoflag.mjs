@@ -9,8 +9,8 @@ await runControl({
   breaks: [
     {
       file: 'src/index.js',
-      find: 'has_photo: body.has_photo, undo: body.undo === true }',
-      replace: 'has_photo: body.has_photo, undo: false }',
+      find: 'has_photo: body.has_photo,\n    undo: body.undo === true,',
+      replace: 'has_photo: body.has_photo,\n    undo: false,',
     },
   ],
   describe: 'the undo flag is ignored and the re-send stores a live push',

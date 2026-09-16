@@ -19,8 +19,13 @@ process.exit(
       )
       replaceOnce(
         path.join(copy, 'app', 'public', 'style.css'),
-        '.actions { display: grid; gap: var(--gap); margin-top: 22px; }',
-        `.actions { display: grid; gap: var(--gap); margin-top: 22px; position: relative; }
+        '.actions {\n  display: grid;\n  gap: var(--gap);\n  margin-top: 22px;\n}',
+        `.actions {
+  display: grid;
+  gap: var(--gap);
+  margin-top: 22px;
+  position: relative;
+}
 /* NEGATIVE CONTROL (c): transparent, over the Plowed button (the second row of .actions) */
 .negative-overlay { position: absolute; left: 0; right: 0; top: calc(var(--action) + var(--gap)); height: var(--action); background: transparent; z-index: 5; }`,
       )
