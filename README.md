@@ -3,8 +3,9 @@
 Routes, check-ins and billing for a small snow-clearing contractor in Newfoundland: the client list, tonight's route in order,
 a big Plowed button with a photo at each stop that works with no signal, a status link for each client, and a month-end push count for the accountant.
 
-> Overnight build 2026-09-14. **Going live 2026-09-15:** the D1 database is created and migrated; the Worker deploy waits on R2 being
-> enabled on the Cloudflare account (`docs/DEPLOY.md`). Everything on screen is SAMPLE data.
+> Overnight build 2026-09-14. **Local only (Alexander's call 2026-09-15):** not deployed. It needs R2 for plow photos and he does not
+> want R2 enabled on the account right now. The D1 database `snow-route` exists and is migrated; `docs/DEPLOY.md` has the rest for
+> when he wants it. Everything on screen is SAMPLE data.
 
 ## Run it locally
 
