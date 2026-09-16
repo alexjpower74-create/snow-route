@@ -1,7 +1,17 @@
-# Deploying Snow Route (not done: waits for Alexander)
+# Deploying Snow Route
 
-Nothing in this build has been deployed. Everything below is what a deploy would need, written down so it can be done in one
-sitting when Alexander says so. One deployment = one contractor (DECISIONS.md 1).
+**Status 2026-09-15 (Alexander's go):** the D1 database `snow-route` exists (id `87f52876-573a-46d9-9eae-be6f7797e4b8`, in
+`worker/wrangler.toml`) and all three migrations are applied remotely. **Not yet live:** the R2 bucket could not be created because R2 is
+not enabled on the Cloudflare account (API code 10042, "enable R2 through the Cloudflare Dashboard"); the Worker binds `PHOTOS` to that
+bucket, so `wrangler deploy` waits on it. Remaining steps, in order, once R2 is enabled in the dashboard:
+
+1. `cd worker && npx wrangler r2 bucket create snow-route-photos`
+2. `npx wrangler deploy` → the app and API at `https://snow-route.<account>.workers.dev`
+3. Smoke-test: `curl https://<host>/api/company` answers JSON; `curl -X POST https://<host>/api/test/reset` answers 404.
+4. SAMPLE demo data for the live demo: the seed only exists behind `TEST_MODE`, so deploy once with `--var TEST_MODE:1`, POST
+   `/api/test/seed` with `{"scenario":"demo"}`, then deploy again without the var and re-run step 3 (the 404 proves test mode is off).
+
+One deployment = one contractor (DECISIONS.md 1).
 
 ## What gets created
 

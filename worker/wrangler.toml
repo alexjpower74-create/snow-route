@@ -11,7 +11,7 @@ run_worker_first = ["/api/*"]
 binding = "DB"
 database_name = "snow-route"
 # Placeholder for local dev. A real deploy replaces this with the id from `wrangler d1 create` (see docs/DEPLOY.md).
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "87f52876-573a-46d9-9eae-be6f7797e4b8"
 migrations_dir = "migrations"
 
 [[r2_buckets]]

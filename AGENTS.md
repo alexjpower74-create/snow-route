@@ -19,7 +19,8 @@ Read PLAN.md first (the Rig contract), then docs/API.md (the contract between sl
 
 ## Rules that bite here
 
-- **Local only.** `wrangler dev --local`. No `wrangler deploy`, `secret put`, `d1 create`, `r2 bucket create`, `--remote`, Pages or DNS.
+- **Deploys only when Alexander says so (he did on 2026-09-15).** Development stays on `wrangler dev --local`; `docs/DEPLOY.md` has the live ids and
+  the remaining steps. The repo is public: run `check-no-personal-data` before every push.
 - **Nothing is sent.** No SMS, email or Slack; messages to clients are "copy this text" buttons.
 - **SAMPLE on every screen.** The company is "SAMPLE Snow Clearing — Grand Falls-Windsor (demo)". Client names are SAMPLE.
   Streets are real, house numbers are deliberately absent.

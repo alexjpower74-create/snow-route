@@ -3,7 +3,8 @@
 Routes, check-ins and billing for a small snow-clearing contractor in Newfoundland: the client list, tonight's route in order,
 a big Plowed button with a photo at each stop that works with no signal, a status link for each client, and a month-end push count for the accountant.
 
-> Overnight build 2026-09-14. **Local only: nothing is deployed.** Everything on screen is SAMPLE data.
+> Overnight build 2026-09-14. **Going live 2026-09-15:** the D1 database is created and migrated; the Worker deploy waits on R2 being
+> enabled on the Cloudflare account (`docs/DEPLOY.md`). Everything on screen is SAMPLE data.
 
 ## Run it locally
 
@@ -82,7 +83,7 @@ Final pinned QA at `31630e6` before that round, one run, nothing re-run to get g
 
 ## What deploying needs
 
-Nothing is deployed. Full steps in `docs/DEPLOY.md`. In short: D1 database `snow-route`, R2 bucket `snow-route-photos`, the Worker
+Full steps and current status in `docs/DEPLOY.md`. In short: D1 database `snow-route`, R2 bucket `snow-route-photos`, the Worker
 `snow-route` (serves the app too), migrations applied remotely. **No secrets, no cron.** Never set `TEST_MODE`. HTTPS is required on the
 phones (camera + offline). Before a real contractor: change PIN 2468, rename the company (the SAMPLE badge goes away), set the yard.
 Optional custom domain.
