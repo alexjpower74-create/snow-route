@@ -2874,3 +2874,231 @@ Running 1 test using 1 worker
     [chromium-1280] › tests/owner.spec.mjs:225:1 › the map shows OpenFreeMap attribution, linked and uncovered, and loads the style the Worker names 
 
 
+== 2026-09-16T04:34:40.060Z queue: queue.js removes the item from IndexedDB before sending it, so it is gone whatever the server says
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: 2 check-ins saved on 7606, copy in app/.negative/queue
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped (1.6s) |   1 passed (5.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#stop-name')
+    Expected: "Jordan (SAMPLE)"
+    Received: "SAMPLE Clinic walkway"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#stop-name') with timeout 10000ms
+      - waiting for locator('#stop-name')
+        24 × locator resolved to <h1 id="stop-name" class="stop-name">SAMPLE Clinic walkway</h1>
+           - unexpected value "SAMPLE Clinic walkway"
+
+
+      51 |   await tap(page, page.locator('#skip'), 'Skip this stop (no signal)')
+      52 |   await tap(page, page.getByRole('button', { name: 'Car in the way', exact: true }), 'Car in the way')
+    > 53 |   await expect(page.locator('#stop-name')).toHaveText(s3.name)
+         |                                            ^
+      54 |   return [s1, s2]
+      55 | }
+      56 |
+        at twoCheckinsOffline (<repo>/app/tests/offline.spec.mjs:53:44)
+        at <repo>/app/tests/offline.spec.mjs:61:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+
+== 2026-09-16T04:35:01.125Z time: queue.js sets body.at to the phone clock at send time
+   spec: playwright test offline.spec.mjs --project chromium-390 -g no signal: 2 check-ins saved on 7606, copy in app/.negative/time
+   unbroken copy:   ✓  1 [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped (1.6s) |   1 passed (5.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+    Error: SAMPLE Clinic walkway: at is the time the driver tapped, not the sync time
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-09-14T09:00:00.000Z"
+    Received: "2026-09-14T09:40:00.000Z"
+
+      86 |     const row = rows.find((r) => r.client_id === stop.client_id)
+      87 |     expect(row?.kind, `${stop.name} is ${kind}`).toBe(kind)
+    > 88 |     expect(row.at, `${stop.name}: at is the time the driver tapped, not the sync time`).toBe(iso(T))
+         |                                                                                         ^
+      89 |     expect(row.at_adjusted).toBe(0)
+      90 |     expect(row.received_at, 'received when signal came back').toBe(iso(T + 40 * MIN))
+      91 |   }
+        at <repo>/app/tests/offline.spec.mjs:88:89
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/offline-no-signal-2-check--1f21d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/offline.spec.mjs:57:1 › no signal: 2 check-ins saved, survive a reload, and send later with the time the driver tapped 
+
+
+== 2026-09-16T04:35:12.465Z overlay: a transparent, full-size element sits on top of the Plowed button
+   spec: playwright test targets.spec.mjs --project chromium-390 -g every driver button on 7606, copy in app/.negative/overlay
+   unbroken copy:   ✓  1 [chromium-390] › tests/targets.spec.mjs:13:1 › every driver button is at least 56 px and hit-tests to itself at 390 @phone (1.9s) |   1 passed (5.5s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/targets.spec.mjs:13:1 › every driver button is at least 56 px and hit-tests to itself at 390 @phone 
+
+    Error: Plowed: hit-tests to itself
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: ""
+    Received: "<div class=\"negative-overlay\" aria-hidden=\"true\"></div>"
+
+       8 |   expect(box.height, `${label}: at least 56 px tall`).toBeGreaterThanOrEqual(56)
+       9 |   expect(box.width, `${label}: at least 56 px wide`).toBeGreaterThanOrEqual(56)
+    > 10 |   expect(hit, `${label}: hit-tests to itself`).toBe('')
+         |                                                ^
+      11 | }
+      12 |
+      13 | test('every driver button is at least 56 px and hit-tests to itself at 390 @phone', async ({ page, request, seed }) => {
+        at bigAndOnTop (<repo>/app/tests/targets.spec.mjs:10:48)
+        at <repo>/app/tests/targets.spec.mjs:20:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/targets-every-driver-butto-ae9d8-ests-to-itself-at-390-phone-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/targets.spec.mjs:13:1 › every driver button is at least 56 px and hit-tests to itself at 390 @phone 
+
+
+== 2026-09-16T04:35:22.778Z relink: queue.js stops the whole queue on a 401 (no dead key, no re-keying), as in M1
+   spec: playwright test queue.spec.mjs --project chromium-390 -g a truck link reset on 7606, copy in app/.negative/relink
+   unbroken copy:   ✓  1 [chromium-390] › tests/queue.spec.mjs:27:1 › a truck link reset while check-ins wait: the new link sends them, with the time the driver tapped (1.6s) |   1 passed (5.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/queue.spec.mjs:27:1 › a truck link reset while check-ins wait: the new link sends them, with the time the driver tapped 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#sync-text')
+    Expected: "All sent"
+    Received: "This driver link doesn't work any more. Ask the owner for a new one. 2 items still saved on this phone."
+    Timeout:  30000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#sync-text') with timeout 30000ms
+      - waiting for locator('#sync-text')
+        - locator resolved to <span id="sync-text" class="strip-text">Sending 2 check-ins…</span>
+        - unexpected value "Sending 2 check-ins…"
+        63 × locator resolved to <span id="sync-text" class="strip-text">This driver link doesn't work any more. Ask the o…</span>
+           - unexpected value "This driver link doesn't work any more. Ask the owner for a new one. 2 items still saved on this phone."
+
+
+      68 |
+      69 |   release()
+    > 70 |   await expect(page.locator('#sync-text')).toHaveText('All sent', { timeout: 30_000 })
+         |                                            ^
+      71 |   await expect(oldLink).toHaveCount(0)
+      72 |   expect(keysSent, 'sent with the new link').toContain(newKey)
+      73 |
+        at <repo>/app/tests/queue.spec.mjs:70:44
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/queue-a-truck-link-reset-w-e097d--the-time-the-driver-tapped-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-390] › tests/queue.spec.mjs:27:1 › a truck link reset while check-ins wait: the new link sends them, with the time the driver tapped 
+
+
+== 2026-09-16T04:36:03.982Z billing: owner.js shows pushes as the number of storm stops for the client, not the API row
+   spec: playwright test billing.spec.mjs --project chromium-390 on 7606, copy in app/.negative/billing
+   unbroken copy:   ✓  1 [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table (3.7s) |   1 passed (8.2s)
+   broken copy: exit 1 -> RED as expected: the check is wired
+  1) [chromium-390] › tests/billing.spec.mjs:31:1 › billing: two pushes with amounts and HST, the skipped seasonal client with no push, the note, and the CSV matches the table 
+
+    Error: Taylor (SAMPLE): pushes
+
+    expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#billing-table tbody tr[data-client-id="10"]').locator('[data-col="pushes"]')
+    Expected: "0"
+    Received: "1"
+    Timeout:  10000ms
+
+    Call log:
+      - Taylor (SAMPLE): pushes locator('#billing-table tbody tr[data-client-id="10"]').locator('[data-col="pushes"]') with timeout 10000ms
+      - waiting for locator('#billing-table tbody tr[data-client-id="10"]').locator('[data-col="pushes"]')
+        24 × locator resolved to <td class="cell-num" data-col="pushes">1</td>
+           - unexpected value "1"
+
+
+      116 |     await expect(tr.locator('.row-name')).toHaveText(r.name)
+      117 |     await expect(tr.locator('[data-col="billing"]')).toHaveText(r.billing_label)
+    > 118 |     await expect(tr.locator('[data-col="pushes"]'), `${r.name}: pushes`).toHaveText(String(r.pushes))
+          |                                                                          ^
+      119 |     await expect(tr.locator('[data-col="dates"]')).toHaveText(r.dates.map(dayLabel).join(', ') || '—')
+      120 |     await expect(tr.locator('[data-col="price"]')).toHaveText(money(r.price_cents))
+      121 |     await expect(tr.locator('[data-col="amount"]')).toHaveText(money(r.amount_cents))
+        at <repo>/app/tests/billing.spec.mjs:118:74
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/results/billing-billing-two-pushes-30a5c-d-the-CSV-matches-the-table-chromium-390/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
